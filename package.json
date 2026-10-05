@@ -1,7 +1,7 @@
 {
-  "name": "eye-tracking-studio",
-  "version": "2.0.0",
-  "description": "Nhập một đường link, mở trang đó và thu thập tương tác của người dùng (ánh mắt qua webcam, chuột, click, cuộn) kèm heatmap báo cáo.",
+  "name": "heatmap-app",
+  "version": "3.0.0",
+  "description": "Heatmap: enter a link (website, local HTML file or Figma prototype) and record where people look (webcam), move, click and scroll, with heatmaps, replay and charts.",
   "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
@@ -20,11 +20,11 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3"
   },
-  "productName": "Eye Tracking Studio",
-  "author": "Eye Tracking Studio",
+  "productName": "Heatmap",
+  "author": "Heatmap",
   "build": {
-    "appId": "com.eyetracking.studio",
-    "productName": "Eye Tracking Studio",
+    "appId": "com.heatmap.desktop",
+    "productName": "Heatmap",
     "files": [
       "server.js",
       "public/**",
@@ -49,12 +49,13 @@
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSCameraUsageDescription": "Eye Tracking Studio dùng webcam để ước lượng vị trí ánh mắt trên trang đang được test. Hình ảnh không rời khỏi máy."
-      }
+        "NSCameraUsageDescription": "Heatmap uses the webcam to estimate where you look on the page being tested. Video never leaves this Mac."
+      },
+      "icon": "build/icon.png"
     },
     "dmg": {
-      "title": "Eye Tracking Studio ${version}",
-      "artifactName": "Eye-Tracking-Studio-${version}-${arch}.dmg"
+      "title": "Heatmap ${version}",
+      "artifactName": "Heatmap-${version}-${arch}.dmg"
     },
     "extraResources": [
       {

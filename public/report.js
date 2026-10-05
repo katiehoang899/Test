@@ -42,7 +42,7 @@ function maxOf(list, f = (v) => v, init = 0) {
 
 function fmtDuration(ms) {
   const s = Math.round(ms / 1000);
-  return s >= 60 ? `${Math.floor(s / 60)}p ${s % 60}s` : `${s}s`;
+  return s >= 60 ? `${Math.floor(s / 60)}${I18N.lang === 'vi' ? 'p' : 'm'} ${s % 60}s` : `${s}s`;
 }
 
 // ---------- tải dữ liệu ----------
@@ -410,19 +410,21 @@ function renderStats() {
   const calib = d[0].session.calibration;
 
   const rows = [
-    ['Số phiên', d.length],
-    ['Thời gian trên trang', fmtDuration(time)],
-    ['Khung nhìn', `${state.view.vw}×${state.view.vh}`],
-    ['Mẫu ánh mắt', gazeN],
-    ['Số điểm dừng mắt', fixN],
-    ['Thời gian dừng TB', fixN ? Math.round(fixDur / fixN) + 'ms' : '—'],
-    ['Ánh mắt trên màn hình đầu', gazeN ? Math.round((aboveFold / gazeN) * 100) + '%' : '—'],
-    ['Thời điểm nhìn đầu tiên', firstFix && d[0].visits[0] ? (Math.max(0, firstFix.t - d[0].visits[0].start) / 1000).toFixed(1) + 's' : '—'],
-    ['Số click', sum((s) => s.click.length)],
-    ['Độ sâu cuộn tối đa', Math.round(maxDepth) + '%'],
-    ['Độ chính xác hiệu chỉnh', calib && calib.accuracy != null ? Math.round(calib.accuracy) + '%' : '—'],
+    ['stat.sessions', d.length],
+    ['stat.time', fmtDuration(time)],
+    ['stat.viewport', `${state.view.vw}×${state.view.vh}`],
+    ['stat.gaze', gazeN, true],
+    ['stat.fixations', fixN, true],
+    ['stat.fix_avg', fixN ? Math.round(fixDur / fixN) + 'ms' : '—', true],
+    ['stat.above_fold', gazeN ? Math.round((aboveFold / gazeN) * 100) + '%' : '—', true],
+    ['stat.first_fix', firstFix && d[0].visits[0] ? (Math.max(0, firstFix.t - d[0].visits[0].start) / 1000).toFixed(1) + 's' : '—'],
+    ['stat.clicks', sum((s) => s.click.length)],
+    ['stat.depth', Math.round(maxDepth) + '%'],
+    ['stat.accuracy', calib && calib.accuracy != null ? Math.round(calib.accuracy) + '%' : '—', true],
   ];
-  $('#stats').innerHTML = rows.map(([k, v]) => `<div class="stat"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+  $('#stats').innerHTML = rows
+    .map(([k, v, eye]) => `<div class="stat${eye ? ' eye-only' : ''}"><span>${esc(t(k))}</span><b>${esc(v)}</b></div>`)
+    .join('');
 
   const groups = new Map();
   for (const c of d.flatMap((s) => s.click)) {
@@ -435,7 +437,7 @@ function renderStats() {
   const top = [...groups.values()].sort((a, b) => b.n - a.n).slice(0, 10);
   $('#topClicks').innerHTML = top.length
     ? top.map((g) => `<li><b>${g.n}×</b> ${esc(g.text ? `"${g.text.slice(0, 60)}"` : '')} <span class="muted">${esc(g.key)}</span></li>`).join('')
-    : '<li class="muted" style="list-style: none; margin-left: -18px">Chưa có click nào.</li>';
+    : `<li class="muted" style="list-style: none; margin-left: -18px">${esc(t('report.no_clicks'))}</li>`;
 }
 
 // ---------- khung trang & phát lại ----------
@@ -514,7 +516,13 @@ function createIframeView() {
       win = null;
       if (/^file:/i.test(url)) {
         // Trình duyệt không cho trang web mở file trên máy → chỉ vẽ heatmap trên nền trống.
-        frame.srcdoc = '<p style="font:14px system-ui;color:#667085;padding:24px">Nền trang <b>file://</b> chỉ hiển thị trong app desktop. Heatmap vẫn đúng vị trí.</p>';
+        frame.srcdoc = `<p style="font:14px system-ui;color:#667085;padding:24px">${t('report.file_web')}</p>`;
+        return;
+      }
+      if (/^https:\/\/(www\.)?figma\.com\//i.test(url)) {
+        // Figma ở bản web: nhúng bằng Figma Embed (khác origin, không cuộn).
+        frame.removeAttribute('srcdoc');
+        frame.src = 'https://www.figma.com/embed?embed_host=heatmap&url=' + encodeURIComponent(url);
         return;
       }
       frame.removeAttribute('srcdoc');
@@ -582,13 +590,13 @@ function tick(now) {
 
 function stopPlay() {
   state.playing = false;
-  $('#play').textContent = '▶ Phát lại';
+  $('#play').textContent = t('report.play');
 }
 
 $('#play').addEventListener('click', () => {
   if (state.playing) return stopPlay();
   state.playing = true;
-  $('#play').textContent = '❚❚ Dừng';
+  $('#play').textContent = t('report.pause');
   playFrom = Number.isFinite(state.time) ? state.time : state.timeRange[0];
   playStart = performance.now();
   requestAnimationFrame(tick);
@@ -603,7 +611,7 @@ function fillPageSelect() {
   }
   if (!counts.size) counts.set(state.primary.url, 0);
   const sel = $('#pageSelect');
-  sel.innerHTML = [...counts].map(([p, n]) => `<option value="${esc(p)}">${esc(p)} (${n} lượt)</option>`).join('');
+  sel.innerHTML = [...counts].map(([p, n]) => `<option value="${esc(p)}">${esc(shortPage(p))} (${esc(t(n === 1 ? 'report.view_one' : 'report.views', { n }))})</option>`).join('');
   if (state.page && counts.has(state.page)) sel.value = state.page;
   state.page = sel.value;
 }
@@ -614,6 +622,7 @@ function showPage() {
   layoutStage();
   updateTimeline();
   renderStats();
+  renderCharts();
   loadFrame();
   redraw();
 }
@@ -629,35 +638,160 @@ $('#merge').addEventListener('change', async () => {
   showPage();
 });
 
+function renderRangeLabels() {
+  $('#radiusLabel').textContent = t('report.radius', { n: $('#radius').value });
+  $('#opacityLabel').textContent = t('report.opacity', { n: $('#opacity').value });
+}
+
 for (const id of ['#layer', '#radius', '#opacity', '#showClicks']) {
   $(id).addEventListener('input', () => {
-    $('#radiusVal').textContent = $('#radius').value;
-    $('#opacityVal').textContent = $('#opacity').value;
+    renderRangeLabels();
     redraw();
   });
 }
 
+let resizeTimer = null;
 window.addEventListener('resize', () => {
   if (!state.view) return;
   layoutStage();
   redraw();
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(renderCharts, 150);
 });
 
+// Đổi ngôn ngữ ngay trên trang báo cáo.
+document.querySelectorAll('.lang-switch button').forEach((b) => b.addEventListener('click', () => I18N.save({ language: b.dataset.lang })));
+document.addEventListener('i18n:change', (e) => {
+  document.querySelectorAll('.lang-switch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === e.detail.language)));
+  document.title = t('report.title') + ' — Heatmap';
+  renderRangeLabels();
+  if (!state.primary) return;
+  renderHeader();
+  fillPageSelect();
+  renderStats();
+  renderCharts();
+  $('#play').textContent = state.playing ? t('report.pause') : t('report.play');
+});
+
+// ---------- biểu đồ ----------
+
+/** Tên ngắn của một trang để làm nhãn biểu đồ (URL đầy đủ nằm trong tooltip và bảng). */
+function shortPage(url) {
+  try {
+    const u = new URL(url);
+    if (/(^|\.)figma\.com$/.test(u.hostname)) return 'Figma ' + (u.searchParams.get('node-id') || u.pathname.split('/')[3] || '');
+    if (u.protocol === 'file:') return decodeURIComponent(u.pathname.split('/').pop() || u.pathname);
+    const path = decodeURIComponent(u.pathname + u.search);
+    return path === '/' ? u.host : path;
+  } catch {
+    return url;
+  }
+}
+
+/** Bước gộp thời gian "đẹp" để biểu đồ có khoảng ≤ 40 điểm. */
+function bucketSeconds(durationS) {
+  return [1, 2, 5, 10, 15, 30, 60, 120, 300].find((b) => durationS / b <= 40) || 600;
+}
+
+function renderCharts() {
+  const box = $('#charts');
+  if (!box || !state.data) return;
+  box.replaceChildren();
+  const hasGaze = state.sessions.some((s) => s.eyeTracking) && state.data.some((s) => s.gaze.length);
+  const kind = hasGaze ? 'gaze' : 'move';
+
+  // 1. Mức chú ý theo thời gian trên trang đang xem
+  const perSession = state.data.map((s) => ({ list: s[kind], start: s.events.length ? s.events[0].t : 0, end: s.events.length ? s.events[s.events.length - 1].t : 0 }));
+  const durationS = Math.max(1, ...perSession.map((p) => (p.end - p.start) / 1000));
+  const step = bucketSeconds(durationS);
+  const buckets = new Array(Math.floor(durationS / step) + 1).fill(0);
+  for (const p of perSession) {
+    for (const e of p.list) {
+      const b = Math.floor((e.t - p.start) / 1000 / step);
+      if (b >= 0 && b < buckets.length) buckets[b]++;
+    }
+  }
+  Charts.line(box, {
+    title: t('chart.attention'),
+    subtitle: t(kind === 'gaze' ? 'chart.attention_gaze' : 'chart.attention_move', { s: step }),
+    points: buckets.map((y, i) => ({ x: i * step, y })),
+    xLabel: (x) => fmtDuration(x * 1000),
+    yLabel: (y) => t('chart.samples', { n: Charts.fmtNum(y) }),
+    tableLabel: t('chart.table'),
+    headers: [t('chart.col_time'), t('chart.col_value')],
+    emptyText: t('chart.empty'),
+  });
+
+  // 2. Mức chú ý theo độ sâu trang (10 dải theo chiều cao trang)
+  const dh = state.view.dh || 1;
+  const bands = new Array(10).fill(0);
+  let total = 0;
+  for (const s of state.data) {
+    for (const e of s[kind]) {
+      bands[Math.min(9, Math.max(0, Math.floor((e.y / dh) * 10)))]++;
+      total++;
+    }
+  }
+  Charts.hbar(box, {
+    title: t('chart.depth'),
+    subtitle: t(kind === 'gaze' ? 'chart.depth_gaze' : 'chart.depth_move'),
+    rows: bands.map((v, i) => ({ label: `${i * 10}–${(i + 1) * 10}%`, value: total ? (v / total) * 100 : 0 })),
+    keepZero: true,
+    valueLabel: (v) => t('chart.share', { n: v > 0 && v < 1 ? v.toFixed(1) : Math.round(v) }),
+    tableLabel: t('chart.table'),
+    headers: [t('chart.col_band'), t('chart.col_value')],
+    emptyText: t('chart.empty'),
+  });
+
+  // 3 & 4. Thời gian và số click trên từng trang (toàn phiên)
+  const timeByPage = new Map();
+  const clicksByPage = new Map();
+  for (const s of state.sessions) {
+    for (const v of visits(s.events)) timeByPage.set(v.page, (timeByPage.get(v.page) || 0) + (v.end - v.start) / 1000);
+    for (const e of s.events) if (e.type === 'click' && e.page) clicksByPage.set(e.page, (clicksByPage.get(e.page) || 0) + 1);
+  }
+  const pageRows = (m) => [...m].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([p, v]) => ({ label: shortPage(p), full: p, value: v }));
+  Charts.hbar(box, {
+    title: t('chart.time_pages'),
+    subtitle: t('chart.time_pages_sub'),
+    rows: pageRows(timeByPage),
+    valueLabel: (v) => fmtDuration(v * 1000),
+    tableLabel: t('chart.table'),
+    headers: [t('chart.col_page'), t('chart.col_value')],
+    emptyText: t('chart.empty'),
+  });
+  Charts.hbar(box, {
+    title: t('chart.clicks_pages'),
+    subtitle: t('chart.clicks_pages_sub'),
+    rows: pageRows(clicksByPage),
+    valueLabel: (v) => t(v === 1 ? 'chart.click_one' : 'chart.clicks', { n: v }),
+    tableLabel: t('chart.table'),
+    headers: [t('chart.col_page'), t('chart.col_value')],
+    emptyText: t('chart.empty'),
+  });
+}
+
+function renderHeader() {
+  const p = state.primary;
+  $('#sessionUrl').textContent = `${p.url} — ${p.participant || t('common.anonymous')} — ${new Date(p.createdAt).toLocaleString(I18N.locale())}`;
+}
+
 async function init() {
-  $('#radiusVal').textContent = $('#radius').value;
-  $('#opacityVal').textContent = $('#opacity').value;
+  await I18N.load();
+  renderRangeLabels();
   if (!/^[a-f0-9]{16}$/.test(sessionId || '')) {
-    document.querySelector('main').innerHTML = '<div class="card">Thiếu mã phiên. <a href="/__et/">Quay lại</a></div>';
+    document.querySelector('main').innerHTML = `<div class="card">${esc(t('report.missing_id'))} <a href="/__et/">${esc(t('common.back_home'))}</a></div>`;
     return;
   }
   try {
     state.primary = await getJson('/__et/api/sessions/' + sessionId);
   } catch (err) {
-    document.querySelector('main').innerHTML = `<div class="card">Không tải được phiên: ${esc(err.message)}</div>`;
+    document.querySelector('main').innerHTML = `<div class="card">${esc(t('report.load_failed', { msg: err.message }))}</div>`;
     return;
   }
   const p = state.primary;
-  $('#sessionUrl').textContent = `${p.url} — ${p.participant || 'ẩn danh'} — ${new Date(p.createdAt).toLocaleString('vi-VN')}`;
+  renderHeader();
+  if (!p.eyeTracking) document.body.classList.add('no-eye');
   $('#exportJson').href = `/__et/api/sessions/${p.id}/export?format=json`;
   $('#exportCsv').href = `/__et/api/sessions/${p.id}/export?format=csv`;
   if (!p.eyeTracking) $('#layer').value = 'move';

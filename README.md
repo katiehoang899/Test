@@ -1,12 +1,26 @@
-# Eye Tracking Studio
+# Heatmap
 
-Công cụ web cho phép **nhập một đường link**, mở trang đó cho người dùng duyệt và **thu thập tương tác** của họ trên trang:
+<img src="public/logo.svg" width="72" alt="Heatmap logo">
+
+Công cụ cho phép **nhập một đường link** (website, file HTML trên máy, hoặc **prototype Figma**), mở trang đó cho người dùng duyệt và **thu thập tương tác** của họ trên trang:
 
 - 👁 **Ánh mắt** qua webcam (dùng [WebGazer.js](https://webgazer.cs.brown.edu/), chạy hoàn toàn trên trình duyệt, không gửi hình ảnh camera đi đâu)
 - 🖱 Di chuột, click (kèm phần tử được click), focus vào ô nhập liệu (không ghi nội dung gõ)
 - 📜 Cuộn trang, kích thước khung nhìn, các trang đã chuyển tới
 
-Sau phiên test có trang **báo cáo**: heatmap ánh mắt / chuột / click, scanpath (chuỗi điểm dừng mắt), phát lại theo thời gian, thống kê và xuất JSON/CSV. Có thể gộp nhiều phiên cùng một link để xem heatmap tổng hợp.
+Sau phiên test có trang **báo cáo**: heatmap ánh mắt / chuột / click, scanpath (chuỗi điểm dừng mắt), phát lại theo thời gian, thống kê, **biểu đồ** và xuất JSON/CSV. Có thể gộp nhiều phiên cùng một link để xem heatmap tổng hợp.
+
+### Có gì mới ở Heatmap 3.0
+
+- **Tên & logo mới**, là app độc lập với "Eye Tracking Tool" và "Eye Tracking Studio" (khác mã ứng dụng `com.heatmap.desktop`, khác thư mục dữ liệu `~/Library/Application Support/Heatmap`), cài song song không ảnh hưởng nhau.
+- **Song ngữ English / Tiếng Việt**, mặc định English. Đổi bằng nút **EN | VI** trên header (trang chủ và báo cáo) hoặc trong **⚙ Settings**. Menu của app desktop cũng đổi theo.
+- **Settings → Webcam eye tracking**: bật/tắt toàn bộ tính năng eye tracking bằng webcam. Khi tắt, tuỳ chọn webcam bị ẩn, phiên mới chỉ ghi chuột/click/cuộn, khung camera và các chỉ số ánh mắt cũng được ẩn (app không hỏi quyền camera).
+- **2 tab nhập link test**:
+  - *Website / file*: link http(s) hoặc file HTML trên máy (`file:///…`, chỉ app desktop).
+  - *Figma prototype*: dán link prototype Figma (`https://www.figma.com/proto/…`; link `/design/…` cũng được, sẽ tự chuyển sang chế độ prototype, ẩn thanh công cụ Figma và co vừa khung). Mỗi màn hình (`node-id`) được ghi thành một trang riêng trong báo cáo.
+- **Biểu đồ trong báo cáo**: *Attention over time* (mức chú ý theo thời gian), *Attention by page depth* (tỉ lệ chú ý theo từng phần mười chiều cao trang), *Time on each page*, *Clicks on each page*. Có tooltip khi rê chuột/focus bàn phím và bảng số liệu cho từng biểu đồ.
+
+**Figma — lưu ý:** trong **app desktop**, prototype chạy trong trình duyệt thật nên ghi đủ ánh mắt, chuột, click và từng màn hình; có thể đăng nhập Figma ngay trong khung trình duyệt để xem file riêng tư. Ở **bản web**, Figma được nhúng bằng Figma Embed (khác origin) nên chỉ ghi được ánh mắt và việc chuyển màn hình (khi Figma gửi sự kiện), không ghi được chuột/click bên trong.
 
 ## Chạy
 
@@ -32,14 +46,14 @@ Biến môi trường:
 
 ## Ứng dụng macOS (.dmg)
 
-Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Eye Tracking Studio/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
+Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Heatmap/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
 
-> **Eye Tracking Studio 2.0** là app độc lập với bản cũ "Eye Tracking Tool" (1.0): khác mã ứng dụng (`com.eyetracking.studio`), khác thư mục dữ liệu, nên cài song song được và không ghi đè hay dùng chung dữ liệu với bản cũ. Muốn gỡ bản cũ: xoá "Eye Tracking Tool.app" trong Applications (dữ liệu cũ nằm ở `~/Library/Application Support/Eye Tracking Tool`).
+> **Heatmap 3.0** độc lập với các bản trước ("Eye Tracking Tool" 1.0, "Eye Tracking Studio" 2.0): khác mã ứng dụng, khác thư mục dữ liệu, nên cài song song được và không ghi đè hay dùng chung dữ liệu. Muốn gỡ bản cũ: xoá app đó trong Applications (dữ liệu cũ nằm ở `~/Library/Application Support/<tên app cũ>`).
 
 **Tải bản build sẵn:** mỗi lần push, GitHub Actions (workflow `Build macOS app (.dmg)`) build file `.dmg` trên máy macOS và đính kèm ở mục *Artifacts* của lần chạy:
 
-- `Eye-Tracking-Studio-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
-- `Eye-Tracking-Studio-<version>-x64.dmg` cho Mac chip Intel
+- `Heatmap-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
+- `Heatmap-<version>-x64.dmg` cho Mac chip Intel
 
 **Tự build trên Mac:**
 
@@ -53,7 +67,7 @@ npm run dist:mac   # tạo file .dmg trong thư mục dist/
 
 - Chuột phải vào app → **Open** → **Open**, hoặc
 - *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
-- chạy `xattr -dr com.apple.quarantine "/Applications/Eye Tracking Studio.app"`
+- chạy `xattr -dr com.apple.quarantine "/Applications/Heatmap.app"`
 
 Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. Nếu lỡ từ chối, bật lại tại *System Settings → Privacy & Security → Camera*.
 

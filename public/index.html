@@ -1,53 +1,106 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Eye Tracking Studio</title>
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/__et/style.css">
 </head>
 <body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+      <button type="button" id="openSettings" class="icon-btn" data-i18n-title="common.settings" data-i18n-aria="common.settings">⚙</button>
+    </div>
+  </header>
+
   <div class="container">
-    <h1>Eye Tracking Studio</h1>
-    <p class="muted">Nhập một đường link, người dùng duyệt trang đó trong công cụ và mọi tương tác (ánh mắt qua webcam, chuột, click, cuộn) sẽ được ghi lại để xem heatmap.</p>
+    <p class="muted" data-i18n="app.tagline"></p>
 
     <form class="card" id="startForm">
-      <h2>Bắt đầu phiên theo dõi mới</h2>
-      <div class="row">
-        <div class="grow">
-          <label for="url">Đường link cần test</label>
-          <div class="row" style="gap: 8px; flex-wrap: nowrap">
-            <input type="text" id="url" name="url" placeholder="https://example.com" required autocomplete="url">
-            <button type="button" id="pickFile" hidden>Chọn file…</button>
-          </div>
-          <p class="small muted" id="urlHint" style="margin: 4px 0 0">Hỗ trợ http/https.</p>
+      <h2 data-i18n="home.new_session"></h2>
+
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" class="tab" data-tab="web" aria-selected="true" data-i18n="home.tab_web"></button>
+        <button type="button" role="tab" class="tab" data-tab="figma" aria-selected="false" data-i18n="home.tab_figma"></button>
+      </div>
+
+      <div class="tab-panel" data-panel="web">
+        <label for="url" data-i18n="home.url_label"></label>
+        <div class="row" style="gap: 8px; flex-wrap: nowrap">
+          <input type="text" id="url" placeholder="https://example.com" autocomplete="url">
+          <button type="button" id="pickFile" hidden data-i18n="home.pick_file"></button>
         </div>
-        <div style="flex: 0 1 220px">
-          <label for="participant">Tên / mã người tham gia</label>
-          <input type="text" id="participant" name="participant" placeholder="VD: user-01">
+        <p class="small muted hint" id="urlHint"></p>
+      </div>
+
+      <div class="tab-panel" data-panel="figma" hidden>
+        <label for="figmaUrl" data-i18n="home.figma_label"></label>
+        <input type="text" id="figmaUrl" placeholder="https://www.figma.com/proto/…" autocomplete="off">
+        <p class="small muted hint" data-i18n="home.figma_hint"></p>
+      </div>
+
+      <div class="row" style="margin-top: 12px">
+        <div style="flex: 0 1 280px">
+          <label for="participant" data-i18n="home.participant"></label>
+          <input type="text" id="participant" data-i18n-placeholder="home.participant_placeholder">
         </div>
       </div>
-      <label class="check"><input type="checkbox" id="eyeTracking" checked> Bật eye tracking bằng webcam (cần cấp quyền camera và hiệu chỉnh 9 điểm)</label>
-      <button class="primary" type="submit">Bắt đầu theo dõi →</button>
-      <p class="muted small" id="formError" style="color: var(--danger)"></p>
+      <label class="check" id="eyeOption"><input type="checkbox" id="eyeTracking" checked> <span data-i18n="home.eye"></span></label>
+      <button class="primary" type="submit" data-i18n="home.start"></button>
+      <p class="small" id="formError" style="color: var(--danger)"></p>
     </form>
 
     <div class="card">
       <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 8px">
-        <h2 style="margin: 0">Các phiên đã ghi</h2>
-        <button type="button" id="reload">Tải lại</button>
+        <h2 style="margin: 0" data-i18n="home.sessions"></h2>
+        <button type="button" id="reload" data-i18n="common.reload"></button>
       </div>
       <div style="overflow-x: auto">
         <table>
           <thead>
-            <tr><th>Thời gian</th><th>Link</th><th>Người tham gia</th><th>Sự kiện</th><th>Eye tracking</th><th></th></tr>
+            <tr>
+              <th data-i18n="home.col_time"></th>
+              <th data-i18n="home.col_link"></th>
+              <th data-i18n="home.col_participant"></th>
+              <th data-i18n="home.col_events"></th>
+              <th data-i18n="home.col_eye" class="eye-col"></th>
+              <th></th>
+            </tr>
           </thead>
-          <tbody id="sessions"><tr><td colspan="6" class="muted">Đang tải…</td></tr></tbody>
+          <tbody id="sessions"><tr><td colspan="6" class="muted" data-i18n="common.loading"></td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
 
+  <dialog id="settingsDialog" class="settings">
+    <form method="dialog">
+      <h2 data-i18n="settings.title"></h2>
+      <label for="setLanguage" data-i18n="settings.language"></label>
+      <select id="setLanguage">
+        <option value="en">English</option>
+        <option value="vi">Tiếng Việt</option>
+      </select>
+      <label class="switch-row">
+        <span>
+          <b data-i18n="settings.eye"></b>
+          <span class="small muted" data-i18n="settings.eye_desc"></span>
+        </span>
+        <input type="checkbox" id="setEye" class="switch">
+      </label>
+      <div class="row" style="justify-content: flex-end; margin-top: 16px">
+        <button class="primary" value="close" data-i18n="common.close"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/__et/i18n.js"></script>
   <script src="/__et/index.js"></script>
 </body>
 </html>

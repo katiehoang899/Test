@@ -137,7 +137,7 @@ function flushBeacon() {
 function setAddress(url) {
   const input = $('#address');
   if (document.activeElement !== input) input.value = url;
-  document.title = 'Đang theo dõi — ' + url;
+  document.title = t('track.title', { url });
 }
 
 /** App desktop: <webview> là trình duyệt Chromium thật, mở thẳng website (không qua proxy). */
@@ -163,11 +163,11 @@ function createWebviewBrowser() {
   wv.addEventListener('did-navigate', (e) => { setAddress(e.url); sync(); });
   wv.addEventListener('did-navigate-in-page', (e) => { if (e.isMainFrame) setAddress(e.url); sync(); });
   wv.addEventListener('did-fail-load', (e) => {
-    if (e.isMainFrame && e.errorCode !== -3) toast(`Không tải được trang (${e.errorDescription || e.errorCode})`);
+    if (e.isMainFrame && e.errorCode !== -3) toast(t('track.page_failed', { err: e.errorDescription || e.errorCode }));
   });
 
   return {
-    mode: 'Trình duyệt trực tiếp',
+    mode: session.kind === 'figma' ? t('track.mode_figma') : t('track.mode_live'),
     navigate: (url) => wv.loadURL(url),
     back: () => wv.canGoBack() && wv.goBack(),
     forward: () => wv.canGoForward() && wv.goForward(),
@@ -179,7 +179,7 @@ function createWebviewBrowser() {
 function createIframeBrowser() {
   const frame = document.createElement('iframe');
   frame.className = 'browser-frame';
-  frame.title = 'Trang đang test';
+  frame.title = t('report.frame_title');
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
   browserView.insertBefore(frame, overlay);
 
@@ -197,8 +197,8 @@ function createIframeBrowser() {
       doc = win.document;
       void doc.body; // ném lỗi nếu trang đã sang origin khác
     } catch {
-      setAddress('(trang đã rời khỏi công cụ — không theo dõi được)');
-      toast('Trang đã chuyển sang địa chỉ ngoài proxy nên không thể ghi tương tác.');
+      setAddress(t('track.left_tool'));
+      toast(t('track.left_tool_toast'));
       return;
     }
     if (win.location.href === 'about:blank') return;
@@ -235,7 +235,7 @@ function createIframeBrowser() {
       if (action.origin === location.origin) return; // form của chính site: proxy chuyển tiếp bình thường
       e.preventDefault();
       if ((form.method || 'get').toLowerCase() !== 'get') {
-        toast('Form gửi dữ liệu sang website khác không được hỗ trợ trong chế độ theo dõi.');
+        toast(t('track.form_blocked'));
         return;
       }
       action.search = new URLSearchParams(new FormData(form)).toString();
@@ -245,7 +245,7 @@ function createIframeBrowser() {
 
   const win = () => frame.contentWindow;
   return {
-    mode: 'Qua proxy',
+    mode: t('track.mode_proxy'),
     navigate,
     back: () => { try { win().history.back(); } catch { /* bỏ qua */ } },
     forward: () => { try { win().history.forward(); } catch { /* bỏ qua */ } },
@@ -253,10 +253,53 @@ function createIframeBrowser() {
   };
 }
 
+/**
+ * Bản web + prototype Figma: nhúng bằng Figma Embed (iframe khác origin). Không đọc được chuột/click
+ * bên trong, nhưng vẫn ghi ánh mắt (từ webcam ở trang cha) và màn hình đang hiển thị khi Figma
+ * gửi sự kiện PRESENTED_NODE_CHANGED qua postMessage.
+ */
+function createFigmaEmbedBrowser() {
+  const frame = document.createElement('iframe');
+  frame.className = 'browser-frame';
+  frame.title = t('report.frame_title');
+  frame.allow = 'fullscreen';
+  browserView.insertBefore(frame, overlay);
+  $('#figmaNote').hidden = false;
+  let protoUrl = null;
+
+  const pageview = (page) => {
+    if (page === currentPage) return; // Figma báo lại màn hình đang hiển thị → không tính thêm lượt xem
+    const r = browserView.getBoundingClientRect();
+    const vw = Math.round(r.width);
+    const vh = Math.round(r.height);
+    onPageEvent({ type: 'pageview', page, title: 'Figma', vw, vh, sx: 0, sy: 0, dw: vw, dh: vh });
+  };
+  frame.addEventListener('load', () => protoUrl && pageview(protoUrl));
+  window.addEventListener('message', (e) => {
+    if (e.origin !== 'https://www.figma.com' || !e.data || e.data.type !== 'PRESENTED_NODE_CHANGED') return;
+    const nodeId = e.data.data && e.data.data.presentedNodeId;
+    if (!nodeId || !protoUrl) return;
+    const u = new URL(protoUrl);
+    u.searchParams.set('node-id', String(nodeId).replace(/:/g, '-'));
+    pageview(u.toString());
+  });
+
+  return {
+    mode: t('track.mode_figma'),
+    navigate: (url) => {
+      protoUrl = url;
+      frame.src = 'https://www.figma.com/embed?embed_host=heatmap&url=' + encodeURIComponent(url);
+    },
+    back: () => {},
+    forward: () => {},
+    reload: () => { if (protoUrl) frame.src = frame.src; },
+  };
+}
+
 $('#browserBar').addEventListener('submit', (e) => {
   e.preventDefault();
   const url = normalizeUrl($('#address').value);
-  if (!url) return toast('Địa chỉ không hợp lệ.');
+  if (!url) return toast(t('track.bad_address'));
   $('#address').blur();
   browser.navigate(url);
 });
@@ -271,7 +314,7 @@ function loadScript(src) {
     const s = document.createElement('script');
     s.src = src;
     s.onload = resolve;
-    s.onerror = () => reject(new Error('Không tải được ' + src));
+    s.onerror = () => reject(new Error(t('track.load_failed', { src })));
     document.head.appendChild(s);
   });
 }
@@ -286,12 +329,12 @@ function setGazeStatus(text, ok) {
 
 function onGaze(data) {
   if (!data) {
-    if (faceVisible !== false) setGazeStatus('Không thấy khuôn mặt — nhìn thẳng vào camera', false);
+    if (faceVisible !== false) setGazeStatus(t('track.no_face'), false);
     faceVisible = false;
     gazeDot.style.display = 'none';
     return;
   }
-  if (faceVisible !== true) setGazeStatus('Đang theo dõi ánh mắt', true);
+  if (faceVisible !== true) setGazeStatus(t('track.tracking'), true);
   faceVisible = true;
   if (collectSamples) collectSamples.push({ x: data.x, y: data.y });
 
@@ -339,7 +382,7 @@ function drawGazeMap() {
 }
 
 async function startWebGazer() {
-  setGazeStatus('Đang tải mô hình eye tracking…');
+  setGazeStatus(t('track.loading_model'));
   await loadScript('/__et/vendor/webgazer/webgazer.js');
   webgazer.params.faceMeshSolutionPath = '/__et/vendor/webgazer/mediapipe/face_mesh';
   webgazer.saveDataAcrossSessions(false);
@@ -381,10 +424,10 @@ async function calibrate() {
   webgazer.clearData();
 
   showOverlay(`
-    <h2>Hiệu chỉnh eye tracking</h2>
-    <p>Ngồi thẳng, giữ đầu cố định. Xem khung camera bên trái: khuôn mặt cần nằm trong khung xanh.</p>
-    <p>Sẽ có 9 chấm đỏ trong khung trình duyệt. <b>Nhìn chăm chú vào từng chấm và click vào nó ${CLICKS_PER_POINT} lần</b> cho đến khi chấm chuyển sang xanh.</p>
-    <button class="primary" id="calStart">Bắt đầu hiệu chỉnh</button>`);
+    <h2>${esc(t('track.calib_title'))}</h2>
+    <p>${esc(t('track.calib_p1'))}</p>
+    <p>${t('track.calib_p2', { n: CLICKS_PER_POINT })}</p>
+    <button class="primary" id="calStart">${esc(t('track.calib_start'))}</button>`);
   await waitClick('#calStart');
   overlayMsg.innerHTML = '';
 
@@ -412,7 +455,7 @@ async function calibrate() {
 
   // Đo độ chính xác: người dùng nhìn vào điểm giữa khung trình duyệt trong 5 giây.
   webgazer.removeMouseEventListeners(); // không huấn luyện trong lúc đo
-  showOverlay('<p style="margin-top:80px">Giữ yên và <b>nhìn vào chấm vàng</b> trong 5 giây để đo độ chính xác…</p>');
+  showOverlay(`<p style="margin-top:80px">${t('track.calib_measure')}</p>`);
   const target = document.createElement('div');
   target.className = 'target-point';
   overlay.appendChild(target);
@@ -441,12 +484,12 @@ async function calibrate() {
 
   const good = accuracy >= 70;
   showOverlay(`
-    <h2>Độ chính xác: ${Math.round(accuracy)}%</h2>
-    <p>${meanErrorPx == null
-      ? 'Không nhận được dữ liệu ánh mắt — hãy kiểm tra camera và ánh sáng.'
-      : `Sai số trung bình ~${Math.round(meanErrorPx)}px. ${good ? 'Tốt, có thể bắt đầu.' : 'Hơi thấp — nên hiệu chỉnh lại (ánh sáng đều, mặt nhìn thẳng camera).'}`}</p>
-    <button id="calRedo">Hiệu chỉnh lại</button>
-    <button class="primary" id="calGo">Bắt đầu duyệt trang</button>`);
+    <h2>${esc(t('track.accuracy_title', { n: Math.round(accuracy) }))}</h2>
+    <p>${esc(meanErrorPx == null
+      ? t('track.accuracy_none')
+      : `${t('track.accuracy_err', { px: Math.round(meanErrorPx) })} ${good ? t('track.accuracy_good') : t('track.accuracy_low')}`)}</p>
+    <button id="calRedo">${esc(t('track.calib_redo'))}</button>
+    <button class="primary" id="calGo">${esc(t('track.calib_go'))}</button>`);
   const redo = await Promise.race([
     waitClick('#calRedo').then(() => true),
     waitClick('#calGo').then(() => false),
@@ -471,34 +514,37 @@ function startClock() {
 }
 
 async function init() {
+  await I18N.load();
   if (!/^[a-f0-9]{16}$/.test(sessionId || '')) {
-    showOverlay('<h2>Thiếu mã phiên</h2><p><a href="/__et/">Quay lại trang chủ</a></p>');
+    showOverlay(`<h2>${esc(t('track.missing_id'))}</h2><p><a href="/__et/">${esc(t('common.back_home'))}</a></p>`);
     return;
   }
   const res = await fetch('/__et/api/sessions/' + sessionId);
   if (!res.ok) {
-    showOverlay('<h2>Không tìm thấy phiên</h2><p><a href="/__et/">Quay lại trang chủ</a></p>');
+    showOverlay(`<h2>${esc(t('track.not_found'))}</h2><p><a href="/__et/">${esc(t('common.back_home'))}</a></p>`);
     return;
   }
   session = await res.json();
-  $('#statParticipant').textContent = session.participant || 'ẩn danh';
+  $('#statParticipant').textContent = session.participant || t('common.anonymous');
   setAddress(session.url);
 
   if (!isDesktop && /^file:/i.test(session.url)) {
-    showOverlay(`<h2>Cần app desktop để mở file trên máy</h2>
-      <p>Trình duyệt không cho trang web đọc file <b>${esc(session.url)}</b>.</p>
-      <p>Hãy mở bằng app Eye Tracking Studio (macOS), hoặc chạy web server cho thư mục đó
-      (ví dụ <code>npx serve -l 5000 ~/Downloads</code>) rồi dùng link http://localhost:5000/… với ALLOW_PRIVATE=1.</p>
-      <p><a href="/__et/">Quay lại trang chủ</a></p>`);
+    showOverlay(`<h2>${esc(t('track.need_desktop_title'))}</h2>
+      <p>${t('track.need_desktop_p1', { url: esc(session.url) })}</p>
+      <p>${t('track.need_desktop_p2')}</p>
+      <p><a href="/__et/">${esc(t('common.back_home'))}</a></p>`);
     return;
   }
 
-  browser = isDesktop ? createWebviewBrowser() : createIframeBrowser();
+  if (!session.eyeTracking) document.body.classList.add('no-eye');
+  if (isDesktop) browser = createWebviewBrowser();
+  else if (session.kind === 'figma') browser = createFigmaEmbedBrowser();
+  else browser = createIframeBrowser();
   $('#browserMode').textContent = browser.mode;
 
   if (session.eyeTracking) {
     try {
-      showOverlay('<h2>Đang khởi động camera…</h2><p>Hãy cho phép truy cập webcam.</p>');
+      showOverlay(`<h2>${esc(t('track.starting_camera'))}</h2><p>${esc(t('track.allow_camera'))}</p>`);
       await startWebGazer();
       $('#toggleDot').hidden = false;
       $('#recalibrate').hidden = false;
@@ -506,16 +552,16 @@ async function init() {
     } catch (err) {
       console.error(err);
       gazeEnabled = false;
-      setGazeStatus('Eye tracking tắt', false);
-      showOverlay(`<h2>Không bật được eye tracking</h2><p>${esc(err.message || err)}</p>
-        <p>Vẫn có thể tiếp tục ghi chuột, click và cuộn trang.</p>
-        <button class="primary" id="noGaze">Tiếp tục không có eye tracking</button>`);
+      setGazeStatus(t('track.eye_off_status'), false);
+      showOverlay(`<h2>${esc(t('track.eye_failed'))}</h2><p>${esc(err.message || err)}</p>
+        <p>${esc(t('track.eye_failed_p'))}</p>
+        <button class="primary" id="noGaze">${esc(t('track.continue_without'))}</button>`);
       await waitClick('#noGaze');
       hideOverlay();
     }
   } else {
-    $('#camPlaceholder').textContent = 'Eye tracking đang tắt cho phiên này';
-    setGazeStatus('Chỉ ghi chuột, click và cuộn trang');
+    $('#camPlaceholder').textContent = t('track.eye_off_session');
+    setGazeStatus(t('track.mouse_only'));
   }
 
   t0 = performance.now();
@@ -528,7 +574,7 @@ async function init() {
 
 $('#toggleDot').addEventListener('click', () => {
   showDot = !showDot;
-  $('#toggleDot').textContent = showDot ? 'Ẩn điểm nhìn' : 'Hiện điểm nhìn';
+  $('#toggleDot').textContent = showDot ? t('track.hide_dot') : t('track.show_dot');
 });
 
 $('#recalibrate').addEventListener('click', () => calibrate());

@@ -1,76 +1,90 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Báo cáo phiên</title>
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/__et/style.css">
 </head>
 <body>
-  <div class="topbar">
-    <a class="btn" href="/__et/">← Trang chủ</a>
-    <strong>Báo cáo</strong>
-    <span class="url" id="sessionUrl"></span>
-    <a class="btn" id="exportJson">Tải JSON</a>
-    <a class="btn" id="exportCsv">Tải CSV</a>
-  </div>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <span class="url muted small" id="sessionUrl"></span>
+    <div class="header-actions">
+      <a class="btn" id="exportJson" data-i18n="report.export_json"></a>
+      <a class="btn" id="exportCsv" data-i18n="report.export_csv"></a>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
 
   <div class="report-layout">
     <aside class="side">
       <div class="card">
-        <h2>Hiển thị</h2>
-        <label for="pageSelect">Trang</label>
+        <h2 data-i18n="report.display"></h2>
+        <label for="pageSelect" data-i18n="report.page"></label>
         <select id="pageSelect"></select>
 
-        <label for="layer">Lớp dữ liệu</label>
+        <label for="layer" data-i18n="report.layer"></label>
         <select id="layer">
-          <option value="gaze">Heatmap ánh mắt</option>
-          <option value="scanpath">Scanpath (điểm dừng mắt)</option>
-          <option value="move">Heatmap di chuột</option>
-          <option value="click">Heatmap click</option>
+          <option value="gaze" class="eye-only" data-i18n="report.layer_gaze"></option>
+          <option value="scanpath" class="eye-only" data-i18n="report.layer_scanpath"></option>
+          <option value="move" data-i18n="report.layer_move"></option>
+          <option value="click" data-i18n="report.layer_click"></option>
         </select>
 
-        <label for="radius">Bán kính: <span id="radiusVal"></span>px</label>
+        <label for="radius" id="radiusLabel"></label>
         <input type="range" id="radius" min="10" max="120" value="45" style="width: 100%">
-        <label for="opacity">Độ đậm: <span id="opacityVal"></span>%</label>
+        <label for="opacity" id="opacityLabel"></label>
         <input type="range" id="opacity" min="10" max="100" value="70" style="width: 100%">
         <div class="legend"></div>
-        <div class="row small muted" style="justify-content: space-between"><span>ít</span><span>nhiều</span></div>
+        <div class="row small muted" style="justify-content: space-between"><span data-i18n="report.less"></span><span data-i18n="report.more"></span></div>
 
-        <label class="check"><input type="checkbox" id="showClicks" checked> Hiện vị trí click</label>
-        <label class="check"><input type="checkbox" id="merge"> Gộp tất cả phiên cùng link</label>
+        <label class="check"><input type="checkbox" id="showClicks" checked> <span data-i18n="report.show_clicks"></span></label>
+        <label class="check"><input type="checkbox" id="merge"> <span data-i18n="report.merge"></span></label>
       </div>
 
       <div class="card">
-        <h2>Thống kê trang này</h2>
+        <h2 data-i18n="report.page_stats"></h2>
         <div id="stats"></div>
       </div>
 
       <div class="card">
-        <h2>Phần tử được click nhiều</h2>
+        <h2 data-i18n="report.top_clicks"></h2>
         <ol class="list-compact small" id="topClicks"></ol>
       </div>
     </aside>
 
     <main>
       <div class="timeline card" style="padding: 10px 14px">
-        <button type="button" id="play">▶ Phát lại</button>
+        <button type="button" id="play" data-i18n="report.play"></button>
         <input type="range" id="time" min="0" max="1000" value="1000">
         <span class="small muted" id="timeLabel" style="min-width: 110px; text-align: right"></span>
       </div>
       <div class="stage-wrap">
         <div class="stage-outer" id="stageOuter">
           <div class="stage" id="stage">
-            <iframe id="pageFrame" title="Trang được test" sandbox="allow-scripts allow-same-origin"></iframe>
+            <iframe id="pageFrame" data-i18n-title="report.frame_title" sandbox="allow-scripts allow-same-origin"></iframe>
             <canvas id="overlayCanvas"></canvas>
           </div>
         </div>
-        <canvas id="minimap" title="Mật độ theo chiều dọc trang — click để cuộn tới"></canvas>
+        <canvas id="minimap" data-i18n-title="report.minimap"></canvas>
       </div>
-      <p class="small muted">Cuộn bên trong khung trang để xem các phần khác. Trang được tải lại trực tiếp nên nội dung có thể khác đôi chút so với lúc ghi.</p>
+      <p class="small muted" data-i18n="report.scroll_hint"></p>
+
+      <section class="charts" aria-labelledby="chartsTitle">
+        <h2 id="chartsTitle" data-i18n="chart.section"></h2>
+        <div class="chart-grid" id="charts"></div>
+      </section>
     </main>
   </div>
+  <div class="chart-tooltip" id="chartTooltip" role="status" hidden></div>
 
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/charts.js"></script>
   <script src="/__et/report.js"></script>
 </body>
 </html>

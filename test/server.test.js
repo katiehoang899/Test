@@ -9,7 +9,7 @@ const path = require('node:path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eyetrack-test-'));
 process.env.ALLOW_PRIVATE = '1';
-const { createServer, normalizeTargetUrl, normalizeSessionUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
+const { createServer, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
 
 let server;
 let target;
@@ -73,6 +73,22 @@ test('normalizeSessionUrl nhận thêm file trên máy', () => {
   assert.equal(normalizeSessionUrl('javascript:alert(1)'), null);
   // proxy / go vẫn chỉ nhận http(s): server không đọc file trên máy
   assert.equal(normalizeTargetUrl('file:///etc/passwd'), null);
+});
+
+test('normalizeFigmaUrl chuẩn hoá link prototype Figma', () => {
+  const u = new URL(normalizeFigmaUrl('https://www.figma.com/proto/AbC123/My-App?node-id=1-2&starting-point-node-id=1%3A2#x'));
+  assert.equal(u.origin + u.pathname, 'https://www.figma.com/proto/AbC123/My-App');
+  assert.equal(u.searchParams.get('node-id'), '1-2');
+  assert.equal(u.searchParams.get('hide-ui'), '1');
+  assert.equal(u.searchParams.get('scaling'), 'scale-down-width');
+  assert.equal(u.hash, '');
+  // link /design/ → /proto/, thiếu https, thiếu www
+  assert.match(normalizeFigmaUrl('figma.com/design/XyZ9/Flow'), /^https:\/\/www\.figma\.com\/proto\/XyZ9\/Flow\?/);
+  // giữ tham số người dùng đã chọn
+  assert.equal(new URL(normalizeFigmaUrl('https://www.figma.com/proto/K/x?scaling=contain')).searchParams.get('scaling'), 'contain');
+  for (const bad of ['https://evil.com/proto/K/x', 'https://www.figma.com/community/file/1', 'http://www.figma.com/proto/K', 'javascript:1']) {
+    assert.equal(normalizeFigmaUrl(bad), null, bad);
+  }
 });
 
 test('isPrivateAddress', () => {
@@ -166,6 +182,33 @@ function frameReq(p, opts = {}) {
     headers: { 'sec-fetch-dest': 'iframe', cookie: '__et_target=' + encodeURIComponent(targetBase), ...(opts.headers || {}) },
   });
 }
+
+test('cài đặt: mặc định English, lưu ngôn ngữ và tắt eye tracking', async () => {
+  assert.deepEqual((await api('GET', '/api/settings')).body, { language: 'en', eyeTrackingEnabled: true });
+  const bad = await api('POST', '/api/sessions', { url: 'ftp://x' });
+  assert.equal(bad.body.code, 'invalid_url');
+  assert.match(bad.body.error, /Invalid link/);
+  const vi = await api('PUT', '/api/settings', { language: 'vi', eyeTrackingEnabled: false, junk: 1 });
+  assert.deepEqual(vi.body, { language: 'vi', eyeTrackingEnabled: false });
+  assert.match((await api('POST', '/api/sessions', { url: 'ftp://x' })).body.error, /không hợp lệ/);
+  // eye tracking bị tắt trong cài đặt → phiên mới luôn tắt webcam
+  const s1 = await api('POST', '/api/sessions', { url: 'example.com', eyeTracking: true });
+  assert.equal(s1.body.eyeTracking, false);
+  assert.equal((await api('PUT', '/api/settings', { language: 'xx' })).body.language, 'vi');
+  await api('PUT', '/api/settings', { language: 'en', eyeTrackingEnabled: true });
+});
+
+test('phiên Figma', async () => {
+  const ok = await api('POST', '/api/sessions', { kind: 'figma', url: 'https://www.figma.com/proto/AbC/Demo?node-id=1-2' });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.body.kind, 'figma');
+  assert.match(ok.body.url, /^https:\/\/www\.figma\.com\/proto\/AbC\/Demo\?/);
+  const web = await api('POST', '/api/sessions', { url: 'example.com' });
+  assert.equal(web.body.kind, 'web');
+  const bad = await api('POST', '/api/sessions', { kind: 'figma', url: 'https://example.com' });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.code, 'invalid_figma_url');
+});
 
 test('/__et/go đặt site đích và chuyển sang đường dẫn gốc', async () => {
   const res = await fetch(`${base}/__et/go?url=${encodeURIComponent(targetBase + '/page?a=1')}`, { redirect: 'manual' });

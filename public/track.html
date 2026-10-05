@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Đang theo dõi</title>
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/__et/style.css">
 </head>
 <body class="track-body">
@@ -11,46 +12,47 @@
     <!-- Màn hình 1: webcam -->
     <aside class="cam-pane">
       <div class="cam-head">
-        <span class="dot" id="recDot" title="Trạng thái ghi"></span>
-        <strong>Eye Tracking</strong>
+        <span class="dot" id="recDot"></span>
+        <img src="/__et/logo.svg" alt="" width="22" height="22" style="border-radius:6px"><strong>Heatmap</strong>
         <span class="small muted" id="timer">00:00</span>
       </div>
 
-      <div class="cam-box" id="camBox">
-        <div class="cam-placeholder" id="camPlaceholder">Camera chưa bật</div>
+      <div class="cam-box eye-only" id="camBox">
+        <div class="cam-placeholder" id="camPlaceholder" data-i18n="track.camera_off"></div>
       </div>
       <div class="cam-status small" id="gazeStatus">—</div>
+      <p class="small muted" id="figmaNote" hidden data-i18n="track.figma_web_note"></p>
 
-      <div class="cam-section">
-        <div class="cam-label small muted">Đang nhìn vào (khung trình duyệt)</div>
+      <div class="cam-section eye-only">
+        <div class="cam-label small muted" data-i18n="track.looking_at"></div>
         <canvas id="gazeMap" width="320" height="110"></canvas>
       </div>
 
       <div class="cam-stats">
-        <div><span>Người tham gia</span><b id="statParticipant">—</b></div>
-        <div><span>Độ chính xác</span><b id="statAccuracy">—</b></div>
-        <div><span>Mẫu mắt / giây</span><b id="statRate">0</b></div>
-        <div><span>Click</span><b id="statClicks">0</b></div>
-        <div><span>Trang đã xem</span><b id="statPages">0</b></div>
-        <div><span>Sự kiện đã lưu</span><b id="eventCount">0</b></div>
+        <div><span data-i18n="track.participant"></span><b id="statParticipant">—</b></div>
+        <div class="eye-only"><span data-i18n="track.accuracy"></span><b id="statAccuracy">—</b></div>
+        <div class="eye-only"><span data-i18n="track.gaze_rate"></span><b id="statRate">0</b></div>
+        <div><span data-i18n="track.clicks"></span><b id="statClicks">0</b></div>
+        <div><span data-i18n="track.pages"></span><b id="statPages">0</b></div>
+        <div><span data-i18n="track.saved"></span><b id="eventCount">0</b></div>
       </div>
 
       <div class="cam-actions">
         <div class="cam-actions-row">
-          <button type="button" id="toggleDot" hidden>Hiện điểm nhìn</button>
-          <button type="button" id="recalibrate" hidden>Hiệu chỉnh lại</button>
+          <button type="button" id="toggleDot" hidden data-i18n="track.show_dot"></button>
+          <button type="button" id="recalibrate" hidden data-i18n="track.recalibrate"></button>
         </div>
-        <button type="button" class="primary" id="finish">Kết thúc &amp; xem báo cáo</button>
+        <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
       </div>
     </aside>
 
     <!-- Màn hình 2: trình duyệt -->
     <section class="browser-pane">
       <form class="browser-bar" id="browserBar">
-        <button type="button" id="navBack" title="Lùi">◀</button>
-        <button type="button" id="navForward" title="Tiến">▶</button>
-        <button type="button" id="navReload" title="Tải lại">⟳</button>
-        <input type="text" id="address" autocomplete="off" spellcheck="false" aria-label="Địa chỉ trang">
+        <button type="button" id="navBack" data-i18n-title="track.back" data-i18n-aria="track.back">◀</button>
+        <button type="button" id="navForward" data-i18n-title="track.forward" data-i18n-aria="track.forward">▶</button>
+        <button type="button" id="navReload" data-i18n-title="track.reload" data-i18n-aria="track.reload">⟳</button>
+        <input type="text" id="address" autocomplete="off" spellcheck="false" data-i18n-aria="track.address">
         <span class="small muted" id="browserMode"></span>
       </form>
       <div class="browser-view" id="browserView">
@@ -62,6 +64,7 @@
   </div>
   <div id="gazeDot"></div>
 
+  <script src="/__et/i18n.js"></script>
   <script src="/__et/recorder.js"></script>
   <script src="/__et/track.js"></script>
 </body>

@@ -10,6 +10,7 @@ const net = require('node:net');
 const { Readable } = require('node:stream');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
+const { EventEmitter } = require('node:events');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -62,7 +63,7 @@ function readBody(req) {
     req.on('data', (c) => {
       size += c.length;
       if (size > MAX_BODY) {
-        reject(Object.assign(new Error('Body quá lớn'), { status: 413 }));
+        reject(Object.assign(new Error('Request body too large'), { status: 413 }));
         req.destroy();
         return;
       }
@@ -78,7 +79,7 @@ async function readJson(req) {
   try {
     return raw ? JSON.parse(raw) : {};
   } catch {
-    throw Object.assign(new Error('JSON không hợp lệ'), { status: 400 });
+    throw Object.assign(new Error('Invalid JSON'), { status: 400 });
   }
 }
 
@@ -128,6 +129,31 @@ function normalizeSessionUrl(input) {
   return normalizeTargetUrl(s);
 }
 
+/**
+ * Link prototype Figma → link /proto/ chuẩn. Chấp nhận cả link /design/ hoặc /file/
+ * (chuyển sang chế độ prototype). Mặc định ẩn thanh công cụ Figma và co trang cho vừa khung.
+ */
+function normalizeFigmaUrl(input) {
+  if (typeof input !== 'string' || !input.trim()) return null;
+  let s = input.trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'https:' || !/^(www\.)?figma\.com$/i.test(u.hostname)) return null;
+  const m = /^\/(proto|design|file)\/([A-Za-z0-9]+)(\/[^?#]*)?$/.exec(u.pathname);
+  if (!m) return null;
+  u.hostname = 'www.figma.com';
+  u.pathname = `/proto/${m[2]}${m[3] || ''}`;
+  u.hash = '';
+  if (!u.searchParams.has('hide-ui')) u.searchParams.set('hide-ui', '1');
+  if (!u.searchParams.has('scaling')) u.searchParams.set('scaling', 'scale-down-width');
+  return u.toString();
+}
+
 function isPrivateAddress(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -152,8 +178,74 @@ async function assertPublicHost(hostname) {
   const host = hostname.replace(/^\[|\]$/g, '');
   const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true });
   if (!addrs.length || addrs.some((a) => isPrivateAddress(a.address))) {
-    throw Object.assign(new Error('Không cho phép truy cập địa chỉ mạng nội bộ (đặt ALLOW_PRIVATE=1 để bật).'), { status: 403 });
+    throw Object.assign(new Error(st('private_host')), { status: 403 });
   }
+}
+
+// ---------- cài đặt (ngôn ngữ, bật/tắt eye tracking) ----------
+// Lưu ra file chứ không dùng localStorage: app desktop chạy server trên cổng ngẫu nhiên
+// nên origin (và localStorage) đổi sau mỗi lần mở app.
+
+const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true };
+const LANGUAGES = ['en', 'vi'];
+const settingsEvents = new EventEmitter();
+let settingsCache = null;
+
+function getSettings() {
+  if (!settingsCache) {
+    try {
+      settingsCache = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) };
+    } catch {
+      settingsCache = { ...DEFAULT_SETTINGS };
+    }
+  }
+  return { ...settingsCache };
+}
+
+async function updateSettings(patch) {
+  const next = getSettings();
+  if (patch && LANGUAGES.includes(patch.language)) next.language = patch.language;
+  if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
+  await fsp.writeFile(SETTINGS_PATH + '.tmp', JSON.stringify(next, null, 2));
+  await fsp.rename(SETTINGS_PATH + '.tmp', SETTINGS_PATH);
+  settingsCache = next;
+  settingsEvents.emit('change', { ...next });
+  return { ...next };
+}
+
+const SERVER_TEXT = {
+  en: {
+    invalid_url: 'Invalid link (http, https or a local file).',
+    invalid_figma_url: 'Not a Figma prototype link. Expected https://www.figma.com/proto/…',
+    private_host: 'Local network addresses are blocked (set ALLOW_PRIVATE=1 to allow).',
+    not_found: 'Session not found.',
+    invalid_id: 'Invalid session id.',
+    page_failed: "Couldn't load the page",
+    fetch_failed: 'Error loading {url}: {msg}',
+    open_new_tab: 'Open directly in a new tab',
+  },
+  vi: {
+    invalid_url: 'Link không hợp lệ (http, https hoặc file trên máy).',
+    invalid_figma_url: 'Không phải link prototype Figma. Cần dạng https://www.figma.com/proto/…',
+    private_host: 'Không cho phép truy cập địa chỉ mạng nội bộ (đặt ALLOW_PRIVATE=1 để bật).',
+    not_found: 'Không tìm thấy phiên.',
+    invalid_id: 'Mã phiên không hợp lệ.',
+    page_failed: 'Không tải được trang',
+    fetch_failed: 'Lỗi khi tải {url}: {msg}',
+    open_new_tab: 'Mở trực tiếp trong tab mới',
+  },
+};
+
+/** Chuỗi phía server theo ngôn ngữ đang chọn. */
+function st(key, vars = {}) {
+  const lang = getSettings().language;
+  const text = (SERVER_TEXT[lang] && SERVER_TEXT[lang][key]) || SERVER_TEXT.en[key] || key;
+  return text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+}
+
+function apiError(res, status, code) {
+  return sendJson(res, status, { error: st(code), code });
 }
 
 // ---------- session storage ----------
@@ -266,6 +358,11 @@ function appendEvents(id, events) {
 async function handleApi(req, res, url) {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'sessions', id?, sub?]
 
+  if (parts[1] === 'settings' && parts.length === 2) {
+    if (req.method === 'GET') return sendJson(res, 200, getSettings());
+    if (req.method === 'PUT') return sendJson(res, 200, await updateSettings(await readJson(req)));
+    return sendJson(res, 405, { error: 'Method not allowed' });
+  }
   if (parts[1] !== 'sessions') return sendJson(res, 404, { error: 'Not found' });
 
   if (parts.length === 2) {
@@ -277,13 +374,16 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST') {
       const body = await readJson(req);
-      const target = normalizeSessionUrl(body.url);
-      if (!target) return sendJson(res, 400, { error: 'URL không hợp lệ (hỗ trợ http, https và file trên máy).' });
+      const kind = body.kind === 'figma' ? 'figma' : 'web';
+      const target = kind === 'figma' ? normalizeFigmaUrl(body.url) : normalizeSessionUrl(body.url);
+      if (!target) return apiError(res, 400, kind === 'figma' ? 'invalid_figma_url' : 'invalid_url');
       const meta = {
         id: crypto.randomBytes(8).toString('hex'),
+        kind,
         url: target,
         participant: str(body.participant, 100) || '',
-        eyeTracking: !!body.eyeTracking,
+        // tắt hẳn trong Cài đặt → không phiên nào bật webcam
+        eyeTracking: !!body.eyeTracking && getSettings().eyeTrackingEnabled,
         createdAt: new Date().toISOString(),
         endedAt: null,
         calibration: null,
@@ -298,9 +398,9 @@ async function handleApi(req, res, url) {
   }
 
   const id = parts[2];
-  if (!isValidSessionId(id)) return sendJson(res, 400, { error: 'Session id không hợp lệ' });
+  if (!isValidSessionId(id)) return apiError(res, 400, 'invalid_id');
   const meta = await loadMeta(id);
-  if (!meta) return sendJson(res, 404, { error: 'Không tìm thấy session' });
+  if (!meta) return apiError(res, 404, 'not_found');
   const sub = parts[3];
 
   if (!sub) {
@@ -321,7 +421,7 @@ async function handleApi(req, res, url) {
         await saveMeta(fresh);
         return fresh;
       });
-      return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'Không tìm thấy session' });
+      return updated ? sendJson(res, 200, updated) : apiError(res, 404, 'not_found');
     }
     if (req.method === 'DELETE') {
       await Promise.all([fsp.rm(metaPath(id), { force: true }), fsp.rm(eventsPath(id), { force: true })]);
@@ -435,8 +535,8 @@ function rewriteHtml(html, originalUrl) {
 function proxyErrorPage(res, status, message, target) {
   res.writeHead(status, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
   res.end(`<!doctype html><meta charset="utf-8"><body style="font:15px system-ui;padding:32px;color:#333">
-<h2>Không tải được trang</h2><p>${escapeHtml(message)}</p>
-${target ? `<p><a href="${escapeHtml(target)}" target="_blank" rel="noopener">Mở trực tiếp trong tab mới</a></p>` : ''}
+<h2>${escapeHtml(st('page_failed'))}</h2><p>${escapeHtml(message)}</p>
+${target ? `<p><a href="${escapeHtml(target)}" target="_blank" rel="noopener">${escapeHtml(st('open_new_tab'))}</a></p>` : ''}
 </body>`);
 }
 
@@ -450,7 +550,7 @@ function toProxyUrl(absUrl, targetOrigin) {
 // GET /__et/go?url=…  → chọn origin đích rồi chuyển iframe sang đúng đường dẫn.
 async function handleGo(req, res, url) {
   const target = normalizeTargetUrl(url.searchParams.get('url'));
-  if (!target) return proxyErrorPage(res, 400, 'URL không hợp lệ.');
+  if (!target) return proxyErrorPage(res, 400, st('invalid_url'));
   const u = new URL(target);
   try {
     await assertPublicHostCached(u.hostname);
@@ -532,7 +632,7 @@ async function handleReverseProxy(req, res, url) {
     });
   } catch (err) {
     if (isNavigation) {
-      return proxyErrorPage(res, err.status || 502, err.status ? err.message : `Lỗi khi tải ${upstreamUrl}: ${err.message}`, upstreamUrl);
+      return proxyErrorPage(res, err.status || 502, err.status ? err.message : st('fetch_failed', { url: upstreamUrl, msg: err.message }), upstreamUrl);
     }
     return sendText(res, err.status || 502, err.message);
   }
@@ -612,6 +712,7 @@ async function handler(req, res) {
 
 function createServer() {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  settingsCache = null;
   return http.createServer(handler);
 }
 
@@ -621,4 +722,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, normalizeTargetUrl, normalizeSessionUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
+module.exports = { createServer, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };

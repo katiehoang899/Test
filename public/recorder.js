@@ -123,9 +123,30 @@
       send({ type: 'move', x: e.pageX, y: e.pageY, vx: e.clientX, vy: e.clientY });
     }, MOVE_THROTTLE_MS), { capture: true, passive: true });
 
-    on(win, 'click', (e) => {
+    let lastClickAt = 0;
+    const sendClick = (e) => {
       const target = e.target && e.target.nodeType === 1 ? e.target : e.target && e.target.parentElement;
       if (target) send({ type: 'click', x: e.pageX, y: e.pageY, vx: e.clientX, vy: e.clientY, el: describe(target) });
+    };
+    on(win, 'click', (e) => {
+      lastClickAt = Date.now();
+      sendClick(e);
+    }, true);
+
+    // Ứng dụng vẽ bằng canvas (ví dụ prototype Figma) thường chặn sự kiện click:
+    // nhấn + nhả chuột tại chỗ mà không có click theo sau thì vẫn ghi là một click.
+    let down = null;
+    on(win, 'pointerdown', (e) => {
+      if (e.isPrimary && e.button === 0) down = { x: e.clientX, y: e.clientY, at: Date.now() };
+    }, true);
+    on(win, 'pointerup', (e) => {
+      const d = down;
+      down = null;
+      if (!d || !e.isPrimary || Date.now() - d.at > 800 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) return;
+      const at = Date.now();
+      timers.push(setTimeout(() => {
+        if (lastClickAt < d.at && lastClickAt < at) sendClick(e);
+      }, 80));
     }, true);
 
     on(doc, 'focusin', (e) => {

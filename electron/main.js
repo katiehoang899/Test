@@ -8,12 +8,39 @@ const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain } = require('electron');
 
 // Dữ liệu phiên lưu trong thư mục dữ liệu của ứng dụng
-// (macOS: ~/Library/Application Support/Eye Tracking Studio/sessions).
+// (macOS: ~/Library/Application Support/Heatmap/sessions).
 process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
 // Bản đóng gói chỉ mang theo thư mục dist của WebGazer (xem build.extraResources trong package.json).
 if (app.isPackaged) process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 'webgazer');
 
-const { createServer, TOOL_PREFIX } = require(path.join(__dirname, '..', 'server.js'));
+const { createServer, TOOL_PREFIX, getSettings, settingsEvents } = require(path.join(__dirname, '..', 'server.js'));
+
+// Chuỗi của main process (menu, hộp thoại) theo ngôn ngữ trong Cài đặt.
+const TEXT = {
+  en: {
+    view: 'View',
+    home: 'Heatmap home',
+    data: 'Data',
+    openData: 'Open data folder',
+    noCamera: 'Heatmap isn’t allowed to use the camera',
+    noCameraDetail: 'Webcam eye tracking needs the camera. Open System Settings → Privacy & Security → Camera and turn on "Heatmap". Mouse, clicks and scrolling are still recorded without a camera.',
+    startFailed: 'Heatmap couldn’t start',
+    pickTitle: 'Choose a local web page',
+    pickFilter: 'Web pages',
+  },
+  vi: {
+    view: 'Xem',
+    home: 'Trang chủ Heatmap',
+    data: 'Dữ liệu',
+    openData: 'Mở thư mục dữ liệu',
+    noCamera: 'Heatmap chưa được phép dùng camera',
+    noCameraDetail: 'Eye tracking bằng webcam cần camera. Mở System Settings → Privacy & Security → Camera và bật cho "Heatmap". Không có camera vẫn ghi được chuột, click và cuộn trang.',
+    startFailed: 'Không khởi động được Heatmap',
+    pickTitle: 'Chọn trang web trên máy',
+    pickFilter: 'Trang web',
+  },
+};
+const tx = (key) => (TEXT[getSettings().language] || TEXT.en)[key];
 
 const BROWSE_PARTITION = 'persist:browse'; // cookie/đăng nhập của website test, tách khỏi công cụ
 const GUEST_PRELOAD = path.join(__dirname, 'guest-preload.js');
@@ -43,7 +70,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'Eye Tracking Studio',
+    title: 'Heatmap',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -117,9 +144,9 @@ function showMainWindow() {
 ipcMain.handle('et:pick-html', async (event) => {
   if (!hasWindow() || event.sender !== mainWindow.webContents || !isOwnUrl(event.senderFrame && event.senderFrame.url)) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Chọn trang web trên máy',
+    title: tx('pickTitle'),
     properties: ['openFile'],
-    filters: [{ name: 'Trang web', extensions: ['html', 'htm', 'xhtml'] }],
+    filters: [{ name: tx('pickFilter'), extensions: ['html', 'htm', 'xhtml'] }],
   });
   if (result.canceled || !result.filePaths.length) return null;
   return pathToFileURL(result.filePaths[0]).href;
@@ -141,15 +168,16 @@ function setupPermissions() {
 }
 
 async function askCameraAccess() {
-  if (process.platform !== 'darwin') return;
+  // Eye tracking bị tắt trong Cài đặt → không cần hỏi quyền camera.
+  if (process.platform !== 'darwin' || !getSettings().eyeTrackingEnabled) return;
   const status = systemPreferences.getMediaAccessStatus('camera');
   if (status === 'not-determined') {
     await systemPreferences.askForMediaAccess('camera');
   } else if (status === 'denied' || status === 'restricted') {
     dialog.showMessageBox({
       type: 'warning',
-      message: 'Ứng dụng chưa được phép dùng camera',
-      detail: 'Eye tracking cần webcam. Mở System Settings → Privacy & Security → Camera và bật cho "Eye Tracking Studio". Bạn vẫn có thể ghi chuột, click và cuộn trang khi không có camera.',
+      message: tx('noCamera'),
+      detail: tx('noCameraDetail'),
     });
   }
 }
@@ -159,9 +187,9 @@ function buildMenu() {
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
     { role: 'editMenu' },
     {
-      label: 'Xem',
+      label: tx('view'),
       submenu: [
-        { label: 'Trang chủ công cụ', accelerator: 'CmdOrCtrl+Shift+H', click: () => {
+        { label: tx('home'), accelerator: 'CmdOrCtrl+Shift+H', click: () => {
           showMainWindow();
           if (hasWindow()) mainWindow.loadURL(baseUrl + TOOL_PREFIX + '/');
         } },
@@ -176,9 +204,9 @@ function buildMenu() {
       ],
     },
     {
-      label: 'Dữ liệu',
+      label: tx('data'),
       submenu: [
-        { label: 'Mở thư mục dữ liệu', click: () => shell.openPath(path.join(process.env.DATA_DIR, 'sessions')) },
+        { label: tx('openData'), click: () => shell.openPath(path.join(process.env.DATA_DIR, 'sessions')) },
       ],
     },
     { role: 'windowMenu' },
@@ -194,15 +222,16 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     const port = await startServer();
     baseUrl = `http://127.0.0.1:${port}`;
-    console.log('Eye Tracking Studio server:', baseUrl);
+    console.log('Heatmap server:', baseUrl);
     setupPermissions();
     buildMenu();
+    settingsEvents.on('change', buildMenu); // đổi ngôn ngữ → dựng lại menu
     await askCameraAccess();
     createWindow();
 
     app.on('activate', showMainWindow);
   }).catch((err) => {
-    dialog.showErrorBox('Không khởi động được Eye Tracking Studio', String(err && err.stack || err));
+    dialog.showErrorBox(tx('startFailed'), String(err && err.stack || err));
     app.quit();
   });
 
