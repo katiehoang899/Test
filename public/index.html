@@ -19,7 +19,7 @@
     </div>
   </header>
 
-  <div class="container">
+  <div class="container wide">
     <p class="muted" data-i18n="app.tagline"></p>
 
     <form class="card" id="startForm">
@@ -46,9 +46,13 @@
       </div>
 
       <div class="row" style="margin-top: 12px">
-        <div style="flex: 0 1 280px">
+        <div style="flex: 1 1 240px">
           <label for="participant" data-i18n="home.participant"></label>
           <input type="text" id="participant" data-i18n-placeholder="home.participant_placeholder">
+        </div>
+        <div style="flex: 1 1 240px">
+          <label for="startScenario" data-i18n="home.scenario"></label>
+          <select id="startScenario"></select>
         </div>
       </div>
       <label class="check" id="eyeOption"><input type="checkbox" id="eyeTracking" checked> <span data-i18n="home.eye"></span></label>
@@ -57,23 +61,45 @@
     </form>
 
     <div class="card">
-      <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 8px">
+      <div class="sessions-head">
         <h2 style="margin: 0" data-i18n="home.sessions"></h2>
-        <button type="button" id="reload" data-i18n="common.reload"></button>
+        <div class="sessions-tools">
+          <label class="inline" for="scenarioFilter"><span class="small muted" data-i18n="home.filter"></span>
+            <select id="scenarioFilter"></select>
+          </label>
+          <button type="button" id="newScenario" data-i18n="home.new_scenario"></button>
+          <button type="button" id="renameScenario" hidden data-i18n="home.rename_scenario"></button>
+          <button type="button" id="deleteScenario" class="danger" hidden data-i18n="home.delete_scenario"></button>
+          <a class="btn primary" id="overviewLink" href="/__et/overview.html" data-i18n="home.overview"></a>
+          <button type="button" id="reload" data-i18n="common.reload"></button>
+        </div>
       </div>
+
+      <div class="bulk-bar" id="bulkBar" hidden>
+        <b id="bulkCount"></b>
+        <label class="inline" for="bulkScenario"><span class="small muted" data-i18n="home.move_to"></span>
+          <select id="bulkScenario"></select>
+        </label>
+        <button type="button" id="bulkApply" data-i18n="home.apply"></button>
+        <button type="button" id="bulkRemove" data-i18n="home.remove_from"></button>
+      </div>
+
       <div style="overflow-x: auto">
-        <table>
+        <table class="sessions-table">
           <thead>
             <tr>
+              <th class="sel"><input type="checkbox" id="selectAll" data-i18n-aria="home.select_all"></th>
               <th data-i18n="home.col_time"></th>
               <th data-i18n="home.col_link"></th>
               <th data-i18n="home.col_participant"></th>
+              <th data-i18n="home.col_duration"></th>
               <th data-i18n="home.col_events"></th>
               <th data-i18n="home.col_eye" class="eye-col"></th>
+              <th data-i18n="home.col_scenario"></th>
               <th></th>
             </tr>
           </thead>
-          <tbody id="sessions"><tr><td colspan="6" class="muted" data-i18n="common.loading"></td></tr></tbody>
+          <tbody id="sessions"><tr><td colspan="9" class="muted" data-i18n="common.loading"></td></tr></tbody>
         </table>
       </div>
     </div>
@@ -87,6 +113,7 @@
         <option value="en">English</option>
         <option value="vi">Tiếng Việt</option>
       </select>
+
       <label class="switch-row">
         <span>
           <b data-i18n="settings.eye"></b>
@@ -94,6 +121,28 @@
         </span>
         <input type="checkbox" id="setEye" class="switch">
       </label>
+
+      <label class="switch-row" id="cameraSetting">
+        <span>
+          <b data-i18n="settings.camera"></b>
+          <span class="small muted" data-i18n="settings.camera_desc"></span>
+        </span>
+        <input type="checkbox" id="setCamera" class="switch">
+      </label>
+
+      <div class="setting-block">
+        <b data-i18n="settings.storage"></b>
+        <span class="small muted" data-i18n="settings.storage_desc"></span>
+        <input type="text" id="setStorage" spellcheck="false" data-i18n-placeholder="settings.storage_placeholder">
+        <div class="row" style="gap: 6px; margin-top: 6px">
+          <button type="button" id="storageChoose" hidden data-i18n="settings.storage_choose"></button>
+          <button type="button" id="storageApply" data-i18n="settings.storage_apply"></button>
+          <button type="button" id="storageDefault" data-i18n="settings.storage_default"></button>
+          <button type="button" id="storageOpen" hidden data-i18n="settings.storage_open"></button>
+        </div>
+        <p class="small" id="storageError" style="color: var(--danger); margin: 4px 0 0"></p>
+      </div>
+
       <div class="row" style="justify-content: flex-end; margin-top: 16px">
         <button class="primary" value="close" data-i18n="common.close"></button>
       </div>

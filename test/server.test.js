@@ -184,18 +184,82 @@ function frameReq(p, opts = {}) {
 }
 
 test('cài đặt: mặc định English, lưu ngôn ngữ và tắt eye tracking', async () => {
-  assert.deepEqual((await api('GET', '/api/settings')).body, { language: 'en', eyeTrackingEnabled: true });
+  const def = (await api('GET', '/api/settings')).body;
+  assert.equal(def.language, 'en');
+  assert.equal(def.eyeTrackingEnabled, true);
+  assert.equal(def.showCamera, false); // cột camera mặc định ẩn
+  assert.equal(def.storagePath, process.env.DATA_DIR);
   const bad = await api('POST', '/api/sessions', { url: 'ftp://x' });
   assert.equal(bad.body.code, 'invalid_url');
   assert.match(bad.body.error, /Invalid link/);
   const vi = await api('PUT', '/api/settings', { language: 'vi', eyeTrackingEnabled: false, junk: 1 });
-  assert.deepEqual(vi.body, { language: 'vi', eyeTrackingEnabled: false });
+  assert.equal(vi.body.language, 'vi');
+  assert.equal(vi.body.eyeTrackingEnabled, false);
+  assert.equal(vi.body.junk, undefined);
   assert.match((await api('POST', '/api/sessions', { url: 'ftp://x' })).body.error, /không hợp lệ/);
   // eye tracking bị tắt trong cài đặt → phiên mới luôn tắt webcam
   const s1 = await api('POST', '/api/sessions', { url: 'example.com', eyeTracking: true });
   assert.equal(s1.body.eyeTracking, false);
   assert.equal((await api('PUT', '/api/settings', { language: 'xx' })).body.language, 'vi');
   await api('PUT', '/api/settings', { language: 'en', eyeTrackingEnabled: true });
+});
+
+test('kịch bản, thời lượng ghi và báo cáo tổng hợp theo link', async () => {
+  const sc = await api('POST', '/api/scenarios', { name: 'Checkout flow' });
+  assert.equal(sc.status, 201);
+  assert.equal((await api('POST', '/api/scenarios', { name: '  ' })).status, 400);
+  const a = (await api('POST', '/api/sessions', { url: 'https://shop.test/', scenarioId: sc.body.id, participant: 'p1' })).body;
+  const b = (await api('POST', '/api/sessions', { url: 'https://shop.test/', participant: 'p2' })).body;
+  const c = (await api('POST', '/api/sessions', { url: 'https://other.test/' })).body;
+  assert.equal(a.scenarioId, sc.body.id);
+  await api('POST', `/api/sessions/${a.id}/events`, { events: [
+    { type: 'pageview', t: 0, page: 'https://shop.test/', vw: 1000, vh: 500, dh: 1000, sy: 0 },
+    { type: 'click', t: 1200, page: 'https://shop.test/' },
+    { type: 'scroll', t: 4000, page: 'https://shop.test/', vh: 500, dh: 1000, sy: 500 },
+  ] });
+  await api('POST', `/api/sessions/${b.id}/events`, { events: [{ type: 'click', t: 2000, page: 'https://shop.test/' }] });
+  assert.equal((await api('GET', `/api/sessions/${a.id}`)).body.durationMs, 4000);
+
+  // gán phiên b vào kịch bản, rồi lọc
+  assert.equal((await api('PATCH', `/api/sessions/${b.id}`, { scenarioId: sc.body.id })).body.scenarioId, sc.body.id);
+  const inSc = (await api('GET', `/api/sessions?scenario=${sc.body.id}`)).body.map((m) => m.id).sort();
+  assert.deepEqual(inSc, [a.id, b.id].sort());
+  assert.ok((await api('GET', '/api/sessions?scenario=none')).body.some((m) => m.id === c.id));
+  assert.equal((await api('GET', '/api/scenarios')).body.find((x) => x.id === sc.body.id).sessionCount, 2);
+
+  const sum = (await api('GET', `/api/summary?scenario=${sc.body.id}`)).body;
+  assert.equal(sum.length, 1);
+  assert.equal(sum[0].url, 'https://shop.test/');
+  assert.equal(sum[0].sessions, 2);
+  assert.equal(sum[0].participants, 2);
+  assert.equal(sum[0].clicks, 2);
+  assert.equal(sum[0].avgDepth, 50); // phiên a cuộn tới 100%, phiên b không cuộn
+  assert.ok((await api('GET', '/api/summary')).body.length >= 2);
+
+  // đổi tên, bỏ phiên khỏi kịch bản, xoá kịch bản (phiên vẫn còn)
+  assert.equal((await api('PATCH', `/api/scenarios/${sc.body.id}`, { name: 'Checkout v2' })).body.name, 'Checkout v2');
+  assert.equal((await api('PATCH', `/api/sessions/${b.id}`, { scenarioId: null })).body.scenarioId, undefined);
+  assert.equal((await api('DELETE', `/api/scenarios/${sc.body.id}`)).status, 200);
+  assert.equal((await api('GET', `/api/sessions/${a.id}`)).body.scenarioId, undefined);
+});
+
+test('đổi thư mục lưu trữ chuyển toàn bộ dữ liệu sang thư mục mới', async () => {
+  const s1 = (await api('POST', '/api/sessions', { url: 'https://move.test/' })).body;
+  const sc = (await api('POST', '/api/scenarios', { name: 'Moved' })).body;
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'heatmap-store-'));
+  assert.equal((await api('PUT', '/api/settings', { storageDir: 'relative/path' })).status, 400);
+  const res = await api('PUT', '/api/settings', { storageDir: target });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.storagePath, target);
+  assert.ok(fs.existsSync(path.join(target, 'sessions', s1.id + '.json')));
+  assert.ok(!fs.existsSync(path.join(process.env.DATA_DIR, 'sessions', s1.id + '.json')));
+  assert.ok((await api('GET', '/api/scenarios')).body.some((x) => x.id === sc.id));
+  assert.equal((await api('GET', `/api/sessions/${s1.id}`)).status, 200);
+  // về lại thư mục mặc định
+  const back = await api('PUT', '/api/settings', { storageDir: '' });
+  assert.equal(back.body.storagePath, process.env.DATA_DIR);
+  assert.equal((await api('GET', `/api/sessions/${s1.id}`)).status, 200);
+  fs.rmSync(target, { recursive: true, force: true });
 });
 
 test('phiên Figma', async () => {

@@ -8,13 +8,11 @@
   <link rel="stylesheet" href="/__et/style.css">
 </head>
 <body class="track-body">
-  <div class="split">
+  <div class="split camera-hidden" id="split">
     <!-- Màn hình 1: webcam -->
     <aside class="cam-pane">
       <div class="cam-head">
-        <span class="dot" id="recDot"></span>
         <img src="/__et/logo.svg" alt="" width="22" height="22" style="border-radius:6px"><strong>Heatmap</strong>
-        <span class="small muted" id="timer">00:00</span>
       </div>
 
       <div class="cam-box eye-only" id="camBox">
@@ -42,18 +40,22 @@
           <button type="button" id="toggleDot" hidden data-i18n="track.show_dot"></button>
           <button type="button" id="recalibrate" hidden data-i18n="track.recalibrate"></button>
         </div>
-        <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
       </div>
     </aside>
 
     <!-- Màn hình 2: trình duyệt -->
     <section class="browser-pane">
       <form class="browser-bar" id="browserBar">
+        <button type="button" id="cameraToggle" aria-pressed="false" data-i18n-title="track.camera_show" data-i18n-aria="track.camera_show">📷</button>
+        <span class="bar-sep"></span>
         <button type="button" id="navBack" data-i18n-title="track.back" data-i18n-aria="track.back">◀</button>
         <button type="button" id="navForward" data-i18n-title="track.forward" data-i18n-aria="track.forward">▶</button>
         <button type="button" id="navReload" data-i18n-title="track.reload" data-i18n-aria="track.reload">⟳</button>
         <input type="text" id="address" autocomplete="off" spellcheck="false" data-i18n-aria="track.address">
         <span class="small muted" id="browserMode"></span>
+        <span class="bar-sep"></span>
+        <span class="rec"><span class="dot" id="recDot"></span><span id="timer">00:00</span></span>
+        <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
       </form>
       <div class="browser-view" id="browserView">
         <div class="overlay" id="overlay" hidden>

@@ -743,7 +743,26 @@ function renderCharts() {
     emptyText: t('chart.empty'),
   });
 
-  // 3 & 4. Thời gian và số click trên từng trang (toàn phiên)
+  // 3. Phần tử được click nhiều trên trang đang xem
+  const groups = new Map();
+  for (const c of state.data.flatMap((d) => d.click)) {
+    const el = c.el || {};
+    const key = el.selector || el.tag || '?';
+    const g = groups.get(key) || { label: el.text ? `"${el.text.slice(0, 50)}"` : key, full: el.text ? `"${el.text}" · ${key}` : key, value: 0 };
+    g.value++;
+    groups.set(key, g);
+  }
+  Charts.hbar(box, {
+    title: t('chart.top_clicks'),
+    subtitle: t('chart.top_clicks_sub'),
+    rows: [...groups.values()].sort((a, b) => b.value - a.value).slice(0, 10),
+    valueLabel: (v) => t(v === 1 ? 'chart.click_one' : 'chart.clicks', { n: v }),
+    tableLabel: t('chart.table'),
+    headers: [t('chart.col_element'), t('chart.col_value')],
+    emptyText: t('report.no_clicks'),
+  });
+
+  // 4 & 5. Thời gian và số click trên từng trang (toàn phiên)
   const timeByPage = new Map();
   const clicksByPage = new Map();
   for (const s of state.sessions) {
@@ -792,6 +811,8 @@ async function init() {
   const p = state.primary;
   renderHeader();
   if (!p.eyeTracking) document.body.classList.add('no-eye');
+  // mở từ "Báo cáo tất cả phiên" → xem heatmap gộp các phiên cùng link
+  if (params.get('merge') === '1') $('#merge').checked = true;
   $('#exportJson').href = `/__et/api/sessions/${p.id}/export?format=json`;
   $('#exportCsv').href = `/__et/api/sessions/${p.id}/export?format=csv`;
   if (!p.eyeTracking) $('#layer').value = 'move';

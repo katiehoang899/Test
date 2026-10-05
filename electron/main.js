@@ -4,6 +4,7 @@
 // rồi mở cửa sổ trỏ vào http://127.0.0.1:<cổng>/__et/.
 
 const path = require('node:path');
+const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain } = require('electron');
 
@@ -13,7 +14,7 @@ process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
 // Bản đóng gói chỉ mang theo thư mục dist của WebGazer (xem build.extraResources trong package.json).
 if (app.isPackaged) process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 'webgazer');
 
-const { createServer, TOOL_PREFIX, getSettings, settingsEvents } = require(path.join(__dirname, '..', 'server.js'));
+const { createServer, TOOL_PREFIX, getSettings, settingsEvents, storageDir, sessionFilePaths, exportSession } = require(path.join(__dirname, '..', 'server.js'));
 
 // Chuỗi của main process (menu, hộp thoại) theo ngôn ngữ trong Cài đặt.
 const TEXT = {
@@ -27,6 +28,10 @@ const TEXT = {
     startFailed: 'Heatmap couldn’t start',
     pickTitle: 'Choose a local web page',
     pickFilter: 'Web pages',
+    folderTitle: 'Choose where Heatmap stores its data',
+    saveTitle: 'Save session as',
+    jsonFilter: 'Heatmap session (JSON)',
+    csvFilter: 'Events table (CSV)',
   },
   vi: {
     view: 'Xem',
@@ -38,6 +43,10 @@ const TEXT = {
     startFailed: 'Không khởi động được Heatmap',
     pickTitle: 'Chọn trang web trên máy',
     pickFilter: 'Trang web',
+    folderTitle: 'Chọn nơi Heatmap lưu dữ liệu',
+    saveTitle: 'Lưu phiên thành',
+    jsonFilter: 'Phiên Heatmap (JSON)',
+    csvFilter: 'Bảng sự kiện (CSV)',
   },
 };
 const tx = (key) => (TEXT[getSettings().language] || TEXT.en)[key];
@@ -140,9 +149,57 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+/** Chỉ trang của công cụ trong cửa sổ chính được gọi các IPC bên dưới. */
+function fromTool(event) {
+  return hasWindow() && event.sender === mainWindow.webContents && isOwnUrl(event.senderFrame && event.senderFrame.url);
+}
+
+// Cài đặt → Vị trí lưu trữ → "Chọn thư mục…"
+ipcMain.handle('et:pick-folder', async (event, current) => {
+  if (!fromTool(event)) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: tx('folderTitle'),
+    defaultPath: typeof current === 'string' && current ? current : storageDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+});
+
+ipcMain.handle('et:open-folder', async (event) => {
+  if (!fromTool(event)) return;
+  await shell.openPath(storageDir());
+});
+
+// Danh sách phiên → "Mở file gốc": hiện file dữ liệu của phiên trong Finder.
+ipcMain.handle('et:reveal-session', async (event, id) => {
+  if (!fromTool(event)) return false;
+  const files = sessionFilePaths(id);
+  if (!files || !fs.existsSync(files.events)) return false;
+  shell.showItemInFolder(files.events);
+  return true;
+});
+
+// Danh sách phiên → "Lưu thành…": chọn nơi lưu và định dạng (JSON đầy đủ hoặc CSV sự kiện).
+ipcMain.handle('et:save-session', async (event, id) => {
+  if (!fromTool(event) || !sessionFilePaths(id)) return null;
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: tx('saveTitle'),
+    defaultPath: path.join(app.getPath('documents'), `heatmap-session-${id}.json`),
+    filters: [
+      { name: tx('jsonFilter'), extensions: ['json'] },
+      { name: tx('csvFilter'), extensions: ['csv'] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return null;
+  const out = await exportSession(id, /\.csv$/i.test(result.filePath) ? 'csv' : 'json');
+  if (!out) return null;
+  await fs.promises.writeFile(result.filePath, out.body);
+  return result.filePath;
+});
+
 // Nút "Chọn file…" ở trang chủ: chọn một file HTML trên máy để test.
 ipcMain.handle('et:pick-html', async (event) => {
-  if (!hasWindow() || event.sender !== mainWindow.webContents || !isOwnUrl(event.senderFrame && event.senderFrame.url)) return null;
+  if (!fromTool(event)) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: tx('pickTitle'),
     properties: ['openFile'],
@@ -206,7 +263,7 @@ function buildMenu() {
     {
       label: tx('data'),
       submenu: [
-        { label: tx('openData'), click: () => shell.openPath(path.join(process.env.DATA_DIR, 'sessions')) },
+        { label: tx('openData'), click: () => shell.openPath(storageDir()) },
       ],
     },
     { role: 'windowMenu' },

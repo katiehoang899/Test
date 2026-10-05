@@ -307,6 +307,28 @@ $('#navBack').addEventListener('click', () => browser && browser.back());
 $('#navForward').addEventListener('click', () => browser && browser.forward());
 $('#navReload').addEventListener('click', () => browser && browser.reload());
 
+// ---------- cột camera: ẩn/hiện (mặc định ẩn) ----------
+
+let cameraPref = false;     // lựa chọn của người dùng, lưu trong Cài đặt
+let cameraForced = false;   // hiện tạm trong lúc hiệu chỉnh để người dùng căn mặt
+
+function applyCamera() {
+  const show = cameraPref || cameraForced;
+  $('#split').classList.toggle('camera-hidden', !show);
+  const btn = $('#cameraToggle');
+  btn.setAttribute('aria-pressed', String(show));
+  const label = t(show ? 'track.camera_hide' : 'track.camera_show');
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+}
+
+$('#cameraToggle').addEventListener('click', () => {
+  cameraPref = !(cameraPref || cameraForced);
+  cameraForced = false;
+  applyCamera();
+  I18N.save({ showCamera: cameraPref }).catch(() => {});
+});
+
 // ---------- eye tracking (WebGazer) ----------
 
 function loadScript(src) {
@@ -421,6 +443,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function calibrate() {
   recording = false;
+  cameraForced = true;
+  applyCamera();
   webgazer.clearData();
 
   showOverlay(`
@@ -497,6 +521,8 @@ async function calibrate() {
   if (redo) return calibrate();
 
   hideOverlay();
+  cameraForced = false;
+  applyCamera();
   recording = true;
 }
 
@@ -515,6 +541,8 @@ function startClock() {
 
 async function init() {
   await I18N.load();
+  cameraPref = !!I18N.settings.showCamera;
+  applyCamera();
   if (!/^[a-f0-9]{16}$/.test(sessionId || '')) {
     showOverlay(`<h2>${esc(t('track.missing_id'))}</h2><p><a href="/__et/">${esc(t('common.back_home'))}</a></p>`);
     return;

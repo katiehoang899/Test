@@ -10,6 +10,19 @@ Công cụ cho phép **nhập một đường link** (website, file HTML trên m
 
 Sau phiên test có trang **báo cáo**: heatmap ánh mắt / chuột / click, scanpath (chuỗi điểm dừng mắt), phát lại theo thời gian, thống kê, **biểu đồ** và xuất JSON/CSV. Có thể gộp nhiều phiên cùng một link để xem heatmap tổng hợp.
 
+### Có gì mới ở Heatmap 4.0
+
+- **Cột camera ẩn/hiện**: khi đang ghi, cột webcam cạnh trình duyệt **mặc định ẩn** để trình duyệt chiếm toàn màn hình; bấm nút **📷** trên thanh trình duyệt để hiện/ẩn (lựa chọn được nhớ, cũng chỉnh được trong ⚙ Settings). Trong lúc hiệu chỉnh 9 điểm, cột camera tự hiện để người dùng căn mặt. Đồng hồ ghi và nút *Finish* nằm trên thanh trình duyệt nên luôn dùng được.
+- **Biểu đồ "Most clicked elements"** trong báo cáo từng phiên (số click theo từng phần tử của trang đang xem).
+- **Vị trí lưu trữ** (⚙ Settings → *Storage location*): chọn thư mục trên máy để lưu phiên và kịch bản (app desktop có nút *Choose folder…* và *Open folder*). Dữ liệu hiện có được chuyển sang thư mục mới; *Use default* để quay về thư mục mặc định.
+- **Recorded sessions**:
+  - cột **Recorded time** (thời lượng ghi) và cột **Scenario**;
+  - mỗi phiên có **Save as…** (app desktop: chọn nơi lưu, định dạng JSON đầy đủ hoặc CSV sự kiện; bản web: tải file JSON) và **Show file** (app desktop: mở file dữ liệu gốc của phiên trong Finder);
+  - nút **Report for all sessions** → trang báo cáo tổng hợp **chia theo Link**: số phiên, người tham gia, thời gian TB/tổng, click TB, độ sâu cuộn TB, độ chính xác TB, lần ghi gần nhất, kèm biểu đồ và nút *Merged heatmap* (heatmap gộp mọi phiên của link đó).
+- **Kịch bản (scenario / folder)**: tạo kịch bản để gom nhiều phiên; chọn kịch bản ngay khi bắt đầu phiên, hoặc tick nhiều phiên rồi *Move to scenario* / *Remove from scenario*. Lọc danh sách và báo cáo tổng hợp theo kịch bản; đổi tên hoặc xoá kịch bản (xoá kịch bản không xoá phiên).
+
+Heatmap 4.0 là bản nâng cấp của Heatmap 3.0 (cùng app, cài đè và giữ nguyên dữ liệu).
+
 ### Có gì mới ở Heatmap 3.0
 
 - **Tên & logo mới**, là app độc lập với "Eye Tracking Tool" và "Eye Tracking Studio" (khác mã ứng dụng `com.heatmap.desktop`, khác thư mục dữ liệu `~/Library/Application Support/Heatmap`), cài song song không ảnh hưởng nhau.
