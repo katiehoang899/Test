@@ -59,9 +59,9 @@ async function loadSessions() {
     state.sessions = [state.primary];
     return;
   }
-  const all = await getJson('/api/sessions');
+  const all = await getJson('/__et/api/sessions');
   const same = all.filter((s) => s.url === state.primary.url && s.id !== state.primary.id);
-  const others = await Promise.all(same.map((s) => getJson('/api/sessions/' + s.id).catch(() => null)));
+  const others = await Promise.all(same.map((s) => getJson('/__et/api/sessions/' + s.id).catch(() => null)));
   state.sessions = [state.primary, ...others.filter(Boolean)];
 }
 
@@ -463,7 +463,7 @@ function layoutStage() {
 
 function loadFrame() {
   state.frameWin = null;
-  frame.src = '/proxy?url=' + encodeURIComponent(state.page);
+  frame.src = '/__et/go?url=' + encodeURIComponent(state.page);
 }
 
 frame.addEventListener('load', () => {
@@ -596,19 +596,19 @@ async function init() {
   $('#radiusVal').textContent = $('#radius').value;
   $('#opacityVal').textContent = $('#opacity').value;
   if (!/^[a-f0-9]{16}$/.test(sessionId || '')) {
-    document.querySelector('main').innerHTML = '<div class="card">Thiếu mã phiên. <a href="/">Quay lại</a></div>';
+    document.querySelector('main').innerHTML = '<div class="card">Thiếu mã phiên. <a href="/__et/">Quay lại</a></div>';
     return;
   }
   try {
-    state.primary = await getJson('/api/sessions/' + sessionId);
+    state.primary = await getJson('/__et/api/sessions/' + sessionId);
   } catch (err) {
     document.querySelector('main').innerHTML = `<div class="card">Không tải được phiên: ${esc(err.message)}</div>`;
     return;
   }
   const p = state.primary;
   $('#sessionUrl').textContent = `${p.url} — ${p.participant || 'ẩn danh'} — ${new Date(p.createdAt).toLocaleString('vi-VN')}`;
-  $('#exportJson').href = `/api/sessions/${p.id}/export?format=json`;
-  $('#exportCsv').href = `/api/sessions/${p.id}/export?format=csv`;
+  $('#exportJson').href = `/__et/api/sessions/${p.id}/export?format=json`;
+  $('#exportCsv').href = `/__et/api/sessions/${p.id}/export?format=csv`;
   if (!p.eyeTracking) $('#layer').value = 'move';
   await loadSessions();
   fillPageSelect();

@@ -9,7 +9,7 @@ const path = require('node:path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eyetrack-test-'));
 process.env.ALLOW_PRIVATE = '1';
-const { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent } = require('../server');
+const { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
 
 let server;
 let target;
@@ -21,6 +21,19 @@ before(async () => {
     if (req.url === '/redirect') {
       res.writeHead(302, { Location: '/page' });
       return res.end();
+    }
+    if (req.url === '/away') {
+      res.writeHead(301, { Location: 'https://other.example/x?y=1' });
+      return res.end();
+    }
+    if (req.url === '/echo') {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'sid=abc; Domain=127.0.0.1; Path=/' });
+        res.end(JSON.stringify({ method: req.method, body, cookie: req.headers.cookie || '', referer: req.headers.referer || '' }));
+      });
+      return;
     }
     if (req.url === '/image.png') {
       res.writeHead(200, { 'Content-Type': 'image/png' });
@@ -60,13 +73,17 @@ test('isPrivateAddress', () => {
   }
 });
 
-test('rewriteHtml chèn <base>, bỏ CSP và meta refresh', () => {
-  const out = rewriteHtml('<html><head><meta http-equiv="refresh" content="0;url=/x"><base href="/sub/"></head><body></body></html>', 'https://a.com/p');
-  assert.match(out, /<base href="https:\/\/a\.com\/sub\/">/);
+test('rewriteHtml ghi URL gốc, bỏ CSP/refresh, chặn service worker', () => {
+  const out = rewriteHtml('<html><head><meta http-equiv="refresh" content="0;url=/x"><meta http-equiv="Content-Security-Policy" content="x"></head><body></body></html>', 'https://a.com/p');
   assert.match(out, /eyetrack-original-url" content="https:\/\/a\.com\/p"/);
-  assert.doesNotMatch(out, /refresh/);
-  assert.equal(out.match(/<base/g).length, 1);
-  assert.match(rewriteHtml('<p>no head</p>', 'https://a.com/'), /^<base href/);
+  assert.match(out, /serviceWorker/);
+  assert.doesNotMatch(out, /refresh|Content-Security-Policy/);
+  assert.match(rewriteHtml('<p>no head</p>', 'https://a.com/'), /^<meta name="eyetrack-original-url"/);
+});
+
+test('toProxyUrl giữ đường dẫn cho cùng site, đi qua /__et/go cho site khác', () => {
+  assert.equal(toProxyUrl('https://a.com/x/y?q=1#h', 'https://a.com'), '/x/y?q=1#h');
+  assert.equal(toProxyUrl('https://b.com/z', 'https://a.com'), '/__et/go?url=' + encodeURIComponent('https://b.com/z'));
 });
 
 test('sanitizeEvent bỏ loại lạ và field ngoài danh sách', () => {
@@ -76,7 +93,7 @@ test('sanitizeEvent bỏ loại lạ và field ngoài danh sách', () => {
 });
 
 async function api(method, p, body) {
-  const res = await fetch(base + p, {
+  const res = await fetch(base + '/__et' + p, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -111,7 +128,7 @@ test('vòng đời session: tạo, gửi sự kiện, đọc, export, xoá', asy
   assert.equal(got.body.calibration.accuracy, 82.3);
   assert.deepEqual(got.body.events.map((e) => e.type), ['pageview', 'click', 'gaze']);
 
-  const csv = await fetch(`${base}/api/sessions/${id}/export?format=csv`);
+  const csv = await fetch(`${base}/__et/api/sessions/${id}/export?format=csv`);
   assert.match(csv.headers.get('content-type'), /text\/csv/);
   const lines = (await csv.text()).split('\n');
   assert.equal(lines.length, 4);
@@ -126,24 +143,64 @@ test('vòng đời session: tạo, gửi sự kiện, đọc, export, xoá', asy
   assert.equal((await api('GET', '/api/sessions/zzz')).status, 400);
 });
 
-test('proxy trả HTML đã viết lại và theo redirect', async () => {
-  const res = await fetch(`${base}/proxy?url=${encodeURIComponent(targetBase + '/redirect')}`);
+function frameReq(p, opts = {}) {
+  return fetch(base + p, {
+    redirect: 'manual',
+    ...opts,
+    headers: { 'sec-fetch-dest': 'iframe', cookie: '__et_target=' + encodeURIComponent(targetBase), ...(opts.headers || {}) },
+  });
+}
+
+test('/__et/go đặt site đích và chuyển sang đường dẫn gốc', async () => {
+  const res = await fetch(`${base}/__et/go?url=${encodeURIComponent(targetBase + '/page?a=1')}`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), '/page?a=1');
+  assert.match(res.headers.get('set-cookie'), /__et_target=http%3A%2F%2F127\.0\.0\.1%3A\d+;/);
+});
+
+test('reverse proxy: HTML giữ đường dẫn, bỏ X-Frame-Options/CSP', async () => {
+  const res = await frameReq('/page');
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('x-frame-options'), null);
   const html = await res.text();
-  assert.match(html, new RegExp(`<base href="${targetBase}/page">`));
+  assert.match(html, new RegExp(`eyetrack-original-url" content="${targetBase}/page"`));
   assert.doesNotMatch(html, /Content-Security-Policy/);
 });
 
-test('proxy chuyển hướng tài nguyên không phải HTML về URL gốc', async () => {
-  const res = await fetch(`${base}/proxy?url=${encodeURIComponent(targetBase + '/image.png')}`, { redirect: 'manual' });
-  assert.equal(res.status, 302);
-  assert.equal(res.headers.get('location'), targetBase + '/image.png');
+test('reverse proxy: viết lại redirect cùng site và khác site', async () => {
+  const same = await frameReq('/redirect');
+  assert.equal(same.status, 302);
+  assert.equal(same.headers.get('location'), '/page');
+  const away = await frameReq('/away');
+  assert.equal(away.headers.get('location'), '/__et/go?url=' + encodeURIComponent('https://other.example/x?y=1'));
+});
+
+test('reverse proxy: chuyển tiếp POST, cookie, referer và tài nguyên nhị phân', async () => {
+  const res = await frameReq('/echo', {
+    method: 'POST',
+    body: 'hello',
+    headers: { 'sec-fetch-dest': 'empty', cookie: `__et_target=${encodeURIComponent(targetBase)}; sid=1`, referer: base + '/page' },
+  });
+  const data = await res.json();
+  assert.deepEqual(data, { method: 'POST', body: 'hello', cookie: 'sid=1', referer: targetBase + '/page' });
+  assert.equal(res.headers.get('set-cookie'), 'sid=abc; Path=/');
+  const img = await frameReq('/image.png', { headers: { 'sec-fetch-dest': 'image' } });
+  assert.equal(img.headers.get('content-type'), 'image/png');
+  assert.equal(await img.text(), 'png');
+});
+
+test('mở trực tiếp trên tab hoặc chưa chọn site → về trang chủ công cụ', async () => {
+  const top = await frameReq('/page', { headers: { 'sec-fetch-dest': 'document' } });
+  assert.equal(top.headers.get('location'), '/__et/');
+  const none = await fetch(base + '/', { redirect: 'manual' });
+  assert.equal(none.headers.get('location'), '/__et/');
 });
 
 test('static: phục vụ trang và WebGazer, chặn path traversal', async () => {
-  assert.equal((await fetch(base + '/')).status, 200);
-  assert.equal((await fetch(base + '/vendor/webgazer/webgazer.js')).status, 200);
-  const trav = await fetch(base + '/%2e%2e/server.js');
-  assert.notEqual(trav.status, 200);
+  assert.equal((await fetch(base + '/__et/')).status, 200);
+  assert.equal((await fetch(base + '/__et/vendor/webgazer/webgazer.js')).status, 200);
+  for (const p of ['/__et/%2e%2e/server.js', '/__et/vendor/webgazer/..%2f..%2f..%2fserver.js', '/__et/..%2fserver.js']) {
+    const res = await fetch(base + p, { redirect: 'manual' });
+    assert.doesNotMatch(await res.text(), /createServer/, p);
+  }
 });

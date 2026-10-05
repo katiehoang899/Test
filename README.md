@@ -15,7 +15,7 @@ Yêu cầu Node.js ≥ 18.
 ```bash
 npm install
 npm start
-# mở http://localhost:3000
+# mở http://localhost:3000/__et/
 ```
 
 Biến môi trường:
@@ -26,6 +26,7 @@ Biến môi trường:
 | `HOST` | `127.0.0.1` | Địa chỉ lắng nghe (đặt `0.0.0.0` để máy khác truy cập) |
 | `DATA_DIR` | `./data` | Thư mục lưu dữ liệu phiên |
 | `ALLOW_PRIVATE` | _(tắt)_ | Đặt `1` để cho phép test các trang trong mạng nội bộ / localhost |
+| `NODE_USE_ENV_PROXY` | _(tắt)_ | Đặt `1` nếu máy phải ra Internet qua proxy (`HTTPS_PROXY`) |
 
 > Webcam chỉ hoạt động trong *secure context*: dùng `http://localhost` khi chạy trên máy mình, hoặc HTTPS nếu triển khai cho người khác truy cập.
 
@@ -39,39 +40,35 @@ Biến môi trường:
 ## Cách hoạt động
 
 ```
-Trình duyệt (track.html)                          Server Node (server.js)
-┌──────────────────────────────────────┐          ┌──────────────────────────────┐
-│ WebGazer (webcam → toạ độ màn hình)  │          │ /proxy?url=…                 │
-│        │                             │          │  tải HTML trang đích,        │
-│        ▼ trừ vị trí iframe + scroll  │          │  chèn <base href> để ảnh/CSS │
-│ ┌──────────────────────────────────┐ │  HTML    │  tải thẳng từ site gốc       │
-│ │ iframe /proxy?url=… (cùng origin)│◄├──────────┤                              │
-│ │  → đọc được mousemove/click/     │ │          │ /api/sessions/…              │
-│ │    scroll trực tiếp từ trang     │ │  events  │  lưu data/sessions/<id>.json │
-│ └──────────────────────────────────┘ ├─────────►│  + <id>.ndjson (từng sự kiện)│
-└──────────────────────────────────────┘          └──────────────────────────────┘
+http://localhost:3000
+├── /__et/…            giao diện công cụ (trang chủ, theo dõi, báo cáo, API, WebGazer)
+├── /__et/go?url=…     chọn site đích (lưu trong cookie) rồi chuyển tới đúng đường dẫn
+└── mọi đường dẫn khác reverse proxy tới site đích, GIỮ NGUYÊN đường dẫn
+                        (https://site.vn/san-pham?id=1 → http://localhost:3000/san-pham?id=1)
 ```
 
-Trình duyệt không cho đọc tương tác bên trong iframe khác origin, nên server làm **proxy**: tải HTML của link, chèn thẻ `<base>` rồi trả về dưới cùng origin với công cụ. Nhờ vậy trang theo dõi gắn được listener vào tài liệu trong iframe. Toạ độ ánh mắt từ WebGazer (theo màn hình) được quy đổi sang **toạ độ tài liệu** (cộng vị trí cuộn), nên heatmap vẫn đúng chỗ khi người dùng cuộn trang.
+Trình duyệt không cho đọc tương tác bên trong iframe khác origin, nên server làm **reverse proxy**: trang đích được phục vụ dưới cùng origin với công cụ, nhờ vậy trang theo dõi gắn được listener vào tài liệu trong iframe. Vì đường dẫn được giữ nguyên, các SPA (Next.js, Nuxt, React Router…) vẫn định tuyến đúng, và các lệnh `fetch`/XHR tương đối của trang cũng đi qua proxy tới server gốc. Việc chuyển trang bằng `history.pushState` cũng được ghi thành lượt xem mới.
 
-Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (toạ độ trong tài liệu), `vx/vy` (toạ độ trong khung nhìn), `vw/vh/dw/dh` (kích thước khung nhìn / tài liệu), `sx/sy` (vị trí cuộn), `el` (mô tả phần tử với click/focus).
+Toạ độ ánh mắt từ WebGazer (tính theo màn hình) được quy đổi sang **toạ độ trên tài liệu** (cộng thêm vị trí cuộn), nên heatmap vẫn đúng chỗ khi người dùng cuộn trang.
+
+Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (toạ độ trong tài liệu), `vx/vy` (toạ độ trong khung nhìn), `vw/vh/dw/dh` (kích thước khung nhìn / tài liệu), `sx/sy` (vị trí cuộn), `el` (mô tả phần tử với click/focus). Dữ liệu nằm ở `data/sessions/<id>.json` (thông tin phiên) và `<id>.ndjson` (từng sự kiện).
 
 ### API
 
 | Method | Đường dẫn | Mô tả |
 |---|---|---|
-| `POST` | `/api/sessions` | Tạo phiên `{ url, participant, eyeTracking }` |
-| `GET` | `/api/sessions` | Danh sách phiên |
-| `GET` | `/api/sessions/:id` | Thông tin phiên + toàn bộ sự kiện |
-| `POST` | `/api/sessions/:id/events` | Gửi lô sự kiện `{ events: [...] }` |
-| `PATCH` | `/api/sessions/:id` | Cập nhật `{ ended, calibration }` |
-| `DELETE` | `/api/sessions/:id` | Xoá phiên |
-| `GET` | `/api/sessions/:id/export?format=csv\|json` | Tải dữ liệu |
+| `POST` | `/__et/api/sessions` | Tạo phiên `{ url, participant, eyeTracking }` |
+| `GET` | `/__et/api/sessions` | Danh sách phiên |
+| `GET` | `/__et/api/sessions/:id` | Thông tin phiên + toàn bộ sự kiện |
+| `POST` | `/__et/api/sessions/:id/events` | Gửi lô sự kiện `{ events: [...] }` |
+| `PATCH` | `/__et/api/sessions/:id` | Cập nhật `{ ended, calibration }` |
+| `DELETE` | `/__et/api/sessions/:id` | Xoá phiên |
+| `GET` | `/__et/api/sessions/:id/export?format=csv\|json` | Tải dữ liệu |
 
 ## Giới hạn cần biết
 
 - **Độ chính xác của eye tracking qua webcam** thường khoảng 100–200px — đủ để biết người dùng chú ý vùng nào, không đủ để biết họ đọc từ nào.
-- **Trang qua proxy có thể hiển thị khác bản gốc**: các SPA định tuyến theo `location.pathname`, trang gọi API cần cookie/CORS, trang yêu cầu đăng nhập hoặc chặn bot có thể không chạy đúng. Form gửi bằng POST bị chặn; nếu trang tự chuyển hướng ra ngoài proxy thì công cụ sẽ báo và ngừng ghi.
+- **Trang qua proxy có thể hiển thị khác bản gốc**: trang gọi API bằng URL tuyệt đối tới domain khác cần CORS, trang có tường lửa chống bot (Cloudflare challenge…) hoặc đăng nhập bằng bên thứ ba có thể không chạy đúng. Service worker của trang bị tắt. Mỗi trình duyệt chỉ theo dõi một site đích tại một thời điểm (lưu trong cookie).
 - Trang báo cáo tải lại link ở thời điểm xem, nên nội dung có thể đã thay đổi so với lúc ghi.
 - **Bảo mật**: script của trang được test chạy cùng origin với công cụ (cần thiết để đọc tương tác), nên chỉ dùng công cụ với các trang bạn tin cậy và **không mở công cụ ra Internet công cộng**. Proxy mặc định chặn địa chỉ mạng nội bộ để tránh SSRF.
 - **Quyền riêng tư**: hãy xin đồng ý của người tham gia trước khi bật camera. Không có hình ảnh nào rời khỏi trình duyệt — chỉ toạ độ ánh mắt được lưu.

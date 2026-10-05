@@ -10,7 +10,7 @@ $('#startForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#formError').textContent = '';
   try {
-    const res = await fetch('/api/sessions', {
+    const res = await fetch('/__et/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -21,7 +21,7 @@ $('#startForm').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Không tạo được phiên');
-    location.href = '/track.html?id=' + data.id;
+    location.href = '/__et/track.html?id=' + data.id;
   } catch (err) {
     $('#formError').textContent = err.message;
   }
@@ -30,7 +30,7 @@ $('#startForm').addEventListener('submit', async (e) => {
 async function loadSessions() {
   const tbody = $('#sessions');
   try {
-    const list = await (await fetch('/api/sessions')).json();
+    const list = await (await fetch('/__et/api/sessions')).json();
     if (!list.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="muted">Chưa có phiên nào.</td></tr>';
       return;
@@ -46,7 +46,7 @@ async function loadSessions() {
         <td>${s.eventCount || 0}</td>
         <td>${acc}</td>
         <td style="white-space: nowrap">
-          <a class="btn" href="/report.html?id=${s.id}">Báo cáo</a>
+          <a class="btn" href="/__et/report.html?id=${s.id}">Báo cáo</a>
           <button class="danger" data-del="${s.id}" title="Xoá phiên">✕</button>
         </td>
       </tr>`;
@@ -59,7 +59,7 @@ async function loadSessions() {
 $('#sessions').addEventListener('click', async (e) => {
   const id = e.target.dataset && e.target.dataset.del;
   if (!id || !confirm('Xoá phiên này và toàn bộ dữ liệu?')) return;
-  await fetch('/api/sessions/' + id, { method: 'DELETE' });
+  await fetch('/__et/api/sessions/' + id, { method: 'DELETE' });
   loadSessions();
 });
 

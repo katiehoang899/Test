@@ -51,7 +51,7 @@ async function flush() {
   const batch = queue;
   queue = [];
   try {
-    const res = await fetch(`/api/sessions/${sessionId}/events`, {
+    const res = await fetch(`/__et/api/sessions/${sessionId}/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ events: batch }),
@@ -67,7 +67,7 @@ async function flush() {
 function flushBeacon() {
   if (!queue.length) return;
   const blob = new Blob([JSON.stringify({ events: queue })], { type: 'application/json' });
-  if (navigator.sendBeacon(`/api/sessions/${sessionId}/events`, blob)) queue = [];
+  if (navigator.sendBeacon(`/__et/api/sessions/${sessionId}/events`, blob)) queue = [];
 }
 
 function throttle(fn, ms) {
@@ -120,21 +120,16 @@ function describe(el) {
 }
 
 // ---------- điều hướng trong iframe ----------
+//
+// Trang đích chạy dưới cùng origin với công cụ và giữ nguyên đường dẫn gốc
+// (https://site.com/a/b → /a/b), nên link tương đối và SPA tự hoạt động.
+// Chỉ cần chặn link tuyệt đối trỏ ra site khác để giữ người dùng trong công cụ.
+
+let targetOrigin = null;    // origin của site đích đang hiển thị
+let urlWatcher = null;
 
 function navigate(url) {
-  frame.src = '/proxy?url=' + encodeURIComponent(url);
-}
-
-function sameDocument(a, b) {
-  try {
-    const ua = new URL(a);
-    const ub = new URL(b);
-    ua.hash = '';
-    ub.hash = '';
-    return ua.toString() === ub.toString();
-  } catch {
-    return false;
-  }
+  frame.src = '/__et/go?url=' + encodeURIComponent(url);
 }
 
 function docSize(doc) {
@@ -146,7 +141,20 @@ function docSize(doc) {
   };
 }
 
+function pageFromLocation() {
+  const loc = frameWin.location;
+  return targetOrigin + loc.pathname + loc.search;
+}
+
+function setCurrentPage(url, doc) {
+  currentPage = url;
+  $('#pageUrl').textContent = url;
+  $('#pageUrl').title = url;
+  document.title = 'Đang theo dõi — ' + (doc.title || url);
+}
+
 function attachToFrame() {
+  clearInterval(urlWatcher);
   let doc;
   try {
     frameWin = frame.contentWindow;
@@ -161,10 +169,9 @@ function attachToFrame() {
   }
 
   const meta = doc.querySelector('meta[name="eyetrack-original-url"]');
-  currentPage = meta ? meta.content : session.url;
-  $('#pageUrl').textContent = currentPage;
-  $('#pageUrl').title = currentPage;
-  document.title = 'Đang theo dõi — ' + (doc.title || currentPage);
+  if (meta) targetOrigin = new URL(meta.content).origin;
+  if (!targetOrigin) targetOrigin = new URL(session.url).origin;
+  setCurrentPage(pageFromLocation(), doc);
 
   const pageview = () => ({
     type: 'pageview',
@@ -178,6 +185,21 @@ function attachToFrame() {
   push(pageview());
   // Trang thường cao thêm sau khi ảnh/JS tải xong → ghi lại kích thước.
   setTimeout(() => frameWin && push({ ...pageview(), type: 'resize' }), 1500);
+
+  // SPA đổi URL bằng history.pushState mà không tải lại iframe → theo dõi thay đổi để ghi lượt xem mới.
+  urlWatcher = setInterval(() => {
+    let url;
+    try {
+      url = pageFromLocation();
+    } catch {
+      return;
+    }
+    if (url !== currentPage) {
+      setCurrentPage(url, doc);
+      push(pageview());
+      setTimeout(() => frameWin && push({ ...pageview(), type: 'resize' }), 1500);
+    }
+  }, 400);
 
   doc.addEventListener('mousemove', throttle((e) => {
     push({ type: 'move', x: e.pageX, y: e.pageY, vx: e.clientX, vy: e.clientY });
@@ -207,33 +229,34 @@ function attachToFrame() {
 
   frameWin.addEventListener('resize', throttle(() => push(pageview()), 300));
 
-  // Giữ người dùng ở trong proxy để tiếp tục theo dõi khi họ bấm link.
+  // Giữ người dùng ở trong công cụ khi họ bấm link tuyệt đối hoặc link mở tab mới.
   frameWin.addEventListener('click', (e) => {
-    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const a = e.target && e.target.closest && e.target.closest('a[href]');
-    if (!a) return;
-    const href = a.href;
-    if (!/^https?:/i.test(href)) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (sameDocument(href, currentPage)) {
-      const hash = decodeURIComponent(new URL(href).hash.slice(1));
-      const target = hash && (doc.getElementById(hash) || doc.getElementsByName(hash)[0]);
-      if (target) target.scrollIntoView({ behavior: 'smooth' });
-      else if (!hash) frameWin.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!a || !/^https?:/i.test(a.href)) return;
+    const u = new URL(a.href);
+    const newTab = (a.target || '').toLowerCase() === '_blank';
+    if (u.origin === location.origin) {
+      if (!newTab) return; // link tương đối: để trang (hoặc router của SPA) tự xử lý
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      frameWin.location.href = u.pathname + u.search + u.hash;
       return;
     }
-    navigate(href);
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    navigate(u.toString());
   }, true);
 
   frameWin.addEventListener('submit', (e) => {
     const form = e.target;
+    const action = new URL(form.action || frameWin.location.href, frameWin.location.href);
+    if (action.origin === location.origin) return; // form của chính site: proxy chuyển tiếp bình thường
     e.preventDefault();
     if ((form.method || 'get').toLowerCase() !== 'get') {
-      toast('Form gửi bằng POST không được hỗ trợ trong chế độ theo dõi.');
+      toast('Form gửi dữ liệu sang website khác không được hỗ trợ trong chế độ theo dõi.');
       return;
     }
-    const action = new URL(form.action || currentPage);
     action.search = new URLSearchParams(new FormData(form)).toString();
     navigate(action.toString());
   }, true);
@@ -292,8 +315,8 @@ function onGaze(data) {
 
 async function startWebGazer() {
   setGazeStatus('Đang tải mô hình eye tracking…');
-  await loadScript('/vendor/webgazer/webgazer.js');
-  webgazer.params.faceMeshSolutionPath = '/vendor/webgazer/mediapipe/face_mesh';
+  await loadScript('/__et/vendor/webgazer/webgazer.js');
+  webgazer.params.faceMeshSolutionPath = '/__et/vendor/webgazer/mediapipe/face_mesh';
   webgazer.saveDataAcrossSessions(false);
   webgazer.params.videoViewerWidth = 240;
   webgazer.params.videoViewerHeight = 180;
@@ -374,7 +397,7 @@ async function calibrate() {
     : null;
   const accuracy = meanErrorPx == null ? 0 : Math.max(0, 100 - (meanErrorPx / (innerHeight / 2)) * 100);
 
-  fetch(`/api/sessions/${sessionId}`, {
+  fetch(`/__et/api/sessions/${sessionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ calibration: { accuracy, meanErrorPx } }),
@@ -403,12 +426,12 @@ async function calibrate() {
 
 async function init() {
   if (!/^[a-f0-9]{16}$/.test(sessionId || '')) {
-    showOverlay('<h2>Thiếu mã phiên</h2><p><a href="/">Quay lại trang chủ</a></p>');
+    showOverlay('<h2>Thiếu mã phiên</h2><p><a href="/__et/">Quay lại trang chủ</a></p>');
     return;
   }
-  const res = await fetch('/api/sessions/' + sessionId);
+  const res = await fetch('/__et/api/sessions/' + sessionId);
   if (!res.ok) {
-    showOverlay('<h2>Không tìm thấy phiên</h2><p><a href="/">Quay lại trang chủ</a></p>');
+    showOverlay('<h2>Không tìm thấy phiên</h2><p><a href="/__et/">Quay lại trang chủ</a></p>');
     return;
   }
   session = await res.json();
@@ -452,7 +475,7 @@ $('#finish').addEventListener('click', async () => {
   push({ type: 'leave' });
   recording = false;
   await flush();
-  await fetch(`/api/sessions/${sessionId}`, {
+  await fetch(`/__et/api/sessions/${sessionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ended: true }),
@@ -460,7 +483,7 @@ $('#finish').addEventListener('click', async () => {
   if (gazeEnabled) {
     try { webgazer.end(); } catch { /* bỏ qua */ }
   }
-  location.href = '/report.html?id=' + sessionId;
+  location.href = '/__et/report.html?id=' + sessionId;
 });
 
 document.addEventListener('visibilitychange', () => {

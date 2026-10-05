@@ -7,6 +7,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const dns = require('node:dns/promises');
 const net = require('node:net');
+const { Readable } = require('node:stream');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -17,7 +18,10 @@ const WEBGAZER_DIR = path.join(__dirname, 'node_modules', 'webgazer', 'dist');
 // Mặc định chặn proxy tới mạng nội bộ (chống SSRF). Đặt ALLOW_PRIVATE=1 để test site chạy local.
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE === '1';
 const MAX_BODY = 5 * 1024 * 1024;
-const PROXY_TIMEOUT_MS = 20000;
+const PROXY_TIMEOUT_MS = 30000;
+// Mọi trang của công cụ nằm dưới tiền tố này; các đường dẫn còn lại được proxy tới site đích.
+const TOOL_PREFIX = '/__et';
+const TARGET_COOKIE = '__et_target';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -333,7 +337,39 @@ async function handleApi(req, res, url) {
   return sendJson(res, 404, { error: 'Not found' });
 }
 
-// ---------- proxy ----------
+// ---------- reverse proxy ----------
+//
+// Trang đích được phục vụ dưới CÙNG origin với công cụ và GIỮ NGUYÊN đường dẫn gốc
+// (https://site.com/en/abc → http://localhost:3000/en/abc). Nhờ vậy:
+//  - trang theo dõi đọc được sự kiện trong iframe (cùng origin)
+//  - SPA (Next.js, Nuxt, React Router…) thấy location.pathname đúng nên định tuyến bình thường
+//  - fetch/XHR tương đối của trang đi qua proxy tới đúng server gốc
+// Mọi đường dẫn của công cụ nằm dưới TOOL_PREFIX; origin đích hiện tại lưu trong cookie.
+
+function getCookie(req, name) {
+  const m = new RegExp('(?:^|;\\s*)' + name + '=([^;]*)').exec(req.headers.cookie || '');
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function targetCookie(origin) {
+  return `${TARGET_COOKIE}=${encodeURIComponent(origin)}; Path=/; HttpOnly; SameSite=Lax`;
+}
+
+const hostCheckCache = new Map();
+async function assertPublicHostCached(hostname) {
+  const hit = hostCheckCache.get(hostname);
+  if (hit && hit.until > Date.now()) {
+    if (hit.error) throw hit.error;
+    return;
+  }
+  try {
+    await assertPublicHost(hostname);
+    hostCheckCache.set(hostname, { until: Date.now() + 60000 });
+  } catch (error) {
+    hostCheckCache.set(hostname, { until: Date.now() + 60000, error });
+    throw error;
+  }
+}
 
 function detectCharset(contentType, buf) {
   const m = /charset=([^;]+)/i.exec(contentType || '');
@@ -351,26 +387,16 @@ function decode(buf, charset) {
   }
 }
 
+// Chặn service worker của trang đích: nếu đăng ký được, nó sẽ chiếm cả origin của công cụ.
+const INJECT_SCRIPT = '<script>(function(){try{var sw=navigator.serviceWorker;if(sw){sw.register=function(){return Promise.reject(new Error("Service worker bị tắt trong chế độ theo dõi"))};' +
+  'sw.getRegistrations&&sw.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})})}}catch(e){}})();</script>';
+
 /**
- * Chuẩn bị HTML của trang đích để hiển thị trong iframe cùng origin:
- * - chèn <base> để mọi tài nguyên tương đối (ảnh, css, js) tải thẳng từ site gốc
- * - bỏ meta CSP / refresh có thể chặn hiển thị hoặc tự chuyển trang
+ * Chuẩn bị HTML của trang đích: ghi chú URL gốc, bỏ meta CSP/refresh, chặn service worker.
  */
-function rewriteHtml(html, finalUrl) {
-  let baseHref = finalUrl;
-  const existingBase = /<base\b[^>]*\bhref\s*=\s*["']?([^"'\s>]+)/i.exec(html);
-  if (existingBase) {
-    try {
-      baseHref = new URL(existingBase[1], finalUrl).toString();
-    } catch {
-      // giữ finalUrl
-    }
-  }
-  let out = html
-    .replace(/<meta\b[^>]*http-equiv\s*=\s*["']?(content-security-policy|refresh)["']?[^>]*>/gi, '')
-    .replace(/<base\b[^>]*>/gi, '');
-  const inject = `<base href="${escapeHtml(baseHref)}">` +
-    `<meta name="eyetrack-original-url" content="${escapeHtml(finalUrl)}">`;
+function rewriteHtml(html, originalUrl) {
+  let out = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?(content-security-policy|refresh)["']?[^>]*>/gi, '');
+  const inject = `<meta name="eyetrack-original-url" content="${escapeHtml(originalUrl)}">` + INJECT_SCRIPT;
   if (/<head\b[^>]*>/i.test(out)) {
     out = out.replace(/<head\b[^>]*>/i, (m) => m + inject);
   } else if (/<html\b[^>]*>/i.test(out)) {
@@ -382,62 +408,136 @@ function rewriteHtml(html, finalUrl) {
 }
 
 function proxyErrorPage(res, status, message, target) {
-  res.writeHead(status, { 'Content-Type': MIME['.html'] });
+  res.writeHead(status, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
   res.end(`<!doctype html><meta charset="utf-8"><body style="font:15px system-ui;padding:32px;color:#333">
 <h2>Không tải được trang</h2><p>${escapeHtml(message)}</p>
 ${target ? `<p><a href="${escapeHtml(target)}" target="_blank" rel="noopener">Mở trực tiếp trong tab mới</a></p>` : ''}
 </body>`);
 }
 
-async function handleProxy(req, res, url) {
+/** Đổi URL của site đích sang URL đi qua proxy. */
+function toProxyUrl(absUrl, targetOrigin) {
+  const u = new URL(absUrl);
+  if (u.origin === targetOrigin) return u.pathname + u.search + u.hash;
+  return `${TOOL_PREFIX}/go?url=${encodeURIComponent(u.toString())}`;
+}
+
+// GET /__et/go?url=…  → chọn origin đích rồi chuyển iframe sang đúng đường dẫn.
+async function handleGo(req, res, url) {
   const target = normalizeTargetUrl(url.searchParams.get('url'));
   if (!target) return proxyErrorPage(res, 400, 'URL không hợp lệ.');
+  const u = new URL(target);
+  try {
+    await assertPublicHostCached(u.hostname);
+  } catch (err) {
+    return proxyErrorPage(res, err.status || 502, err.message, target);
+  }
+  res.writeHead(302, {
+    'Set-Cookie': targetCookie(u.origin),
+    Location: u.pathname + u.search,
+    'Cache-Control': 'no-store',
+  });
+  res.end();
+}
 
-  let current = target;
+const HOP_HEADERS = new Set([
+  'host', 'connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer',
+  'accept-encoding', 'content-length', 'origin', 'referer', 'cookie', 'expect',
+]);
+const DROP_RESPONSE_HEADERS = new Set([
+  'content-encoding', 'content-length', 'transfer-encoding', 'connection', 'keep-alive',
+  'content-security-policy', 'content-security-policy-report-only', 'x-frame-options',
+  'strict-transport-security', 'set-cookie', 'location', 'alt-svc', 'clear-site-data',
+]);
+
+function forwardCookies(req) {
+  return (req.headers.cookie || '')
+    .split(/;\s*/)
+    .filter((c) => c && !c.startsWith(TARGET_COOKIE + '='))
+    .join('; ');
+}
+
+function rewriteSetCookie(c) {
+  // Cookie của site đích được gắn vào origin của công cụ: bỏ Domain để trình duyệt chấp nhận.
+  return c.replace(/;\s*domain=[^;]*/gi, '');
+}
+
+async function handleReverseProxy(req, res, url) {
+  const targetOrigin = getCookie(req, TARGET_COOKIE);
+  const dest = req.headers['sec-fetch-dest'];
+  // Mở trực tiếp trên tab (không phải trong iframe) hoặc chưa chọn site → về trang chủ công cụ.
+  if (!targetOrigin || dest === 'document') {
+    res.writeHead(302, { Location: TOOL_PREFIX + '/' });
+    return res.end();
+  }
+  let origin;
+  try {
+    origin = new URL(targetOrigin).origin;
+  } catch {
+    res.writeHead(302, { Location: TOOL_PREFIX + '/' });
+    return res.end();
+  }
+  const upstreamUrl = origin + url.pathname + url.search;
+  const isNavigation = dest === 'iframe' || dest === 'frame';
+
   let upstream;
   try {
-    // Tự theo redirect để kiểm tra từng host đích (tránh redirect vào mạng nội bộ).
-    for (let hop = 0; hop < 6; hop++) {
-      await assertPublicHost(new URL(current).hostname);
-      upstream = await fetch(current, {
-        redirect: 'manual',
-        signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
-        headers: {
-          'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 EyeTrackingTool',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': req.headers['accept-language'] || 'vi,en;q=0.8',
-        },
-      });
-      const loc = upstream.headers.get('location');
-      if (upstream.status >= 300 && upstream.status < 400 && loc) {
-        current = new URL(loc, current).toString();
-        continue;
-      }
-      break;
+    await assertPublicHostCached(new URL(origin).hostname);
+    const headers = {};
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (!HOP_HEADERS.has(k) && !k.startsWith('sec-') && !k.startsWith('x-forwarded')) headers[k] = v;
     }
+    const cookies = forwardCookies(req);
+    if (cookies) headers.cookie = cookies;
+    if (req.headers.referer) {
+      try {
+        const r = new URL(req.headers.referer);
+        headers.referer = origin + r.pathname + r.search;
+      } catch { /* bỏ qua */ }
+    }
+    if (req.headers.origin) headers.origin = origin;
+    const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+    upstream = await fetch(upstreamUrl, {
+      method: req.method,
+      headers,
+      body: hasBody ? req : undefined,
+      duplex: hasBody ? 'half' : undefined,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+    });
   } catch (err) {
-    return proxyErrorPage(res, err.status || 502, err.status ? err.message : `Lỗi khi tải ${current}: ${err.message}`, target);
+    if (isNavigation) {
+      return proxyErrorPage(res, err.status || 502, err.status ? err.message : `Lỗi khi tải ${upstreamUrl}: ${err.message}`, upstreamUrl);
+    }
+    return sendText(res, err.status || 502, err.message);
   }
-  if (upstream.status >= 300 && upstream.status < 400) {
-    return proxyErrorPage(res, 508, 'Quá nhiều lần chuyển hướng.', target);
+
+  const outHeaders = {};
+  upstream.headers.forEach((v, k) => {
+    if (!DROP_RESPONSE_HEADERS.has(k)) outHeaders[k] = v;
+  });
+  const setCookies = upstream.headers.getSetCookie ? upstream.headers.getSetCookie() : [];
+  if (setCookies.length) outHeaders['set-cookie'] = setCookies.map(rewriteSetCookie);
+  const loc = upstream.headers.get('location');
+  if (loc) {
+    try {
+      outHeaders.location = toProxyUrl(new URL(loc, upstreamUrl).toString(), origin);
+    } catch { /* bỏ Location hỏng */ }
   }
 
   const contentType = upstream.headers.get('content-type') || '';
-  const buf = Buffer.from(await upstream.arrayBuffer());
-
-  if (!/text\/html|application\/xhtml/i.test(contentType)) {
-    // Không phải HTML (ảnh, PDF…) → chuyển hẳn sang URL gốc.
-    res.writeHead(302, { Location: current });
-    return res.end();
+  if (isNavigation && req.method === 'GET' && /text\/html|application\/xhtml/i.test(contentType)) {
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    const html = rewriteHtml(decode(buf, detectCharset(contentType, buf)), upstreamUrl);
+    outHeaders['content-type'] = MIME['.html'];
+    outHeaders['cache-control'] = 'no-store';
+    res.writeHead(upstream.status, outHeaders);
+    return res.end(html);
   }
 
-  const html = rewriteHtml(decode(buf, detectCharset(contentType, buf)), current);
-  res.writeHead(upstream.status, {
-    'Content-Type': MIME['.html'],
-    'Cache-Control': 'no-store',
-    'X-Final-Url': encodeURI(current),
-  });
-  res.end(html);
+  res.writeHead(upstream.status, outHeaders);
+  if (!upstream.body || req.method === 'HEAD') return res.end();
+  Readable.fromWeb(upstream.body).on('error', () => res.destroy()).pipe(res);
 }
 
 // ---------- static ----------
@@ -464,12 +564,20 @@ async function serveStatic(res, root, rel) {
 async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
-    if (url.pathname === '/proxy') return await handleProxy(req, res, url);
-    if (url.pathname.startsWith('/vendor/webgazer/')) {
-      return await serveStatic(res, WEBGAZER_DIR, decodeURIComponent(url.pathname.slice('/vendor/webgazer/'.length)));
+    if (url.pathname !== TOOL_PREFIX && !url.pathname.startsWith(TOOL_PREFIX + '/')) {
+      return await handleReverseProxy(req, res, url);
     }
-    return await serveStatic(res, PUBLIC_DIR, decodeURIComponent(url.pathname));
+    const rel = url.pathname.slice(TOOL_PREFIX.length) || '/';
+    if (rel.startsWith('/api/')) return await handleApi(req, res, new URL(rel + url.search, 'http://localhost'));
+    if (rel === '/go') return await handleGo(req, res, url);
+    if (rel.startsWith('/vendor/webgazer/')) {
+      return await serveStatic(res, WEBGAZER_DIR, decodeURIComponent(rel.slice('/vendor/webgazer/'.length)));
+    }
+    if (url.pathname === TOOL_PREFIX) {
+      res.writeHead(302, { Location: TOOL_PREFIX + '/' });
+      return res.end();
+    }
+    return await serveStatic(res, PUBLIC_DIR, decodeURIComponent(rel));
   } catch (err) {
     if (!res.headersSent) sendJson(res, err.status || 500, { error: err.message });
     else res.destroy();
@@ -484,8 +592,8 @@ function createServer() {
 
 if (require.main === module) {
   createServer().listen(PORT, HOST, () => {
-    console.log(`Eye tracking tool đang chạy tại http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
+    console.log(`Eye tracking tool đang chạy tại http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}${TOOL_PREFIX}/`);
   });
 }
 
-module.exports = { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent };
+module.exports = { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
