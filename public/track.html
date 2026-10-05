@@ -7,24 +7,62 @@
   <link rel="stylesheet" href="/__et/style.css">
 </head>
 <body class="track-body">
-  <div class="topbar">
-    <span class="dot" id="recDot" title="Trạng thái ghi"></span>
-    <strong>Eye Tracking</strong>
-    <span class="url" id="pageUrl"></span>
-    <span class="small muted" id="gazeStatus"></span>
-    <span class="small muted"><b id="eventCount">0</b> sự kiện</span>
-    <button type="button" id="toggleDot" hidden>Hiện điểm nhìn</button>
-    <button type="button" id="recalibrate" hidden>Hiệu chỉnh lại</button>
-    <button type="button" class="primary" id="finish">Kết thúc &amp; xem báo cáo</button>
-  </div>
+  <div class="split">
+    <!-- Màn hình 1: webcam -->
+    <aside class="cam-pane">
+      <div class="cam-head">
+        <span class="dot" id="recDot" title="Trạng thái ghi"></span>
+        <strong>Eye Tracking</strong>
+        <span class="small muted" id="timer">00:00</span>
+      </div>
 
-  <iframe id="frame" title="Trang đang test" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+      <div class="cam-box" id="camBox">
+        <div class="cam-placeholder" id="camPlaceholder">Camera chưa bật</div>
+      </div>
+      <div class="cam-status small" id="gazeStatus">—</div>
+
+      <div class="cam-section">
+        <div class="cam-label small muted">Đang nhìn vào (khung trình duyệt)</div>
+        <canvas id="gazeMap" width="320" height="110"></canvas>
+      </div>
+
+      <div class="cam-stats">
+        <div><span>Người tham gia</span><b id="statParticipant">—</b></div>
+        <div><span>Độ chính xác</span><b id="statAccuracy">—</b></div>
+        <div><span>Mẫu mắt / giây</span><b id="statRate">0</b></div>
+        <div><span>Click</span><b id="statClicks">0</b></div>
+        <div><span>Trang đã xem</span><b id="statPages">0</b></div>
+        <div><span>Sự kiện đã lưu</span><b id="eventCount">0</b></div>
+      </div>
+
+      <div class="cam-actions">
+        <div class="cam-actions-row">
+          <button type="button" id="toggleDot" hidden>Hiện điểm nhìn</button>
+          <button type="button" id="recalibrate" hidden>Hiệu chỉnh lại</button>
+        </div>
+        <button type="button" class="primary" id="finish">Kết thúc &amp; xem báo cáo</button>
+      </div>
+    </aside>
+
+    <!-- Màn hình 2: trình duyệt -->
+    <section class="browser-pane">
+      <form class="browser-bar" id="browserBar">
+        <button type="button" id="navBack" title="Lùi">◀</button>
+        <button type="button" id="navForward" title="Tiến">▶</button>
+        <button type="button" id="navReload" title="Tải lại">⟳</button>
+        <input type="text" id="address" autocomplete="off" spellcheck="false" aria-label="Địa chỉ trang">
+        <span class="small muted" id="browserMode"></span>
+      </form>
+      <div class="browser-view" id="browserView">
+        <div class="overlay" id="overlay" hidden>
+          <div class="center-msg" id="overlayMsg"></div>
+        </div>
+      </div>
+    </section>
+  </div>
   <div id="gazeDot"></div>
 
-  <div class="overlay" id="overlay" hidden>
-    <div class="center-msg" id="overlayMsg"></div>
-  </div>
-
+  <script src="/__et/recorder.js"></script>
   <script src="/__et/track.js"></script>
 </body>
 </html>

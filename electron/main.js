@@ -14,6 +14,9 @@ if (app.isPackaged) process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 
 
 const { createServer, TOOL_PREFIX } = require(path.join(__dirname, '..', 'server.js'));
 
+const BROWSE_PARTITION = 'persist:browse'; // cookie/đăng nhập của website test, tách khỏi công cụ
+const GUEST_PRELOAD = path.join(__dirname, 'guest-preload.js');
+
 let baseUrl = null;
 let mainWindow = null;
 
@@ -41,7 +44,33 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'host-preload.js'),
+      webviewTag: true,
     },
+  });
+
+  // Khung trình duyệt (<webview>) của màn hình theo dõi: luôn dùng preload ghi tương tác
+  // của app, không bật Node cho website, chỉ cho mở http/https.
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preloadURL;
+    webPreferences.preload = GUEST_PRELOAD;
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = false; // preload cần require() bộ ghi dùng chung
+    params.partition = BROWSE_PARTITION;
+    if (params.src && !/^(https?:|about:blank)/i.test(params.src)) event.preventDefault();
+  });
+
+  // Website mở tab/cửa sổ mới → mở ngay trong khung trình duyệt để tiếp tục ghi.
+  mainWindow.webContents.on('did-attach-webview', (event, contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:/i.test(url)) contents.loadURL(url);
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', (e, url) => {
+      if (!/^https?:/i.test(url)) e.preventDefault();
+    });
   });
 
   // Link mở tab mới (ví dụ "Mở trực tiếp trong tab mới") → mở bằng trình duyệt mặc định.
@@ -70,6 +99,10 @@ function setupPermissions() {
   session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin) => {
     return permission === 'media' && isOwnUrl(requestingOrigin + '/');
   });
+  // Website đang test không được xin camera, micro, vị trí, thông báo…
+  const browse = session.fromPartition(BROWSE_PARTITION);
+  browse.setPermissionRequestHandler((wc, permission, callback) => callback(false));
+  browse.setPermissionCheckHandler(() => false);
 }
 
 async function askCameraAccess() {

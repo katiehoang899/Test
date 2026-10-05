@@ -61,7 +61,9 @@ Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. N
 
 1. Trang chủ: nhập link, tên người tham gia, bật/tắt eye tracking → **Bắt đầu theo dõi**.
 2. Cho phép truy cập camera, làm **hiệu chỉnh 9 điểm** (nhìn vào chấm đỏ và click 5 lần mỗi chấm), sau đó nhìn chấm vàng 5 giây để đo độ chính xác. Nên đạt ≥ 70%; nếu thấp hãy hiệu chỉnh lại (ánh sáng đều, mặt nhìn thẳng camera, không di chuyển đầu).
-3. Người dùng duyệt trang như bình thường. Click vào link sẽ được giữ trong công cụ để tiếp tục ghi. Có thể bật "Hiện điểm nhìn" để kiểm tra nhanh, hoặc "Hiệu chỉnh lại" bất cứ lúc nào.
+3. Người dùng duyệt trang như bình thường. Màn hình theo dõi gồm **2 khung song song**:
+   - **Trái — webcam**: hình camera trực tiếp kèm lưới nhận diện khuôn mặt, trạng thái (có thấy mặt không), bản đồ "đang nhìn vào đâu" trong khung trình duyệt, thống kê trực tiếp (độ chính xác, số mẫu ánh mắt/giây, click, số trang, sự kiện đã lưu) và các nút *Hiện điểm nhìn*, *Hiệu chỉnh lại*, *Kết thúc*.
+   - **Phải — trình duyệt**: thanh địa chỉ (gõ link mới rồi Enter), nút lùi / tiến / tải lại. Trong **app desktop** đây là trình duyệt Chromium thật mở thẳng website (không qua proxy, chạy y như Chrome). Trong bản web, trang được hiển thị qua proxy của server.
 4. Bấm **Kết thúc & xem báo cáo**.
 
 ## Cách hoạt động
@@ -74,7 +76,9 @@ http://localhost:3000
                         (https://site.vn/san-pham?id=1 → http://localhost:3000/san-pham?id=1)
 ```
 
-Trình duyệt không cho đọc tương tác bên trong iframe khác origin, nên server làm **reverse proxy**: trang đích được phục vụ dưới cùng origin với công cụ, nhờ vậy trang theo dõi gắn được listener vào tài liệu trong iframe. Vì đường dẫn được giữ nguyên, các SPA (Next.js, Nuxt, React Router…) vẫn định tuyến đúng, và các lệnh `fetch`/XHR tương đối của trang cũng đi qua proxy tới server gốc. Việc chuyển trang bằng `history.pushState` cũng được ghi thành lượt xem mới.
+**App desktop (Electron)** — khung trình duyệt là `<webview>` mở thẳng website. Bộ ghi tương tác (`public/recorder.js`) được nạp qua preload của webview (`electron/guest-preload.js`), chạy ở "isolated world" nên website không thấy hay can thiệp được, rồi gửi sự kiện về màn hình theo dõi qua IPC. Webview dùng phiên trình duyệt riêng (`persist:browse`), không được xin quyền camera/vị trí/thông báo; link mở tab mới được mở ngay trong khung để tiếp tục ghi.
+
+**Bản web** — trình duyệt không cho đọc tương tác bên trong iframe khác origin, nên server làm **reverse proxy**: trang đích được phục vụ dưới cùng origin với công cụ, nhờ vậy trang theo dõi gắn được listener vào tài liệu trong iframe. Vì đường dẫn được giữ nguyên, các SPA (Next.js, Nuxt, React Router…) vẫn định tuyến đúng, và các lệnh `fetch`/XHR tương đối của trang cũng đi qua proxy tới server gốc. Việc chuyển trang bằng `history.pushState` cũng được ghi thành lượt xem mới.
 
 Toạ độ ánh mắt từ WebGazer (tính theo màn hình) được quy đổi sang **toạ độ trên tài liệu** (cộng thêm vị trí cuộn), nên heatmap vẫn đúng chỗ khi người dùng cuộn trang.
 

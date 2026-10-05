@@ -96,7 +96,6 @@ td.url { word-break: break-all; }
 .dot.on { background: var(--ok); }
 .dot.rec { background: var(--danger); animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .3; } }
-#frame { flex: 1; width: 100%; border: 0; background: #fff; }
 
 #gazeDot {
   position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px;
@@ -106,7 +105,7 @@ td.url { word-break: break-all; }
 }
 
 .overlay {
-  position: fixed; inset: 0; z-index: 99990;
+  position: absolute; inset: 0; z-index: 99990;
   background: rgba(15, 18, 25, .92); color: #fff;
 }
 .overlay .center-msg {
@@ -129,6 +128,50 @@ td.url { word-break: break-all; }
   position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
   background: #1d2330; color: #fff; padding: 10px 16px; border-radius: 8px;
   z-index: 99999; max-width: 90vw; box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+
+/* 2 màn hình song song: webcam | trình duyệt */
+.split { flex: 1; display: grid; grid-template-columns: 352px minmax(0, 1fr); min-height: 0; }
+.cam-pane {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 16px; overflow-y: auto; overflow-x: hidden;
+  background: var(--panel); border-right: 1px solid var(--border);
+}
+.cam-head { display: flex; align-items: center; gap: 8px; }
+.cam-head #timer { margin-left: auto; font-variant-numeric: tabular-nums; }
+.cam-box {
+  position: relative; width: 320px; height: 240px; flex: none;
+  border-radius: 10px; overflow: hidden; background: #0f1219;
+}
+.cam-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #98a2b3; text-align: center; padding: 16px; }
+/* khung video do WebGazer tạo, được chuyển vào màn hình webcam */
+#webgazerVideoContainer.cam-video { position: absolute !important; top: 0 !important; left: 0 !important; transform: none !important; }
+.cam-status { padding: 6px 10px; border-radius: 7px; background: var(--bg); border: 1px solid var(--border); }
+.cam-status.ok { color: var(--ok); }
+.cam-status.warn { color: var(--warn); }
+.cam-label { margin-bottom: 4px; }
+#gazeMap { width: 320px; height: 110px; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.cam-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cam-stats > div { display: flex; flex-direction: column; padding: 4px 10px; border-radius: 7px; background: var(--bg); border: 1px solid var(--border); min-width: 0; }
+.cam-stats span { font-size: 11px; color: var(--muted); }
+.cam-stats b { font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.cam-actions-row { display: flex; gap: 8px; }
+.cam-actions-row button { flex: 1; }
+.cam-actions button { justify-content: center; }
+.browser-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.browser-bar {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.browser-bar button { padding: 6px 10px; }
+.browser-bar input { flex: 1; min-width: 0; padding: 7px 12px; border-radius: 99px; }
+.browser-view { position: relative; flex: 1; min-height: 0; background: #fff; }
+.browser-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: flex; }
+.browser-view.covered .browser-frame { visibility: hidden; }
+@media (max-width: 860px) {
+  .split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .cam-pane { border-right: 0; border-bottom: 1px solid var(--border); max-height: 45vh; }
 }
 
 /* ---------- report page ---------- */
