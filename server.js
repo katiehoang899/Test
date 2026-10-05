@@ -14,7 +14,7 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const WEBGAZER_DIR = path.join(__dirname, 'node_modules', 'webgazer', 'dist');
+const WEBGAZER_DIR = path.resolve(process.env.WEBGAZER_DIR || path.join(__dirname, 'node_modules', 'webgazer', 'dist'));
 // Mặc định chặn proxy tới mạng nội bộ (chống SSRF). Đặt ALLOW_PRIVATE=1 để test site chạy local.
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE === '1';
 const MAX_BODY = 5 * 1024 * 1024;

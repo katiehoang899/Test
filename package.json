@@ -2,10 +2,12 @@
   "name": "eye-tracking-link-tool",
   "version": "1.0.0",
   "description": "Nhập một đường link, mở trang đó và thu thập tương tác của người dùng (ánh mắt qua webcam, chuột, click, cuộn) kèm heatmap báo cáo.",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "app": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:mac": "electron-builder --mac dmg --arm64 --x64 --publish never"
   },
   "engines": {
     "node": ">=18"
@@ -13,5 +15,56 @@
   "license": "GPL-3.0-or-later",
   "dependencies": {
     "webgazer": "3.5.3"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "Eye Tracking Tool",
+  "author": "Eye Tracking Tool",
+  "build": {
+    "appId": "com.eyetracking.tool",
+    "productName": "Eye Tracking Tool",
+    "files": [
+      "server.js",
+      "public/**",
+      "electron/**",
+      "package.json",
+      "!node_modules{,/**/*}"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSCameraUsageDescription": "Eye Tracking Tool dùng webcam để ước lượng vị trí ánh mắt trên trang đang được test. Hình ảnh không rời khỏi máy."
+      }
+    },
+    "dmg": {
+      "title": "Eye Tracking Tool ${version}",
+      "artifactName": "Eye-Tracking-Tool-${version}-${arch}.dmg"
+    },
+    "extraResources": [
+      {
+        "from": "node_modules/webgazer/dist",
+        "to": "webgazer",
+        "filter": [
+          "**/*",
+          "!*.map"
+        ]
+      }
+    ]
   }
 }

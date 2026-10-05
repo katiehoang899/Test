@@ -30,6 +30,33 @@ Biến môi trường:
 
 > Webcam chỉ hoạt động trong *secure context*: dùng `http://localhost` khi chạy trên máy mình, hoặc HTTPS nếu triển khai cho người khác truy cập.
 
+## Ứng dụng macOS (.dmg)
+
+Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Eye Tracking Tool/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
+
+**Tải bản build sẵn:** mỗi lần push, GitHub Actions (workflow `Build macOS app (.dmg)`) build file `.dmg` trên máy macOS và đính kèm ở mục *Artifacts* của lần chạy:
+
+- `Eye-Tracking-Tool-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
+- `Eye-Tracking-Tool-<version>-x64.dmg` cho Mac chip Intel
+
+**Tự build trên Mac:**
+
+```bash
+npm install
+npm run app        # chạy thử ứng dụng desktop
+npm run dist:mac   # tạo file .dmg trong thư mục dist/
+```
+
+**Lần mở đầu tiên:** app được ký ad-hoc, chưa ký bằng Apple Developer ID / notarize, nên macOS sẽ chặn với thông báo "không thể xác minh nhà phát triển". Kéo app vào *Applications*, sau đó:
+
+- Chuột phải vào app → **Open** → **Open**, hoặc
+- *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
+- chạy `xattr -dr com.apple.quarantine "/Applications/Eye Tracking Tool.app"`
+
+Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. Nếu lỡ từ chối, bật lại tại *System Settings → Privacy & Security → Camera*.
+
+> Để phát hành cho nhiều người mà không bị cảnh báo, cần tài khoản Apple Developer: đặt `CSC_LINK`/`CSC_KEY_PASSWORD` (chứng chỉ Developer ID) và `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` để electron-builder ký và notarize, rồi bỏ `"identity": "-"` trong `package.json`.
+
 ## Cách dùng
 
 1. Trang chủ: nhập link, tên người tham gia, bật/tắt eye tracking → **Bắt đầu theo dõi**.

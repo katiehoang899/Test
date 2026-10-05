@@ -1,0 +1,30 @@
+name: Build macOS app (.dmg)
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      # Ký ad-hoc (identity "-" trong package.json), không cần tài khoản Apple Developer.
+      - run: npm run dist:mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Eye-Tracking-Tool-macOS
+          path: dist/*.dmg
+          if-no-files-found: error
