@@ -8,7 +8,7 @@ const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain } = require('electron');
 
 // Dữ liệu phiên lưu trong thư mục dữ liệu của ứng dụng
-// (macOS: ~/Library/Application Support/Eye Tracking Tool/sessions).
+// (macOS: ~/Library/Application Support/Eye Tracking Studio/sessions).
 process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
 // Bản đóng gói chỉ mang theo thư mục dist của WebGazer (xem build.extraResources trong package.json).
 if (app.isPackaged) process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 'webgazer');
@@ -43,7 +43,7 @@ function createWindow() {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'Eye Tracking Tool',
+    title: 'Eye Tracking Studio',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -91,12 +91,31 @@ function createWindow() {
     }
   });
 
+  // macOS: đóng cửa sổ không thoát app → bỏ tham chiếu tới cửa sổ đã huỷ để lần mở lại tạo cửa sổ mới.
+  const win = mainWindow;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+
   mainWindow.loadURL(baseUrl + TOOL_PREFIX + '/');
+}
+
+function hasWindow() {
+  return !!mainWindow && !mainWindow.isDestroyed();
+}
+
+/** Mở lại app (bấm icon Dock, mở lần nữa từ Applications/Finder): đưa cửa sổ lên hoặc tạo mới. */
+function showMainWindow() {
+  if (!baseUrl) return; // server chưa sẵn sàng; cửa sổ sẽ được tạo khi khởi động xong
+  if (!hasWindow()) return createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
 }
 
 // Nút "Chọn file…" ở trang chủ: chọn một file HTML trên máy để test.
 ipcMain.handle('et:pick-html', async (event) => {
-  if (!mainWindow || event.sender !== mainWindow.webContents || !isOwnUrl(event.senderFrame && event.senderFrame.url)) return null;
+  if (!hasWindow() || event.sender !== mainWindow.webContents || !isOwnUrl(event.senderFrame && event.senderFrame.url)) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Chọn trang web trên máy',
     properties: ['openFile'],
@@ -130,7 +149,7 @@ async function askCameraAccess() {
     dialog.showMessageBox({
       type: 'warning',
       message: 'Ứng dụng chưa được phép dùng camera',
-      detail: 'Eye tracking cần webcam. Mở System Settings → Privacy & Security → Camera và bật cho "Eye Tracking Tool". Bạn vẫn có thể ghi chuột, click và cuộn trang khi không có camera.',
+      detail: 'Eye tracking cần webcam. Mở System Settings → Privacy & Security → Camera và bật cho "Eye Tracking Studio". Bạn vẫn có thể ghi chuột, click và cuộn trang khi không có camera.',
     });
   }
 }
@@ -142,7 +161,10 @@ function buildMenu() {
     {
       label: 'Xem',
       submenu: [
-        { label: 'Trang chủ công cụ', accelerator: 'CmdOrCtrl+Shift+H', click: () => mainWindow && mainWindow.loadURL(baseUrl + TOOL_PREFIX + '/') },
+        { label: 'Trang chủ công cụ', accelerator: 'CmdOrCtrl+Shift+H', click: () => {
+          showMainWindow();
+          if (hasWindow()) mainWindow.loadURL(baseUrl + TOOL_PREFIX + '/');
+        } },
         { role: 'reload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
@@ -167,27 +189,20 @@ function buildMenu() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
+  app.on('second-instance', showMainWindow);
 
   app.whenReady().then(async () => {
     const port = await startServer();
     baseUrl = `http://127.0.0.1:${port}`;
-    console.log('Eye Tracking Tool server:', baseUrl);
+    console.log('Eye Tracking Studio server:', baseUrl);
     setupPermissions();
     buildMenu();
     await askCameraAccess();
     createWindow();
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+    app.on('activate', showMainWindow);
   }).catch((err) => {
-    dialog.showErrorBox('Không khởi động được Eye Tracking Tool', String(err && err.stack || err));
+    dialog.showErrorBox('Không khởi động được Eye Tracking Studio', String(err && err.stack || err));
     app.quit();
   });
 

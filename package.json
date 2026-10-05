@@ -1,6 +1,6 @@
 {
-  "name": "eye-tracking-link-tool",
-  "version": "1.0.0",
+  "name": "eye-tracking-studio",
+  "version": "2.0.0",
   "description": "Nhập một đường link, mở trang đó và thu thập tương tác của người dùng (ánh mắt qua webcam, chuột, click, cuộn) kèm heatmap báo cáo.",
   "main": "electron/main.js",
   "scripts": {
@@ -20,11 +20,11 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3"
   },
-  "productName": "Eye Tracking Tool",
-  "author": "Eye Tracking Tool",
+  "productName": "Eye Tracking Studio",
+  "author": "Eye Tracking Studio",
   "build": {
-    "appId": "com.eyetracking.tool",
-    "productName": "Eye Tracking Tool",
+    "appId": "com.eyetracking.studio",
+    "productName": "Eye Tracking Studio",
     "files": [
       "server.js",
       "public/**",
@@ -49,12 +49,12 @@
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSCameraUsageDescription": "Eye Tracking Tool dùng webcam để ước lượng vị trí ánh mắt trên trang đang được test. Hình ảnh không rời khỏi máy."
+        "NSCameraUsageDescription": "Eye Tracking Studio dùng webcam để ước lượng vị trí ánh mắt trên trang đang được test. Hình ảnh không rời khỏi máy."
       }
     },
     "dmg": {
-      "title": "Eye Tracking Tool ${version}",
-      "artifactName": "Eye-Tracking-Tool-${version}-${arch}.dmg"
+      "title": "Eye Tracking Studio ${version}",
+      "artifactName": "Eye-Tracking-Studio-${version}-${arch}.dmg"
     },
     "extraResources": [
       {

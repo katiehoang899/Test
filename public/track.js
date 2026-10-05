@@ -487,7 +487,7 @@ async function init() {
   if (!isDesktop && /^file:/i.test(session.url)) {
     showOverlay(`<h2>Cần app desktop để mở file trên máy</h2>
       <p>Trình duyệt không cho trang web đọc file <b>${esc(session.url)}</b>.</p>
-      <p>Hãy mở bằng app Eye Tracking Tool (macOS), hoặc chạy web server cho thư mục đó
+      <p>Hãy mở bằng app Eye Tracking Studio (macOS), hoặc chạy web server cho thư mục đó
       (ví dụ <code>npx serve -l 5000 ~/Downloads</code>) rồi dùng link http://localhost:5000/… với ALLOW_PRIVATE=1.</p>
       <p><a href="/__et/">Quay lại trang chủ</a></p>`);
     return;

@@ -25,6 +25,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Eye-Tracking-Tool-macOS
+          name: Eye-Tracking-Studio-macOS
           path: dist/*.dmg
           if-no-files-found: error

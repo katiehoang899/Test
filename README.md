@@ -1,4 +1,4 @@
-# Eye Tracking Tool
+# Eye Tracking Studio
 
 Công cụ web cho phép **nhập một đường link**, mở trang đó cho người dùng duyệt và **thu thập tương tác** của họ trên trang:
 
@@ -32,12 +32,14 @@ Biến môi trường:
 
 ## Ứng dụng macOS (.dmg)
 
-Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Eye Tracking Tool/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
+Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Eye Tracking Studio/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
+
+> **Eye Tracking Studio 2.0** là app độc lập với bản cũ "Eye Tracking Tool" (1.0): khác mã ứng dụng (`com.eyetracking.studio`), khác thư mục dữ liệu, nên cài song song được và không ghi đè hay dùng chung dữ liệu với bản cũ. Muốn gỡ bản cũ: xoá "Eye Tracking Tool.app" trong Applications (dữ liệu cũ nằm ở `~/Library/Application Support/Eye Tracking Tool`).
 
 **Tải bản build sẵn:** mỗi lần push, GitHub Actions (workflow `Build macOS app (.dmg)`) build file `.dmg` trên máy macOS và đính kèm ở mục *Artifacts* của lần chạy:
 
-- `Eye-Tracking-Tool-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
-- `Eye-Tracking-Tool-<version>-x64.dmg` cho Mac chip Intel
+- `Eye-Tracking-Studio-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
+- `Eye-Tracking-Studio-<version>-x64.dmg` cho Mac chip Intel
 
 **Tự build trên Mac:**
 
@@ -51,7 +53,7 @@ npm run dist:mac   # tạo file .dmg trong thư mục dist/
 
 - Chuột phải vào app → **Open** → **Open**, hoặc
 - *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
-- chạy `xattr -dr com.apple.quarantine "/Applications/Eye Tracking Tool.app"`
+- chạy `xattr -dr com.apple.quarantine "/Applications/Eye Tracking Studio.app"`
 
 Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. Nếu lỡ từ chối, bật lại tại *System Settings → Privacy & Security → Camera*.
 
