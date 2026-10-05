@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Báo cáo phiên</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <a class="btn" href="/">← Trang chủ</a>
+    <strong>Báo cáo</strong>
+    <span class="url" id="sessionUrl"></span>
+    <a class="btn" id="exportJson">Tải JSON</a>
+    <a class="btn" id="exportCsv">Tải CSV</a>
+  </div>
+
+  <div class="report-layout">
+    <aside class="side">
+      <div class="card">
+        <h2>Hiển thị</h2>
+        <label for="pageSelect">Trang</label>
+        <select id="pageSelect"></select>
+
+        <label for="layer">Lớp dữ liệu</label>
+        <select id="layer">
+          <option value="gaze">Heatmap ánh mắt</option>
+          <option value="scanpath">Scanpath (điểm dừng mắt)</option>
+          <option value="move">Heatmap di chuột</option>
+          <option value="click">Heatmap click</option>
+        </select>
+
+        <label for="radius">Bán kính: <span id="radiusVal"></span>px</label>
+        <input type="range" id="radius" min="10" max="120" value="45" style="width: 100%">
+        <label for="opacity">Độ đậm: <span id="opacityVal"></span>%</label>
+        <input type="range" id="opacity" min="10" max="100" value="70" style="width: 100%">
+        <div class="legend"></div>
+        <div class="row small muted" style="justify-content: space-between"><span>ít</span><span>nhiều</span></div>
+
+        <label class="check"><input type="checkbox" id="showClicks" checked> Hiện vị trí click</label>
+        <label class="check"><input type="checkbox" id="merge"> Gộp tất cả phiên cùng link</label>
+      </div>
+
+      <div class="card">
+        <h2>Thống kê trang này</h2>
+        <div id="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>Phần tử được click nhiều</h2>
+        <ol class="list-compact small" id="topClicks"></ol>
+      </div>
+    </aside>
+
+    <main>
+      <div class="timeline card" style="padding: 10px 14px">
+        <button type="button" id="play">▶ Phát lại</button>
+        <input type="range" id="time" min="0" max="1000" value="1000">
+        <span class="small muted" id="timeLabel" style="min-width: 110px; text-align: right"></span>
+      </div>
+      <div class="stage-wrap">
+        <div class="stage-outer" id="stageOuter">
+          <div class="stage" id="stage">
+            <iframe id="pageFrame" title="Trang được test" sandbox="allow-scripts allow-same-origin"></iframe>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+        <canvas id="minimap" title="Mật độ theo chiều dọc trang — click để cuộn tới"></canvas>
+      </div>
+      <p class="small muted">Cuộn bên trong khung trang để xem các phần khác. Trang được tải lại trực tiếp nên nội dung có thể khác đôi chút so với lúc ghi.</p>
+    </main>
+  </div>
+
+  <script src="/report.js"></script>
+</body>
+</html>

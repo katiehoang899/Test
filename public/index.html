@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eye Tracking Tool</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Eye Tracking Tool</h1>
+    <p class="muted">Nhập một đường link, người dùng duyệt trang đó trong công cụ và mọi tương tác (ánh mắt qua webcam, chuột, click, cuộn) sẽ được ghi lại để xem heatmap.</p>
+
+    <form class="card" id="startForm">
+      <h2>Bắt đầu phiên theo dõi mới</h2>
+      <div class="row">
+        <div class="grow">
+          <label for="url">Đường link cần test</label>
+          <input type="text" id="url" name="url" placeholder="https://example.com" required autocomplete="url">
+        </div>
+        <div style="flex: 0 1 220px">
+          <label for="participant">Tên / mã người tham gia</label>
+          <input type="text" id="participant" name="participant" placeholder="VD: user-01">
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="eyeTracking" checked> Bật eye tracking bằng webcam (cần cấp quyền camera và hiệu chỉnh 9 điểm)</label>
+      <button class="primary" type="submit">Bắt đầu theo dõi →</button>
+      <p class="muted small" id="formError" style="color: var(--danger)"></p>
+    </form>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 8px">
+        <h2 style="margin: 0">Các phiên đã ghi</h2>
+        <button type="button" id="reload">Tải lại</button>
+      </div>
+      <div style="overflow-x: auto">
+        <table>
+          <thead>
+            <tr><th>Thời gian</th><th>Link</th><th>Người tham gia</th><th>Sự kiện</th><th>Eye tracking</th><th></th></tr>
+          </thead>
+          <tbody id="sessions"><tr><td colspan="6" class="muted">Đang tải…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/index.js"></script>
+</body>
+</html>

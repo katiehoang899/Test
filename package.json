@@ -1,0 +1,17 @@
+{
+  "name": "eye-tracking-link-tool",
+  "version": "1.0.0",
+  "description": "Nhập một đường link, mở trang đó và thu thập tương tác của người dùng (ánh mắt qua webcam, chuột, click, cuộn) kèm heatmap báo cáo.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "webgazer": "3.5.3"
+  }
+}

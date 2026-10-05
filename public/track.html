@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Đang theo dõi</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="track-body">
+  <div class="topbar">
+    <span class="dot" id="recDot" title="Trạng thái ghi"></span>
+    <strong>Eye Tracking</strong>
+    <span class="url" id="pageUrl"></span>
+    <span class="small muted" id="gazeStatus"></span>
+    <span class="small muted"><b id="eventCount">0</b> sự kiện</span>
+    <button type="button" id="toggleDot" hidden>Hiện điểm nhìn</button>
+    <button type="button" id="recalibrate" hidden>Hiệu chỉnh lại</button>
+    <button type="button" class="primary" id="finish">Kết thúc &amp; xem báo cáo</button>
+  </div>
+
+  <iframe id="frame" title="Trang đang test" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+  <div id="gazeDot"></div>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="center-msg" id="overlayMsg"></div>
+  </div>
+
+  <script src="/track.js"></script>
+</body>
+</html>
