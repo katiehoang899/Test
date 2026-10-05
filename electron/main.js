@@ -4,7 +4,8 @@
 // rồi mở cửa sổ trỏ vào http://127.0.0.1:<cổng>/__et/.
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog } = require('electron');
+const { pathToFileURL } = require('node:url');
+const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain } = require('electron');
 
 // Dữ liệu phiên lưu trong thư mục dữ liệu của ứng dụng
 // (macOS: ~/Library/Application Support/Eye Tracking Tool/sessions).
@@ -16,6 +17,9 @@ const { createServer, TOOL_PREFIX } = require(path.join(__dirname, '..', 'server
 
 const BROWSE_PARTITION = 'persist:browse'; // cookie/đăng nhập của website test, tách khỏi công cụ
 const GUEST_PRELOAD = path.join(__dirname, 'guest-preload.js');
+
+// Website trong khung trình duyệt: http/https, hoặc file HTML trên máy (file://).
+const BROWSABLE = /^(https?|file):/i;
 
 let baseUrl = null;
 let mainWindow = null;
@@ -59,17 +63,17 @@ function createWindow() {
     webPreferences.contextIsolation = true;
     webPreferences.sandbox = false; // preload cần require() bộ ghi dùng chung
     params.partition = BROWSE_PARTITION;
-    if (params.src && !/^(https?:|about:blank)/i.test(params.src)) event.preventDefault();
+    if (params.src && !BROWSABLE.test(params.src) && params.src !== 'about:blank') event.preventDefault();
   });
 
   // Website mở tab/cửa sổ mới → mở ngay trong khung trình duyệt để tiếp tục ghi.
   mainWindow.webContents.on('did-attach-webview', (event, contents) => {
     contents.setWindowOpenHandler(({ url }) => {
-      if (/^https?:/i.test(url)) contents.loadURL(url);
+      if (BROWSABLE.test(url)) contents.loadURL(url);
       return { action: 'deny' };
     });
     contents.on('will-navigate', (e, url) => {
-      if (!/^https?:/i.test(url)) e.preventDefault();
+      if (!BROWSABLE.test(url)) e.preventDefault();
     });
   });
 
@@ -89,6 +93,18 @@ function createWindow() {
 
   mainWindow.loadURL(baseUrl + TOOL_PREFIX + '/');
 }
+
+// Nút "Chọn file…" ở trang chủ: chọn một file HTML trên máy để test.
+ipcMain.handle('et:pick-html', async (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || !isOwnUrl(event.senderFrame && event.senderFrame.url)) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Chọn trang web trên máy',
+    properties: ['openFile'],
+    filters: [{ name: 'Trang web', extensions: ['html', 'htm', 'xhtml'] }],
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return pathToFileURL(result.filePaths[0]).href;
+});
 
 function setupPermissions() {
   // Chỉ trang của công cụ được xin quyền camera (cho WebGazer); mọi quyền khác bị từ chối.

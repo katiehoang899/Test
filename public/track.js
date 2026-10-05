@@ -48,9 +48,20 @@ function toast(msg, ms = 3500) {
   setTimeout(() => el.remove(), ms);
 }
 
+const isDesktop = !!(window.etDesktop && window.etDesktop.webview);
+
 function normalizeUrl(input) {
   let s = String(input || '').trim();
   if (!s) return null;
+  // App desktop mở được file HTML trên máy: chấp nhận cả đường dẫn /Users/…/trang.html.
+  if (isDesktop && s.startsWith('/')) s = 'file://' + encodeURI(s);
+  if (isDesktop && /^file:/i.test(s)) {
+    try {
+      return new URL(s).href;
+    } catch {
+      return null;
+    }
+  }
   if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) {
     // Không gõ giao thức: giữ giao thức của trang hiện tại nếu cùng tên miền, ngược lại dùng https.
     let proto = 'https:';
@@ -473,7 +484,16 @@ async function init() {
   $('#statParticipant').textContent = session.participant || 'ẩn danh';
   setAddress(session.url);
 
-  browser = window.etDesktop && window.etDesktop.webview ? createWebviewBrowser() : createIframeBrowser();
+  if (!isDesktop && /^file:/i.test(session.url)) {
+    showOverlay(`<h2>Cần app desktop để mở file trên máy</h2>
+      <p>Trình duyệt không cho trang web đọc file <b>${esc(session.url)}</b>.</p>
+      <p>Hãy mở bằng app Eye Tracking Tool (macOS), hoặc chạy web server cho thư mục đó
+      (ví dụ <code>npx serve -l 5000 ~/Downloads</code>) rồi dùng link http://localhost:5000/… với ALLOW_PRIVATE=1.</p>
+      <p><a href="/__et/">Quay lại trang chủ</a></p>`);
+    return;
+  }
+
+  browser = isDesktop ? createWebviewBrowser() : createIframeBrowser();
   $('#browserMode').textContent = browser.mode;
 
   if (session.eyeTracking) {

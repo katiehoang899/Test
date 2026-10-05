@@ -9,7 +9,7 @@ const path = require('node:path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eyetrack-test-'));
 process.env.ALLOW_PRIVATE = '1';
-const { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
+const { createServer, normalizeTargetUrl, normalizeSessionUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
 
 let server;
 let target;
@@ -64,6 +64,17 @@ test('normalizeTargetUrl', () => {
   assert.equal(normalizeTargetUrl(''), null);
 });
 
+test('normalizeSessionUrl nhận thêm file trên máy', () => {
+  assert.equal(normalizeSessionUrl('file:///Users/admin/Downloads/example.html#x'), 'file:///Users/admin/Downloads/example.html');
+  assert.equal(normalizeSessionUrl('/Users/admin/My Site/index.html'), 'file:///Users/admin/My%20Site/index.html');
+  assert.equal(normalizeSessionUrl('~/a.html'), 'file://' + require('node:url').pathToFileURL(require('node:os').homedir() + '/a.html').pathname);
+  assert.equal(normalizeSessionUrl('example.com'), 'https://example.com/');
+  assert.equal(normalizeSessionUrl('file:///'), null);
+  assert.equal(normalizeSessionUrl('javascript:alert(1)'), null);
+  // proxy / go vẫn chỉ nhận http(s): server không đọc file trên máy
+  assert.equal(normalizeTargetUrl('file:///etc/passwd'), null);
+});
+
 test('isPrivateAddress', () => {
   for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.1.1', '172.16.0.1', '169.254.169.254', '::1', '::ffff:127.0.0.1', 'fd00::1']) {
     assert.equal(isPrivateAddress(ip), true, ip);
@@ -113,6 +124,11 @@ test('vòng đời session: tạo, gửi sự kiện, đọc, export, xoá', asy
 
   const bad = await api('POST', '/api/sessions', { url: 'ftp://x' });
   assert.equal(bad.status, 400);
+  const local = await api('POST', '/api/sessions', { url: 'file:///Users/admin/Downloads/example.html' });
+  assert.equal(local.status, 201);
+  assert.equal(local.body.url, 'file:///Users/admin/Downloads/example.html');
+  const go = await fetch(`${base}/__et/go?url=${encodeURIComponent('file:///etc/passwd')}`, { redirect: 'manual' });
+  assert.equal(go.status, 400);
 
   // gửi song song để kiểm tra bộ đếm không bị mất
   await Promise.all([

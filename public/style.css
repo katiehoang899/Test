@@ -21,6 +21,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -185,7 +186,7 @@ td.url { word-break: break-all; }
 .stage-wrap { display: flex; gap: 10px; align-items: flex-start; }
 .stage-outer { flex: 1; min-width: 0; overflow: hidden; }
 .stage { position: relative; transform-origin: 0 0; background: #fff; border: 1px solid var(--border); }
-.stage iframe { position: absolute; inset: 0; border: 0; width: 100%; height: 100%; }
+.stage iframe, .stage webview { position: absolute; inset: 0; border: 0; width: 100%; height: 100%; }
 .stage canvas { position: absolute; inset: 0; pointer-events: none; }
 #minimap { width: 46px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; background: var(--panel); }
 .legend { height: 10px; border-radius: 4px; background: linear-gradient(90deg, rgba(0,0,255,.6), cyan, lime, yellow, red); margin-top: 6px; }

@@ -8,7 +8,7 @@ const { installRecorder } = require('../public/recorder.js');
 
 function start() {
   if (window !== window.top) return; // chỉ ghi khung chính, bỏ qua iframe quảng cáo/nhúng
-  if (!/^https?:$/.test(location.protocol)) return;
+  if (!/^(https?|file):$/.test(location.protocol)) return;
   installRecorder(window, (ev) => ipcRenderer.sendToHost('et', ev));
 }
 

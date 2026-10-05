@@ -9,6 +9,11 @@ function esc(s) {
 $('#startForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#formError').textContent = '';
+  const isLocalFile = /^(file:|\/|~\/|[a-z]:\\)/i.test($('#url').value.trim());
+  if (isLocalFile && !(window.etDesktop && window.etDesktop.webview)) {
+    $('#formError').textContent = 'File trên máy chỉ mở được trong app desktop. Với bản web, hãy chạy một web server cho thư mục đó (ví dụ: npx serve -l 5000 ~/Downloads) rồi dùng link http://localhost:5000/… và khởi động công cụ với ALLOW_PRIVATE=1.';
+    return;
+  }
   try {
     const res = await fetch('/__et/api/sessions', {
       method: 'POST',
@@ -26,6 +31,19 @@ $('#startForm').addEventListener('submit', async (e) => {
     $('#formError').textContent = err.message;
   }
 });
+
+// App desktop: cho phép test file HTML trên máy (file:///Users/…/trang.html).
+if (window.etDesktop && window.etDesktop.pickHtmlFile) {
+  $('#pickFile').hidden = false;
+  $('#url').placeholder = 'https://example.com hoặc file:///Users/…/trang.html';
+  $('#urlHint').textContent = 'Hỗ trợ http/https và file HTML trên máy (file://… hoặc /Users/…/trang.html).';
+  $('#pickFile').addEventListener('click', async () => {
+    const url = await window.etDesktop.pickHtmlFile();
+    if (url) $('#url').value = url;
+  });
+} else {
+  $('#urlHint').textContent = 'Hỗ trợ http/https. File trên máy (file://) chỉ mở được trong app desktop.';
+}
 
 async function loadSessions() {
   const tbody = $('#sessions');

@@ -60,6 +60,7 @@ Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. N
 ## Cách dùng
 
 1. Trang chủ: nhập link, tên người tham gia, bật/tắt eye tracking → **Bắt đầu theo dõi**.
+   - Link có thể là `http(s)://…` hoặc **file HTML trên máy** (chỉ trong app desktop): `file:///Users/admin/Downloads/example.html`, đường dẫn `/Users/admin/Downloads/example.html`, hoặc bấm **Chọn file…**. Link tương đối giữa các file trong cùng thư mục (ví dụ `page2.html`, `css/style.css`) hoạt động bình thường.
 2. Cho phép truy cập camera, làm **hiệu chỉnh 9 điểm** (nhìn vào chấm đỏ và click 5 lần mỗi chấm), sau đó nhìn chấm vàng 5 giây để đo độ chính xác. Nên đạt ≥ 70%; nếu thấp hãy hiệu chỉnh lại (ánh sáng đều, mặt nhìn thẳng camera, không di chuyển đầu).
 3. Người dùng duyệt trang như bình thường. Màn hình theo dõi gồm **2 khung song song**:
    - **Trái — webcam**: hình camera trực tiếp kèm lưới nhận diện khuôn mặt, trạng thái (có thấy mặt không), bản đồ "đang nhìn vào đâu" trong khung trình duyệt, thống kê trực tiếp (độ chính xác, số mẫu ánh mắt/giây, click, số trang, sự kiện đã lưu) và các nút *Hiện điểm nhìn*, *Hiệu chỉnh lại*, *Kết thúc*.
@@ -102,6 +103,7 @@ Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (
 - **Trang qua proxy có thể hiển thị khác bản gốc**: trang gọi API bằng URL tuyệt đối tới domain khác cần CORS, trang có tường lửa chống bot (Cloudflare challenge…) hoặc đăng nhập bằng bên thứ ba có thể không chạy đúng. Service worker của trang bị tắt. Mỗi trình duyệt chỉ theo dõi một site đích tại một thời điểm (lưu trong cookie).
 - Trang báo cáo tải lại link ở thời điểm xem, nên nội dung có thể đã thay đổi so với lúc ghi.
 - **Bảo mật**: script của trang được test chạy cùng origin với công cụ (cần thiết để đọc tương tác), nên chỉ dùng công cụ với các trang bạn tin cậy và **không mở công cụ ra Internet công cộng**. Proxy mặc định chặn địa chỉ mạng nội bộ để tránh SSRF.
+- **File trên máy (`file://`)** chỉ mở được trong app desktop. Bản web không hỗ trợ vì trình duyệt không cho trang web đọc file trên máy, và cho server đọc thay thì website đang test cũng có thể đọc lén file của bạn. Với bản web, hãy chạy web server cho thư mục đó (ví dụ `npx serve -l 5000 ~/Downloads`) rồi dùng `http://localhost:5000/…` cùng `ALLOW_PRIVATE=1`.
 - **Quyền riêng tư**: hãy xin đồng ý của người tham gia trước khi bật camera. Không có hình ảnh nào rời khỏi trình duyệt — chỉ toạ độ ánh mắt được lưu.
 
 ## Kiểm thử

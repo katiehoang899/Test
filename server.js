@@ -8,6 +8,8 @@ const crypto = require('node:crypto');
 const dns = require('node:dns/promises');
 const net = require('node:net');
 const { Readable } = require('node:stream');
+const os = require('node:os');
+const { pathToFileURL } = require('node:url');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -101,6 +103,29 @@ function normalizeTargetUrl(input) {
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
   u.hash = '';
   return u.toString();
+}
+
+/**
+ * URL của một phiên: http/https như normalizeTargetUrl, hoặc file trên máy
+ * (file:///Users/a/trang.html, /Users/a/trang.html, ~/Downloads/trang.html).
+ * File trên máy chỉ mở được trong app desktop; server không bao giờ đọc/proxy file.
+ */
+function normalizeSessionUrl(input) {
+  if (typeof input !== 'string' || !input.trim()) return null;
+  let s = input.trim();
+  if (s.startsWith('~/')) s = path.join(os.homedir(), s.slice(2));
+  if (s.startsWith('/') || /^[a-z]:[\\/]/i.test(s)) s = pathToFileURL(s).href;
+  if (/^file:/i.test(s)) {
+    try {
+      const u = new URL(s);
+      if (u.protocol !== 'file:' || u.pathname === '/' || u.pathname === '') return null;
+      u.hash = '';
+      return u.href;
+    } catch {
+      return null;
+    }
+  }
+  return normalizeTargetUrl(s);
 }
 
 function isPrivateAddress(ip) {
@@ -252,8 +277,8 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'POST') {
       const body = await readJson(req);
-      const target = normalizeTargetUrl(body.url);
-      if (!target) return sendJson(res, 400, { error: 'URL không hợp lệ (chỉ hỗ trợ http/https).' });
+      const target = normalizeSessionUrl(body.url);
+      if (!target) return sendJson(res, 400, { error: 'URL không hợp lệ (hỗ trợ http, https và file trên máy).' });
       const meta = {
         id: crypto.randomBytes(8).toString('hex'),
         url: target,
@@ -596,4 +621,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, normalizeTargetUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
+module.exports = { createServer, normalizeTargetUrl, normalizeSessionUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };

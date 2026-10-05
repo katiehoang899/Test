@@ -24,7 +24,6 @@ const state = {
   time: Infinity,     // mốc thời gian phát lại (ms, theo phiên chính)
   timeRange: [0, 0],
   playing: false,
-  frameWin: null,
 };
 
 function esc(s) {
@@ -281,11 +280,7 @@ function lastBefore(list, t) {
 }
 
 function scrollPos() {
-  try {
-    return { sx: state.frameWin.scrollX, sy: state.frameWin.scrollY };
-  } catch {
-    return { sx: 0, sy: 0 };
-  }
+  return pageView.scroll();
 }
 
 let rafPending = false;
@@ -396,11 +391,7 @@ function renderMinimap(sy) {
 minimap.addEventListener('click', (e) => {
   const rect = minimap.getBoundingClientRect();
   const y = ((e.clientY - rect.top) / rect.height) * state.view.dh - state.view.vh / 2;
-  try {
-    state.frameWin.scrollTo(0, Math.max(0, y));
-  } catch {
-    // iframe không truy cập được
-  }
+  pageView.scrollTo(0, Math.max(0, y));
 });
 
 // ---------- thống kê ----------
@@ -461,26 +452,92 @@ function layoutStage() {
   stageOuter.style.height = vh * s + 'px';
 }
 
-function loadFrame() {
-  state.frameWin = null;
-  frame.src = '/__et/go?url=' + encodeURIComponent(state.page);
+// Nền trang của báo cáo:
+//  - app desktop: <webview> mở thẳng trang (kể cả file:// trên máy); vị trí cuộn nhận qua bộ ghi trong preload
+//  - bản web: iframe qua reverse proxy (cùng origin nên đọc/đặt vị trí cuộn trực tiếp)
+const BLOCK_INTERACTION = `(() => {
+  const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
+  window.addEventListener('click', stop, true);
+  window.addEventListener('submit', stop, true);
+})();`;
+
+function createWebviewView() {
+  const wv = document.createElement('webview');
+  wv.id = 'pageFrame';
+  wv.setAttribute('partition', 'persist:browse');
+  frame.replaceWith(wv);
+  let pos = { sx: 0, sy: 0 };
+  let ready = false;
+  wv.addEventListener('ipc-message', (e) => {
+    const ev = e.channel === 'et' && e.args[0];
+    if (ev && typeof ev.sy === 'number') {
+      pos = { sx: ev.sx || 0, sy: ev.sy };
+      redraw();
+    }
+  });
+  wv.addEventListener('did-start-loading', () => { ready = false; pos = { sx: 0, sy: 0 }; });
+  wv.addEventListener('dom-ready', () => {
+    ready = true;
+    // Báo cáo chỉ để xem: chặn click/submit để trang không chuyển đi nơi khác.
+    wv.executeJavaScript(BLOCK_INTERACTION).catch(() => {});
+    syncReplayScroll();
+    redraw();
+  });
+  return {
+    get ready() { return ready; },
+    load: (url) => wv.setAttribute('src', url),
+    scroll: () => pos,
+    scrollTo: (x, y) => {
+      if (ready) wv.executeJavaScript(`window.scrollTo(${Number(x) || 0}, ${Number(y) || 0})`).catch(() => {});
+    },
+  };
 }
 
-frame.addEventListener('load', () => {
-  try {
-    const win = frame.contentWindow;
-    void win.document.body;
-    state.frameWin = win;
-    // Báo cáo chỉ để xem: chặn click/submit để trang không chuyển đi nơi khác.
-    win.addEventListener('click', (e) => { e.preventDefault(); e.stopImmediatePropagation(); }, true);
-    win.addEventListener('submit', (e) => e.preventDefault(), true);
-    win.addEventListener('scroll', redraw, { passive: true });
-  } catch {
-    state.frameWin = null;
-  }
-  syncReplayScroll();
-  redraw();
-});
+function createIframeView() {
+  let win = null;
+  frame.addEventListener('load', () => {
+    try {
+      const w = frame.contentWindow;
+      void w.document.body;
+      win = w;
+      win.eval(BLOCK_INTERACTION);
+      win.addEventListener('scroll', redraw, { passive: true });
+    } catch {
+      win = null;
+    }
+    syncReplayScroll();
+    redraw();
+  });
+  return {
+    get ready() { return !!win; },
+    load: (url) => {
+      win = null;
+      if (/^file:/i.test(url)) {
+        // Trình duyệt không cho trang web mở file trên máy → chỉ vẽ heatmap trên nền trống.
+        frame.srcdoc = '<p style="font:14px system-ui;color:#667085;padding:24px">Nền trang <b>file://</b> chỉ hiển thị trong app desktop. Heatmap vẫn đúng vị trí.</p>';
+        return;
+      }
+      frame.removeAttribute('srcdoc');
+      frame.src = '/__et/go?url=' + encodeURIComponent(url);
+    },
+    scroll: () => {
+      try {
+        return { sx: win.scrollX, sy: win.scrollY };
+      } catch {
+        return { sx: 0, sy: 0 };
+      }
+    },
+    scrollTo: (x, y) => {
+      try { win.scrollTo(x, y); } catch { /* iframe không truy cập được */ }
+    },
+  };
+}
+
+const pageView = window.etDesktop && window.etDesktop.webview ? createWebviewView() : createIframeView();
+
+function loadFrame() {
+  pageView.load(state.page);
+}
 
 function updateTimeline() {
   const merged = state.data.length > 1;
@@ -495,15 +552,9 @@ function updateTimeline() {
 }
 
 function syncReplayScroll() {
-  if (!Number.isFinite(state.time) || !state.frameWin || state.data.length > 1) return;
+  if (!Number.isFinite(state.time) || !pageView.ready || state.data.length > 1) return;
   const e = lastBefore(state.data[0].scroll, state.time);
-  if (e) {
-    try {
-      state.frameWin.scrollTo(e.sx || 0, e.sy || 0);
-    } catch {
-      // bỏ qua
-    }
-  }
+  if (e) pageView.scrollTo(e.sx || 0, e.sy || 0);
 }
 
 function setTime(t) {
