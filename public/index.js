@@ -161,11 +161,54 @@ function renderScenarioSelects() {
   $('#overviewLink').href = '/__et/overview.html' + (filter.value ? '?scenario=' + encodeURIComponent(filter.value) : '');
 }
 
+/**
+ * Hỏi tên kịch bản bằng hộp thoại trong trang (app desktop không có window.prompt()).
+ * save(name) lưu lên server; lỗi được hiện ngay trong hộp thoại. Trả về kết quả của save, hoặc null nếu huỷ.
+ */
+function askScenarioName({ title, ok, value = '', save }) {
+  const dlg = $('#nameDialog');
+  const input = $('#nameInput');
+  $('#nameTitle').textContent = title;
+  $('#nameOk').textContent = ok;
+  $('#nameError').textContent = '';
+  input.value = value;
+  return new Promise((resolve) => {
+    let result = null;
+    const submit = async (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      if (!name) return input.focus();
+      $('#nameOk').disabled = true;
+      try {
+        result = await save(name);
+        dlg.close();
+      } catch (err) {
+        $('#nameError').textContent = err.message;
+      } finally {
+        $('#nameOk').disabled = false;
+      }
+    };
+    const cancel = () => dlg.close();
+    const done = () => {
+      $('#nameForm').removeEventListener('submit', submit);
+      $('#nameCancel').removeEventListener('click', cancel);
+      resolve(result);
+    };
+    $('#nameForm').addEventListener('submit', submit);
+    $('#nameCancel').addEventListener('click', cancel);
+    dlg.addEventListener('close', done, { once: true });
+    dlg.showModal();
+    input.select();
+  });
+}
+
 async function createScenario() {
-  const name = prompt(t('home.new_scenario_prompt'));
-  if (!name || !name.trim()) return null;
-  const sc = await api('POST', '/scenarios', { name });
-  await loadScenarios();
+  const sc = await askScenarioName({
+    title: t('home.new_scenario'),
+    ok: t('home.create'),
+    save: (name) => api('POST', '/scenarios', { name }),
+  });
+  if (sc) await loadScenarios();
   return sc;
 }
 
@@ -194,10 +237,13 @@ $('#scenarioFilter').addEventListener('change', () => {
 });
 $('#renameScenario').addEventListener('click', async () => {
   const id = $('#scenarioFilter').value;
-  const name = prompt(t('home.new_scenario_prompt'), scenarioName(id));
-  if (!name || !name.trim()) return;
-  await api('PATCH', '/scenarios/' + id, { name });
-  loadAll();
+  const renamed = await askScenarioName({
+    title: t('home.rename_scenario'),
+    ok: t('home.save'),
+    value: scenarioName(id),
+    save: (name) => api('PATCH', '/scenarios/' + id, { name }),
+  });
+  if (renamed) loadAll();
 });
 $('#deleteScenario').addEventListener('click', async () => {
   const id = $('#scenarioFilter').value;

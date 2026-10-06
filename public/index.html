@@ -163,6 +163,20 @@
     </form>
   </dialog>
 
+  <!-- Hộp nhập tên kịch bản: app desktop (Electron) không hỗ trợ window.prompt() -->
+  <dialog id="nameDialog" class="settings">
+    <form method="dialog" id="nameForm">
+      <h2 id="nameTitle"></h2>
+      <label for="nameInput" data-i18n="home.new_scenario_prompt"></label>
+      <input type="text" id="nameInput" maxlength="100" autocomplete="off" required>
+      <p class="small" id="nameError" style="color: var(--danger); margin: 6px 0 0"></p>
+      <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 16px">
+        <button type="button" id="nameCancel" data-i18n="sum.cancel"></button>
+        <button type="submit" class="primary" id="nameOk"></button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/__et/i18n.js"></script>
   <script src="/__et/index.js"></script>
 </body>
