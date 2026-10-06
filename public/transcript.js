@@ -16,6 +16,8 @@ const state = {
   dirty: false,
   busy: false,
   worker: null,
+  summaryBusy: false,
+  summaryEditing: false,
 };
 
 function esc(s) {
@@ -104,6 +106,154 @@ function renderSaveState() {
   $('#saveState').textContent = state.dirty ? t('tr.unsaved') : '';
 }
 
+// ---------- tóm tắt AI ----------
+
+/** Markdown tối giản (tiêu đề, gạch đầu dòng, **đậm**) → HTML; nội dung được escape trước. */
+function mdToHtml(text) {
+  const out = [];
+  let list = false;
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  for (const raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (bullet && !list) { out.push('<ul>'); list = true; }
+    if (!bullet && list) { out.push('</ul>'); list = false; }
+    if (bullet) out.push(`<li>${inline(bullet[1])}</li>`);
+    else if (/^#{1,4}\s+/.test(line)) out.push(`<h3>${inline(line.replace(/^#{1,4}\s+/, ''))}</h3>`);
+    else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  }
+  if (list) out.push('</ul>');
+  return out.join('');
+}
+
+function summaryLangSelect(selected) {
+  return `<label class="inline small muted" for="sumLang">${esc(t('sum.language'))}
+    <select id="sumLang">
+      <option value="vi"${selected === 'vi' ? ' selected' : ''}>Tiếng Việt</option>
+      <option value="en"${selected === 'en' ? ' selected' : ''}>English</option>
+    </select></label>`;
+}
+
+function defaultSummaryLang() {
+  const tr = state.transcript || {};
+  if (tr.summary && tr.summary.language) return tr.summary.language;
+  if (tr.language === 'vietnamese') return 'vi';
+  if (tr.language === 'english') return 'en';
+  return I18N.lang;
+}
+
+function renderSummary() {
+  const body = $('#summaryBody');
+  const actions = $('#summaryActions');
+  const summary = state.transcript && state.transcript.summary;
+  const hasTranscript = (state.transcript?.segments || []).some((x) => x.text.trim());
+  const settings = I18N.settings;
+  $('#summaryCard').hidden = !state.audios.length;
+  actions.innerHTML = '';
+
+  if (state.summaryBusy) {
+    body.innerHTML = `<p class="muted"><span class="spinner"></span>${esc(t('sum.running'))}</p>`;
+    return;
+  }
+  if (summary && state.summaryEditing) {
+    body.innerHTML = `<textarea id="sumText" spellcheck="false">${esc(summary.text)}</textarea>`;
+    actions.innerHTML = `<button type="button" class="primary" data-sum="save">${esc(t('sum.save'))}</button>
+      <button type="button" data-sum="cancel">${esc(t('sum.cancel'))}</button>`;
+    return;
+  }
+  if (summary) {
+    const meta = t('sum.meta', { model: summary.model, time: new Date(summary.createdAt).toLocaleString(I18N.locale()) })
+      + (summary.edited ? ` · ${t('sum.edited')}` : '');
+    body.innerHTML = `<p class="small muted">${esc(meta)}</p>
+      ${summary.truncated ? `<p class="small" style="color: var(--warn)">${esc(t('sum.truncated'))}</p>` : ''}
+      <div class="summary-body">${mdToHtml(summary.text)}</div>`;
+    actions.innerHTML = `${summaryLangSelect(defaultSummaryLang())}
+      <button type="button" data-sum="run"${settings.aiKey ? '' : ' disabled'}>${esc(t('sum.rerun'))}</button>
+      <button type="button" data-sum="edit">${esc(t('sum.edit'))}</button>
+      <button type="button" data-sum="copy">${esc(t('sum.copy'))}</button>`;
+    return;
+  }
+  if (!hasTranscript) {
+    body.innerHTML = `<p class="muted small">${esc(t('sum.need_transcript'))}</p>`;
+    return;
+  }
+  const keyForm = settings.aiKey ? '' : `<div>
+      <p class="small" style="margin: 0 0 6px">${esc(t('sum.need_key'))}</p>
+      <div class="row" style="flex-wrap: nowrap">
+        <input type="password" id="sumKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+        <button type="button" data-sum="key">${esc(t('settings.ai_save'))}</button>
+      </div>
+      <p class="small muted" style="margin: 6px 0 0">${t('settings.ai_desc')}</p>
+    </div>`;
+  body.innerHTML = `<div class="summary-empty">
+      <p class="muted small" style="margin: 0">${esc(t('sum.desc'))}</p>
+      ${keyForm}
+      <div class="row">
+        <button type="button" class="primary" data-sum="run"${settings.aiKey ? '' : ' disabled'}>${esc(t('sum.run'))}</button>
+        ${summaryLangSelect(defaultSummaryLang())}
+      </div>
+    </div>`;
+}
+
+async function runSummary() {
+  if (state.summaryBusy) return;
+  if (state.transcript?.summary && !confirm(t('sum.replace_confirm'))) return;
+  const language = $('#sumLang') ? $('#sumLang').value : defaultSummaryLang();
+  state.summaryBusy = true;
+  renderSummary();
+  try {
+    if (state.dirty) await save();
+    const res = await fetch(`${api}/transcript/summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    state.transcript = data;
+    toast(t('sum.done'));
+  } catch (err) {
+    toast(err.message, 8000);
+  } finally {
+    state.summaryBusy = false;
+    renderSummary();
+  }
+}
+
+$('#summaryCard').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-sum]');
+  if (!btn) return;
+  const action = btn.dataset.sum;
+  if (action === 'run') runSummary();
+  else if (action === 'key') {
+    const key = $('#sumKey').value.trim();
+    if (!key) return;
+    await I18N.save({ anthropicApiKey: key });
+    toast(t('settings.saved'));
+  } else if (action === 'edit') {
+    state.summaryEditing = true;
+    renderSummary();
+    $('#sumText').focus();
+  } else if (action === 'cancel') {
+    state.summaryEditing = false;
+    renderSummary();
+  } else if (action === 'save') {
+    const res = await fetch(`${api}/transcript`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary: { text: $('#sumText').value } }),
+    });
+    if (!res.ok) return toast(t('tr.save_failed', { msg: 'HTTP ' + res.status }));
+    state.transcript = { ...(await res.json()), segments: state.transcript.segments };
+    state.summaryEditing = false;
+    renderSummary();
+    toast(t('tr.saved'));
+  } else if (action === 'copy') {
+    await navigator.clipboard.writeText(state.transcript.summary.text).catch(() => {});
+    toast(t('sum.copied'));
+  }
+});
+
 function renderAll() {
   renderHeader();
   renderAudioSelect();
@@ -111,6 +261,7 @@ function renderAll() {
   renderMeta();
   renderSegments();
   renderSaveState();
+  renderSummary();
 }
 
 function setProgress(fraction, text) {

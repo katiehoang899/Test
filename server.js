@@ -198,6 +198,19 @@ async function assertPublicHost(hostname) {
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
 const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
+
+/** Cài đặt gửi cho trình duyệt: không bao giờ trả lại API key, chỉ cho biết đã có key hay chưa. */
+function publicSettings(s = getSettings()) {
+  const { anthropicApiKey, ...rest } = s;
+  const fromEnv = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+  return {
+    ...rest,
+    aiKey: anthropicApiKey ? 'settings' : fromEnv ? 'env' : '',
+    aiKeyHint: anthropicApiKey ? '…' + anthropicApiKey.slice(-4) : '',
+    storagePath: storageDir(),
+    defaultStoragePath: DATA_DIR,
+  };
+}
 const settingsEvents = new EventEmitter();
 let settingsCache = null;
 
@@ -279,6 +292,7 @@ async function updateSettings(patch) {
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
   if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
+  if (patch && typeof patch.anthropicApiKey === 'string') next.anthropicApiKey = patch.anthropicApiKey.trim().slice(0, 300);
   if (patch && typeof patch.storageDir === 'string') {
     let dir = patch.storageDir.trim();
     if (dir.startsWith('~/')) dir = path.join(os.homedir(), dir.slice(2));
@@ -308,6 +322,13 @@ const SERVER_TEXT = {
     storage_unwritable: "Can't write to that folder: {msg}",
     scenario_not_found: 'Scenario not found.',
     scenario_name: 'Scenario name is required.',
+    no_transcript: 'Transcribe the audio first.',
+    ai_no_key: 'Add your Anthropic API key in Settings to use AI summaries.',
+    ai_auth: 'The Anthropic API key was rejected. Check it in Settings.',
+    ai_rate: 'Claude is busy or the rate limit was reached. Try again in a minute.',
+    ai_network: "Couldn't reach the Claude API. Check the internet connection.",
+    ai_refused: 'Claude declined to summarize this transcript.',
+    ai_failed: 'AI summary failed: {msg}',
   },
   vi: {
     invalid_url: 'Link không hợp lệ (http, https hoặc file trên máy).',
@@ -322,6 +343,13 @@ const SERVER_TEXT = {
     storage_unwritable: 'Không ghi được vào thư mục đó: {msg}',
     scenario_not_found: 'Không tìm thấy kịch bản.',
     scenario_name: 'Cần nhập tên kịch bản.',
+    no_transcript: 'Hãy chuyển âm thanh thành chữ trước.',
+    ai_no_key: 'Nhập Anthropic API key trong Cài đặt để dùng tóm tắt AI.',
+    ai_auth: 'Anthropic API key không hợp lệ. Kiểm tra lại trong Cài đặt.',
+    ai_rate: 'Claude đang bận hoặc đã chạm giới hạn. Thử lại sau một phút.',
+    ai_network: 'Không kết nối được Claude API. Kiểm tra kết nối internet.',
+    ai_refused: 'Claude từ chối tóm tắt transcript này.',
+    ai_failed: 'Tóm tắt AI bị lỗi: {msg}',
   },
 };
 
@@ -332,8 +360,8 @@ function st(key, vars = {}) {
   return text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 }
 
-function apiError(res, status, code) {
-  return sendJson(res, status, { error: st(code), code });
+function apiError(res, status, code, vars) {
+  return sendJson(res, status, { error: st(code, vars), code });
 }
 
 // ---------- session storage ----------
@@ -766,11 +794,13 @@ async function transcriptDocx(meta, tr) {
     for (const line of tr.summary.text.split(/\n/)) {
       const bullet = /^\s*[-*•]\s+/.test(line);
       const heading = /^#{1,3}\s+/.test(line);
-      const clean = line.replace(/^\s*[-*•]\s+/, '').replace(/^#{1,3}\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1');
+      const clean = line.replace(/^\s*[-*•]\s+/, '').replace(/^#{1,4}\s+/, '');
       if (!clean.trim()) continue;
+      // **đậm** → chữ in đậm trong Word
+      const runs = clean.split(/\*\*(.+?)\*\*/g).map((part, i) => new TextRun({ text: part, bold: i % 2 === 1 }));
       children.push(heading
-        ? new Paragraph({ text: clean, heading: HeadingLevel.HEADING_2 })
-        : new Paragraph({ text: clean, bullet: bullet ? { level: 0 } : undefined }));
+        ? new Paragraph({ text: clean.replace(/\*\*(.+?)\*\*/g, '$1'), heading: HeadingLevel.HEADING_2 })
+        : new Paragraph({ children: runs, bullet: bullet ? { level: 0 } : undefined }));
     }
   }
   children.push(new Paragraph({ text: L.transcript, heading: HeadingLevel.HEADING_1 }));
@@ -781,7 +811,8 @@ async function transcriptDocx(meta, tr) {
 }
 
 function transcriptText(meta, tr) {
-  const lines = [`Heatmap — ${meta.url}`, `${meta.participant || ''} ${meta.createdAt}`.trim(), ''];
+  const when = new Date(meta.createdAt).toLocaleString(getSettings().language === 'vi' ? 'vi-VN' : 'en-US');
+  const lines = [`Heatmap — ${meta.url}`, `${meta.participant || ''} ${when}`.trim(), ''];
   if (tr.summary && tr.summary.text) lines.push(tr.summary.text.trim(), '', '---', '');
   for (const seg of tr.segments || []) lines.push(`[${fmtTime(seg.start)}] ${seg.text.trim()}`);
   return lines.join('\n') + '\n';
@@ -831,6 +862,117 @@ async function handleTranscript(req, res, url, meta) {
     return sendJson(res, 200, saved);
   }
   return sendJson(res, 405, { error: 'Method not allowed' });
+}
+
+// ---------- tóm tắt bằng AI (Claude) ----------
+
+const SUMMARY_MODEL = 'claude-opus-5-5';
+const SUMMARY_LANG = { vi: 'Vietnamese', en: 'English' };
+
+const SUMMARY_SYSTEM = `You are a UX researcher reviewing one moderated usability-test session of a website or prototype.
+You get the speech transcript of the participant (and possibly a moderator), recognised automatically, so expect misheard words; infer the intended meaning when it is clear and never invent statements.
+You also get the participant's interaction timeline (pages opened and elements clicked) on the same clock, so you can connect what they said with what they were doing.
+
+Write a concise summary for the product team, in Markdown, with exactly these sections:
+## Overview — 2-3 sentences: what the participant did and the overall impression.
+## Pain points — bullets, most severe first; name the page or element when the timeline shows it.
+## What worked well — bullets.
+## Suggestions — concrete, actionable bullets that follow from the evidence.
+## Notable quotes — up to 5 short quotes with their [mm:ss] timestamps, quoted as spoken.
+
+Use "-" bullets, no tables, no extra sections. If the transcript is too short or empty of feedback, say so in the Overview and keep the other sections brief.`;
+
+/** Dòng thời gian gộp: lời nói (theo đồng hồ của phiên) + trang đã mở + phần tử đã bấm. */
+function summaryTimeline(meta, tr, events) {
+  const audio = (meta.media || []).find((m) => m.id === tr.audioId);
+  const offset = audio ? (audio.startT || 0) / 1000 : 0;
+  const rows = [];
+  for (const seg of tr.segments || []) if (seg.text.trim()) rows.push([offset + seg.start, `SAYS: ${seg.text.trim()}`]);
+  let actions = 0;
+  for (const e of events) {
+    if (actions >= 400) break;
+    if (e.type === 'pageview' && e.page) {
+      rows.push([e.t / 1000, `OPENS PAGE: ${e.title ? `"${e.title}" ` : ''}${e.page}`]);
+      actions++;
+    } else if (e.type === 'click') {
+      const el = e.el || {};
+      const label = (el.text || '').trim() || el.id || el.selector || el.tag || 'element';
+      rows.push([e.t / 1000, `CLICKS: ${el.tag || ''} "${label.slice(0, 80)}"${el.href ? ` → ${el.href.slice(0, 200)}` : ''}`]);
+      actions++;
+    }
+  }
+  return rows.sort((a, b) => a[0] - b[0]).map(([t, text]) => `[${fmtTime(t)}] ${text}`).join('\n');
+}
+
+let anthropicSdk = null;
+function anthropic() {
+  if (!anthropicSdk) anthropicSdk = require(process.env.ANTHROPIC_SDK_MODULE || '@anthropic-ai/sdk');
+  return anthropicSdk;
+}
+
+async function handleSummary(req, res, meta) {
+  if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+  const body = await readJson(req);
+  const tr = await loadTranscript(meta.id);
+  if (!tr || !(tr.segments || []).some((s) => s.text.trim())) return apiError(res, 400, 'no_transcript');
+  const lang = SUMMARY_LANG[body.language] ? body.language : getSettings().language;
+  const events = await loadEvents(meta.id);
+  const stats = sessionStats(meta, events);
+
+  const Anthropic = anthropic();
+  const key = getSettings().anthropicApiKey;
+  // key trong Cài đặt; nếu trống thì SDK tự lấy ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / profile
+  const client = new Anthropic(key ? { apiKey: key } : {});
+  const prompt = `Session facts:
+- Tested link: ${meta.url}
+- Participant: ${meta.participant || 'anonymous'}
+- Duration: ${fmtTime(stats.durationMs / 1000)}, pages viewed: ${stats.pages}, clicks: ${stats.clicks}, max scroll depth: ${Math.round(stats.maxDepth)}%
+
+<timeline>
+${summaryTimeline(meta, tr, events)}
+</timeline>
+
+Write the summary in ${SUMMARY_LANG[lang]}.`;
+
+  let message;
+  try {
+    const stream = client.beta.messages.stream({
+      model: SUMMARY_MODEL,
+      max_tokens: 8000,
+      output_config: { effort: 'medium' },
+      // nếu bộ lọc an toàn của mô hình từ chối, API tự chạy lại trên mô hình dự phòng được khuyến nghị
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: SUMMARY_SYSTEM,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    message = await stream.finalMessage();
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) return apiError(res, 401, 'ai_auth');
+    if (err instanceof Anthropic.RateLimitError || err instanceof Anthropic.InternalServerError) return apiError(res, 503, 'ai_rate');
+    if (err instanceof Anthropic.APIConnectionError) return apiError(res, 502, 'ai_network');
+    if (err instanceof Anthropic.APIError) return apiError(res, 502, 'ai_failed', { msg: err.message });
+    if (err instanceof Anthropic.AnthropicError) return apiError(res, 400, 'ai_no_key'); // chưa có cách xác thực nào
+    throw err;
+  }
+  if (message.stop_reason === 'refusal') return apiError(res, 422, 'ai_refused');
+  const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (!text) return apiError(res, 502, 'ai_failed', { msg: message.stop_reason || 'empty' });
+
+  const summary = {
+    text,
+    model: message.model,
+    language: lang,
+    truncated: message.stop_reason === 'max_tokens',
+    createdAt: new Date().toISOString(),
+  };
+  const saved = await withSessionLock(meta.id, async () => {
+    const fresh = (await loadTranscript(meta.id)) || tr;
+    const next = { ...fresh, summary };
+    await fsp.writeFile(transcriptPath(meta.id), JSON.stringify(next, null, 2));
+    return next;
+  });
+  return sendJson(res, 200, saved);
 }
 
 /** Sửa meta khi đang giữ khoá của phiên (không lấy khoá lần nữa). */
@@ -909,11 +1051,10 @@ async function handleApi(req, res, url) {
   const parts = url.pathname.split('/').filter(Boolean); // ['api', 'sessions', id?, sub?]
 
   if (parts[1] === 'settings' && parts.length === 2) {
-    if (req.method === 'GET') return sendJson(res, 200, { ...getSettings(), storagePath: storageDir(), defaultStoragePath: DATA_DIR });
+    if (req.method === 'GET') return sendJson(res, 200, publicSettings());
     if (req.method === 'PUT') {
       try {
-        const next = await updateSettings(await readJson(req));
-        return sendJson(res, 200, { ...next, storagePath: storageDir(), defaultStoragePath: DATA_DIR });
+        return sendJson(res, 200, publicSettings(await updateSettings(await readJson(req))));
       } catch (err) {
         if (err.code) return sendJson(res, err.status || 400, { error: err.message, code: err.code });
         throw err;
@@ -1001,6 +1142,7 @@ async function handleApi(req, res, url) {
   }
 
   if (sub === 'media') return handleMedia(req, res, url, meta, parts[4], parts[5]);
+  if (sub === 'transcript' && parts[4] === 'summary') return handleSummary(req, res, meta);
   if (sub === 'transcript') return handleTranscript(req, res, url, meta);
 
   if (sub === 'events' && req.method === 'POST') {

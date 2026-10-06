@@ -10,6 +10,15 @@ Công cụ cho phép **nhập một đường link** (website, file HTML trên m
 
 Sau phiên test có trang **báo cáo**: heatmap ánh mắt / chuột / click, scanpath (chuỗi điểm dừng mắt), phát lại theo thời gian, thống kê, **biểu đồ** và xuất JSON/CSV. Có thể gộp nhiều phiên cùng một link để xem heatmap tổng hợp.
 
+### Có gì mới ở Heatmap 4.1
+
+- **Ghi màn hình trình duyệt**: trên thanh trình duyệt có nhóm nút **● Record | ❚❚ Pause | ■ Stop** và đồng hồ. Video chỉ chứa khung trình duyệt (không có cột camera hay thanh công cụ), ghi dạng **MP4 (H.264)** mở được bằng QuickTime trên Mac (trình duyệt không hỗ trợ MP4 thì ghi WebM). Mỗi đoạn 4 giây được lưu ngay nên không mất dữ liệu nếu app bị tắt giữa chừng. Một phiên có thể có nhiều video; xem, tải về hoặc xoá trong mục **Recordings** của báo cáo.
+- **Ghi âm micro** khi bật eye tracking bằng webcam: tuỳ chọn *Record audio from the microphone* ngay dưới ô eye tracking ở trang chủ. Trong lúc ghi có chip 🎙 (tạm dừng / tiếp tục). Báo cáo có trình phát và nút tải về **WAV**.
+- **Transcript tiếng Việt / tiếng Anh** trên màn hình riêng (báo cáo → *Transcript & summary*): nhận dạng giọng nói bằng **Whisper chạy ngay trên máy** (transformers.js, dùng GPU qua WebGPU nếu có, không thì CPU). Mô hình tải một lần từ Hugging Face rồi lưu trong thư mục dữ liệu, các lần sau dùng offline; âm thanh không rời khỏi máy. Chọn mô hình *Base* (nhanh), *Small* (khuyên dùng) hoặc *Large v3 Turbo* (chính xác nhất). Bấm mốc thời gian để nghe lại, bấm vào chữ để sửa, **Lưu**, **Xuất Word (.docx)** hoặc **.txt**.
+- **Tóm tắt bằng AI** (Claude, model `claude-opus-5-5`): đọc transcript cùng dòng thời gian click / trang đã mở của phiên, viết *Tổng quan, Vấn đề gặp phải, Điểm tốt, Đề xuất, Câu nói đáng chú ý* bằng tiếng Việt hoặc tiếng Anh. Sửa được, sao chép được và được đưa vào file Word. Cần Anthropic API key của bạn (⚙ Settings → *AI summary*, hoặc biến môi trường `ANTHROPIC_API_KEY`); key chỉ lưu trên máy và trang web không bao giờ đọc lại được. Yêu cầu bật **fallback phía server** (`fallbacks: "default"`): nếu bộ lọc an toàn từ chối, API tự chạy lại trên mô hình dự phòng được Anthropic khuyến nghị.
+
+Heatmap 4.1 là bản nâng cấp của Heatmap 4.0 (cùng app, cài đè và giữ nguyên dữ liệu).
+
 ### Có gì mới ở Heatmap 4.0
 
 - **Cột camera ẩn/hiện**: khi đang ghi, cột webcam cạnh trình duyệt **mặc định ẩn** để trình duyệt chiếm toàn màn hình; bấm nút **📷** trên thanh trình duyệt để hiện/ẩn (lựa chọn được nhớ, cũng chỉnh được trong ⚙ Settings). Trong lúc hiệu chỉnh 9 điểm, cột camera tự hiện để người dùng căn mặt. Đồng hồ ghi và nút *Finish* nằm trên thanh trình duyệt nên luôn dùng được.
@@ -63,7 +72,7 @@ Công cụ có thể chạy như một ứng dụng desktop (Electron): server c
 
 > **Heatmap 3.0** độc lập với các bản trước ("Eye Tracking Tool" 1.0, "Eye Tracking Studio" 2.0): khác mã ứng dụng, khác thư mục dữ liệu, nên cài song song được và không ghi đè hay dùng chung dữ liệu. Muốn gỡ bản cũ: xoá app đó trong Applications (dữ liệu cũ nằm ở `~/Library/Application Support/<tên app cũ>`).
 
-**Tải bản build sẵn:** mỗi lần push, GitHub Actions (workflow `Build macOS app (.dmg)`) build file `.dmg` trên máy macOS và đính kèm ở mục *Artifacts* của lần chạy:
+**Tải bản build sẵn:** GitHub Actions (workflow `Build macOS app (.dmg)`) build file `.dmg` trên máy macOS khi chạy tay (*Actions → Run workflow*) hoặc khi push tag `v*`, rồi đính kèm ở mục *Artifacts* của lần chạy:
 
 - `Heatmap-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
 - `Heatmap-<version>-x64.dmg` cho Mac chip Intel
@@ -82,7 +91,7 @@ npm run dist:mac   # tạo file .dmg trong thư mục dist/
 - *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
 - chạy `xattr -dr com.apple.quarantine "/Applications/Heatmap.app"`
 
-Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera**. Nếu lỡ từ chối, bật lại tại *System Settings → Privacy & Security → Camera*.
+Khi bắt đầu phiên có eye tracking, macOS sẽ hỏi quyền **Camera** (và **Microphone** nếu bật ghi âm). Lần đầu bấm **Record**, macOS hỏi quyền **Screen Recording**: bật Heatmap trong *System Settings → Privacy & Security → Screen & System Audio Recording* rồi mở lại app. Nếu lỡ từ chối quyền nào, bật lại tại *System Settings → Privacy & Security*.
 
 > Để phát hành cho nhiều người mà không bị cảnh báo, cần tài khoản Apple Developer: đặt `CSC_LINK`/`CSC_KEY_PASSWORD` (chứng chỉ Developer ID) và `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` để electron-builder ký và notarize, rồi bỏ `"identity": "-"` trong `package.json`.
 
@@ -125,6 +134,11 @@ Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (
 | `PATCH` | `/__et/api/sessions/:id` | Cập nhật `{ ended, calibration }` |
 | `DELETE` | `/__et/api/sessions/:id` | Xoá phiên |
 | `GET` | `/__et/api/sessions/:id/export?format=csv\|json` | Tải dữ liệu |
+| `POST` | `/__et/api/sessions/:id/media/:mediaId` | Gửi một đoạn video/âm thanh (đoạn đầu kèm `?kind=screen\|audio&mime=…&t=…`) |
+| `POST` | `/__et/api/sessions/:id/media/:mediaId/finish` | Kết thúc bản ghi `{ endT, durationMs }` |
+| `GET`/`DELETE` | `/__et/api/sessions/:id/media/:mediaId` | Phát (hỗ trợ Range), tải (`?download=1`), xoá bản ghi |
+| `GET`/`PUT` | `/__et/api/sessions/:id/transcript` | Đọc / lưu transcript `{ audioId, language, model, segments, summary? }`; `?format=docx\|txt` để xuất |
+| `POST` | `/__et/api/sessions/:id/transcript/summary` | Tạo tóm tắt AI `{ language: "vi"\|"en" }` |
 
 ## Giới hạn cần biết
 
@@ -133,7 +147,9 @@ Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (
 - Trang báo cáo tải lại link ở thời điểm xem, nên nội dung có thể đã thay đổi so với lúc ghi.
 - **Bảo mật**: script của trang được test chạy cùng origin với công cụ (cần thiết để đọc tương tác), nên chỉ dùng công cụ với các trang bạn tin cậy và **không mở công cụ ra Internet công cộng**. Proxy mặc định chặn địa chỉ mạng nội bộ để tránh SSRF.
 - **File trên máy (`file://`)** chỉ mở được trong app desktop. Bản web không hỗ trợ vì trình duyệt không cho trang web đọc file trên máy, và cho server đọc thay thì website đang test cũng có thể đọc lén file của bạn. Với bản web, hãy chạy web server cho thư mục đó (ví dụ `npx serve -l 5000 ~/Downloads`) rồi dùng `http://localhost:5000/…` cùng `ALLOW_PRIVATE=1`.
-- **Quyền riêng tư**: hãy xin đồng ý của người tham gia trước khi bật camera. Không có hình ảnh nào rời khỏi trình duyệt — chỉ toạ độ ánh mắt được lưu.
+- **Quyền riêng tư**: hãy xin đồng ý của người tham gia trước khi bật camera, micro hay ghi màn hình. Hình camera không rời khỏi trình duyệt (chỉ toạ độ ánh mắt được lưu); video và âm thanh chỉ lưu trên máy. Khi dùng **tóm tắt AI**, nội dung transcript và dòng thời gian click/trang được gửi tới Anthropic API.
+- **Transcript**: Whisper chạy trên máy nên bản ghi dài cần thời gian (máy có GPU/WebGPU nhanh hơn nhiều); lần đầu cần internet để tải mô hình (Small khoảng vài trăm MB). Nhận dạng tự động có thể nghe nhầm từ, nên kiểm tra và sửa trước khi xuất.
+- **Ghi màn hình trong bản web** dùng hộp thoại chia sẻ màn hình của trình duyệt: chọn *tab này*. Trên app desktop, app tự chọn cửa sổ của chính nó.
 
 ## Kiểm thử
 

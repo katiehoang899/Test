@@ -144,6 +144,19 @@
         <p class="small" id="storageError" style="color: var(--danger); margin: 4px 0 0"></p>
       </div>
 
+      <div class="setting-block">
+        <b data-i18n="settings.ai"></b>
+        <span class="small muted" data-i18n-html="settings.ai_desc"></span>
+        <div class="row" style="gap: 6px; flex-wrap: nowrap">
+          <input type="password" id="setAiKey" spellcheck="false" autocomplete="off" placeholder="sk-ant-…">
+          <button type="button" id="aiKeySave" data-i18n="settings.ai_save"></button>
+        </div>
+        <div class="row small" style="gap: 8px; margin-top: 4px; align-items: center">
+          <span class="muted" id="aiKeyState"></span>
+          <button type="button" id="aiKeyRemove" class="link-btn" hidden data-i18n="settings.ai_remove"></button>
+        </div>
+      </div>
+
       <div class="row" style="justify-content: flex-end; margin-top: 16px">
         <button class="primary" value="close" data-i18n="common.close"></button>
       </div>

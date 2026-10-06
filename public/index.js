@@ -60,6 +60,9 @@ function renderSettings(settings) {
   $('#setCamera').checked = !!settings.showCamera;
   $('#cameraSetting').hidden = !settings.eyeTrackingEnabled;
   if (document.activeElement !== $('#setStorage')) $('#setStorage').value = settings.storagePath || '';
+  $('#aiKeyState').textContent = settings.aiKey === 'settings' ? t('settings.ai_key_saved', { hint: settings.aiKeyHint })
+    : settings.aiKey === 'env' ? t('settings.ai_key_env') : t('settings.ai_key_none');
+  $('#aiKeyRemove').hidden = settings.aiKey !== 'settings';
   // Tắt eye tracking trong Cài đặt → ẩn hẳn tuỳ chọn webcam và cột Eye tracking
   $('#eyeOption').hidden = !settings.eyeTrackingEnabled;
   renderAudioOption();
@@ -93,6 +96,16 @@ $('#openSettings').addEventListener('click', () => {
 $('#setLanguage').addEventListener('change', (e) => I18N.save({ language: e.target.value }).then(saved));
 $('#setEye').addEventListener('change', (e) => I18N.save({ eyeTrackingEnabled: e.target.checked }).then(saved));
 $('#setCamera').addEventListener('change', (e) => I18N.save({ showCamera: e.target.checked }).then(saved));
+
+// API key chỉ được gửi lên server cục bộ và lưu trong settings.json; trang không bao giờ đọc lại key.
+$('#aiKeySave').addEventListener('click', async () => {
+  const key = $('#setAiKey').value.trim();
+  if (!key) return;
+  await I18N.save({ anthropicApiKey: key });
+  $('#setAiKey').value = '';
+  saved();
+});
+$('#aiKeyRemove').addEventListener('click', () => I18N.save({ anthropicApiKey: '' }).then(saved));
 
 async function setStorage(dir) {
   $('#storageError').textContent = '';

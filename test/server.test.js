@@ -323,6 +323,101 @@ test('transcript: lưu, sửa, xuất Word (.docx) và .txt', async () => {
   assert.ok(buf.length > 3000);
 });
 
+test('tóm tắt AI: gọi Claude API (mock), lưu vào transcript, xử lý lỗi; không lộ API key', async () => {
+  const calls = [];
+  let mode = 'ok';
+  const sse = (events) => events.map(([type, data]) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`).join('');
+  const claude = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      calls.push({ url: req.url, headers: req.headers, body: JSON.parse(body) });
+      if (mode === 'auth') {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }));
+      }
+      const stop = mode === 'refusal' ? 'refusal' : 'end_turn';
+      const text = mode === 'refusal' ? '' : '## Overview\n- Người dùng **khó tìm** nút thanh toán [00:00]';
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.end(sse([
+        ['message_start', { message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 50, output_tokens: 1 } } }],
+        ['content_block_start', { index: 0, content_block: { type: 'text', text: '' } }],
+        ['content_block_delta', { index: 0, delta: { type: 'text_delta', text } }],
+        ['content_block_stop', { index: 0 }],
+        ['message_delta', { delta: { stop_reason: stop, stop_sequence: null }, usage: { output_tokens: 20 } }],
+        ['message_stop', {}],
+      ]));
+    });
+  });
+  await new Promise((r) => claude.listen(0, '127.0.0.1', r));
+  const prevBase = process.env.ANTHROPIC_BASE_URL;
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  const prevToken = process.env.ANTHROPIC_AUTH_TOKEN;
+  process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${claude.address().port}`;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  try {
+    const s1 = (await api('POST', '/api/sessions', { url: 'https://shop.test/' })).body;
+    // chưa có transcript
+    assert.equal((await api('POST', `/api/sessions/${s1.id}/transcript/summary`, {})).body.code, 'no_transcript');
+    await api('POST', `/api/sessions/${s1.id}/events`, { events: [{ type: 'pageview', t: 0, page: 'https://shop.test/', title: 'Shop' }, { type: 'click', t: 3000, page: 'https://shop.test/', el: { tag: 'button', text: 'Thanh toán' } }] });
+    await api('PUT', `/api/sessions/${s1.id}/transcript`, { language: 'vietnamese', segments: [{ start: 0, text: 'Nút thanh toán ở đâu nhỉ?' }] });
+    // chưa có key
+    const noKey = await api('POST', `/api/sessions/${s1.id}/transcript/summary`, {});
+    assert.equal(noKey.status, 400);
+    assert.equal(noKey.body.code, 'ai_no_key');
+    assert.equal(calls.length, 0);
+
+    // lưu key: trang chỉ thấy 4 ký tự cuối
+    const set = await api('PUT', '/api/settings', { anthropicApiKey: ' sk-ant-test-1234 ' });
+    assert.equal(set.body.aiKey, 'settings');
+    assert.equal(set.body.aiKeyHint, '…1234');
+    assert.ok(!JSON.stringify(set.body).includes('sk-ant'));
+    assert.ok(!JSON.stringify((await api('GET', '/api/settings')).body).includes('sk-ant'));
+
+    const ok = await api('POST', `/api/sessions/${s1.id}/transcript/summary`, { language: 'vi' });
+    assert.equal(ok.status, 200);
+    assert.match(ok.body.summary.text, /khó tìm/);
+    assert.equal(ok.body.summary.model, 'claude-opus-5-5');
+    assert.equal(ok.body.summary.language, 'vi');
+    assert.equal(ok.body.segments.length, 1);
+    const call = calls[0];
+    assert.equal(call.url, '/v1/messages?beta=true');
+    assert.equal(call.headers['x-api-key'], 'sk-ant-test-1234');
+    assert.match(call.headers['anthropic-beta'], /server-side-fallback-2026-07-01/);
+    assert.equal(call.body.model, 'claude-opus-5-5');
+    assert.equal(call.body.fallbacks, 'default');
+    assert.equal(call.body.stream, true);
+    assert.deepEqual(call.body.output_config, { effort: 'medium' });
+    const prompt = call.body.messages[0].content;
+    assert.match(prompt, /\[00:00\] SAYS: Nút thanh toán ở đâu nhỉ\?/);
+    assert.match(prompt, /\[00:03\] CLICKS: button "Thanh toán"/);
+    assert.match(prompt, /in Vietnamese\.$/);
+
+    // sửa tóm tắt, rồi xuất Word có phần tóm tắt
+    const edited = await api('PUT', `/api/sessions/${s1.id}/transcript`, { summary: { text: '## Tổng quan\n- Đã sửa' } });
+    assert.equal(edited.body.summary.edited, true);
+    assert.equal(edited.body.summary.model, 'claude-opus-5-5');
+    assert.match(await (await fetch(`${base}/__et/api/sessions/${s1.id}/transcript?format=txt`)).text(), /Đã sửa/);
+
+    mode = 'refusal';
+    assert.equal((await api('POST', `/api/sessions/${s1.id}/transcript/summary`, {})).body.code, 'ai_refused');
+    mode = 'auth';
+    const bad = await api('POST', `/api/sessions/${s1.id}/transcript/summary`, {});
+    assert.equal(bad.status, 401);
+    assert.equal(bad.body.code, 'ai_auth');
+    // tóm tắt cũ không bị mất khi lỗi
+    assert.match((await api('GET', `/api/sessions/${s1.id}/transcript`)).body.summary.text, /Đã sửa/);
+
+    assert.equal((await api('PUT', '/api/settings', { anthropicApiKey: '' })).body.aiKey, '');
+  } finally {
+    if (prevBase === undefined) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = prevBase;
+    if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    if (prevToken !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = prevToken;
+    claude.close();
+  }
+});
+
 test('mô hình Whisper: tải qua proxy một lần, lưu đệm trên đĩa, chỉ cho phép mô hình trong danh sách', async () => {
   process.env.HF_ENDPOINT = targetBase;
   const url = `${base}/__et/models/onnx-community/whisper-small/resolve/main/config.json`;

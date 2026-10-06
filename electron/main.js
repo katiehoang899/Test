@@ -18,6 +18,8 @@ if (app.isPackaged) {
   process.env.TRANSFORMERS_DIR = path.join(process.resourcesPath, 'transformers');
   process.env.ORT_DIR = path.join(process.resourcesPath, 'ort');
   process.env.DOCX_MODULE = path.join(process.resourcesPath, 'docx', 'index.cjs');
+  // Claude API (tóm tắt AI): SDK + vài gói phụ thuộc nhỏ nằm trong Resources/node_modules
+  process.env.ANTHROPIC_SDK_MODULE = path.join(process.resourcesPath, 'node_modules', '@anthropic-ai', 'sdk');
 }
 
 const { createServer, TOOL_PREFIX, getSettings, settingsEvents, storageDir, sessionFilePaths, exportSession } = require(path.join(__dirname, '..', 'server.js'));
