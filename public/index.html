@@ -72,9 +72,8 @@
       <div class="sessions-head">
         <h2 style="margin: 0" data-i18n="home.sessions"></h2>
         <div class="sessions-tools">
-          <label class="inline" for="scenarioFilter"><span class="small muted" data-i18n="home.filter"></span>
-            <select id="scenarioFilter"></select>
-          </label>
+          <!-- bộ lọc thật; người dùng chọn qua thanh kịch bản bên dưới -->
+          <select id="scenarioFilter" hidden></select>
           <button type="button" id="newScenario" data-i18n="home.new_scenario"></button>
           <button type="button" id="renameScenario" hidden data-i18n="home.rename_scenario"></button>
           <button type="button" id="deleteScenario" class="danger" hidden data-i18n="home.delete_scenario"></button>
@@ -82,6 +81,10 @@
           <button type="button" id="reload" data-i18n="common.reload"></button>
         </div>
       </div>
+
+      <!-- Thanh kịch bản: bấm để lọc, kéo phiên thả vào để chuyển kịch bản -->
+      <div class="scenario-bar" id="scenarioBar" role="group" data-i18n-aria="home.scenario"></div>
+      <p class="small muted drag-hint" data-i18n="home.drag_hint"></p>
 
       <div class="bulk-bar" id="bulkBar" hidden>
         <b id="bulkCount"></b>

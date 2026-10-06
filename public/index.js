@@ -5,7 +5,8 @@ const desktop = window.etDesktop || null;
 const isDesktop = !!(desktop && desktop.webview);
 let activeTab = 'web';
 let scenarios = [];
-let sessionsCache = [];
+let sessionsCache = []; // phiên đang hiển thị (đã lọc)
+let allSessions = [];   // mọi phiên, để đếm số phiên của từng kịch bản
 let startPick = null; // { mode, id } — lần chọn gần nhất, nhớ giữa các lần mở
 let scenariosLoaded = false;
 const selected = new Set();
@@ -14,10 +15,22 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function toast(msg, ms = 2200) {
+function toast(msg, ms = 2200, action) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
+  if (action) {
+    // ví dụ nút "Hoàn tác" sau khi kéo-thả
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'undo';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      el.remove();
+      action.run();
+    });
+    el.appendChild(btn);
+  }
   document.body.appendChild(el);
   setTimeout(() => el.remove(), ms);
 }
@@ -151,6 +164,7 @@ function renderScenarioSelects() {
   filter.value = [...filter.options].some((o) => o.value === fv) ? fv : '';
 
   renderStartScenario();
+  renderScenarioBar();
 
   $('#bulkScenario').innerHTML = opts;
   const one = filter.value && filter.value !== 'none';
@@ -319,7 +333,7 @@ $('#scenarioFilter').addEventListener('change', () => {
   selected.clear();
   renderScenarioSelects();
   followFilter();
-  loadSessions();
+  applyFilter();
 });
 $('#renameScenario').addEventListener('click', async () => {
   const id = $('#scenarioFilter').value;
@@ -406,8 +420,8 @@ function renderSessions() {
     const sc = s.scenarioId ? `<span class="tag scenario">${esc(scenarioName(s.scenarioId) || '—')}</span>` : '<span class="muted">—</span>';
     const fileBtn = desktop && desktop.revealSession
       ? `<button type="button" data-act="reveal" data-id="${s.id}">${esc(t('home.show_file'))}</button>` : '';
-    return `<tr>
-      <td class="sel"><input type="checkbox" data-sel="${s.id}" ${selected.has(s.id) ? 'checked' : ''} aria-label="${esc(t('home.select_row'))}"></td>
+    return `<tr draggable="true" data-id="${s.id}">
+      <td class="sel"><span class="grip" aria-hidden="true">⋮⋮</span><input type="checkbox" data-sel="${s.id}" ${selected.has(s.id) ? 'checked' : ''} aria-label="${esc(t('home.select_row'))}"></td>
       <td class="nowrap">${esc(new Date(s.createdAt).toLocaleString(I18N.locale()))}</td>
       <td class="url">${kind}${esc(s.url)}</td>
       <td>${esc(s.participant || '—')}</td>
@@ -428,13 +442,126 @@ function renderSessions() {
 
 async function loadSessions() {
   try {
-    const f = $('#scenarioFilter').value;
-    sessionsCache = await api('GET', '/sessions' + (f ? '?scenario=' + encodeURIComponent(f) : ''));
-    for (const id of [...selected]) if (!sessionsCache.some((s) => s.id === id)) selected.delete(id);
-    renderSessions();
+    allSessions = await api('GET', '/sessions');
+    applyFilter();
   } catch (err) {
     $('#sessions').innerHTML = `<tr><td colspan="9">${esc(t('home.error', { msg: err.message }))}</td></tr>`;
   }
+}
+
+/** Lọc phiên theo kịch bản đang chọn (ngay trên trình duyệt, để cập nhật số đếm của mọi kịch bản). */
+function applyFilter() {
+  const f = $('#scenarioFilter').value;
+  const known = (id) => scenarios.some((sc) => sc.id === id);
+  sessionsCache = !f ? allSessions
+    : f === 'none' ? allSessions.filter((s) => !s.scenarioId || !known(s.scenarioId))
+      : allSessions.filter((s) => s.scenarioId === f);
+  for (const id of [...selected]) if (!sessionsCache.some((s) => s.id === id)) selected.delete(id);
+  renderScenarioBar();
+  renderSessions();
+}
+
+// ---------- thanh kịch bản: lọc + nơi thả phiên ----------
+
+function renderScenarioBar() {
+  const bar = $('#scenarioBar');
+  if (!bar) return;
+  const f = $('#scenarioFilter').value;
+  const known = new Set(scenarios.map((sc) => sc.id));
+  const count = (id) => allSessions.filter((s) => (id === 'none' ? !s.scenarioId || !known.has(s.scenarioId) : s.scenarioId === id)).length;
+  const chip = (filter, name, n, drop) => `<button type="button" class="sc-chip" data-filter="${esc(filter)}"${drop ? ` data-drop="${esc(drop)}"` : ''}
+      aria-pressed="${f === filter}" title="${esc(name)}"><span class="name">${esc(name)}</span><span class="count">${n}</span></button>`;
+  bar.innerHTML = chip('', t('home.all_sessions'), allSessions.length)
+    + chip('none', t('home.unassigned'), count('none'), 'none')
+    + scenarios.map((sc) => chip(sc.id, sc.name, count(sc.id), sc.id)).join('')
+    + `<button type="button" class="sc-chip add" data-drop="new">${esc(t('home.drop_new'))}</button>`;
+}
+
+$('#scenarioBar').addEventListener('click', (e) => {
+  const chip = e.target.closest('.sc-chip[data-filter]');
+  if (!chip) return;
+  const filter = $('#scenarioFilter');
+  filter.value = chip.dataset.filter;
+  filter.dispatchEvent(new Event('change'));
+});
+
+const DRAG_TYPE = 'application/x-heatmap-sessions';
+let dragIds = null;
+
+$('#sessions').addEventListener('dragstart', (e) => {
+  const row = e.target.closest && e.target.closest('tr[data-id]');
+  if (!row) return;
+  // kéo một dòng đã tick → kéo cả nhóm đang tick
+  const id = row.dataset.id;
+  dragIds = selected.has(id) ? [...selected] : [id];
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(dragIds));
+  e.dataTransfer.setData('text/plain', dragIds.join(','));
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.textContent = dragIds.length === 1 ? t('home.drag_one') : t('home.drag_n', { n: dragIds.length });
+  document.body.appendChild(ghost);
+  e.dataTransfer.setDragImage(ghost, 12, 16);
+  setTimeout(() => ghost.remove(), 0);
+  for (const r of document.querySelectorAll('#sessions tr[data-id]')) if (dragIds.includes(r.dataset.id)) r.classList.add('drag-src');
+  document.body.classList.add('dragging-sessions');
+});
+
+function endDrag() {
+  dragIds = null;
+  document.body.classList.remove('dragging-sessions');
+  document.querySelectorAll('.drag-src, .drop-over').forEach((el) => el.classList.remove('drag-src', 'drop-over'));
+}
+document.addEventListener('dragend', endDrag);
+
+const dropTarget = (e) => (dragIds && e.target.closest ? e.target.closest('.sc-chip[data-drop]') : null);
+$('#scenarioBar').addEventListener('dragover', (e) => {
+  const chip = dropTarget(e);
+  if (!chip) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.drop-over').forEach((el) => el !== chip && el.classList.remove('drop-over'));
+  chip.classList.add('drop-over');
+});
+$('#scenarioBar').addEventListener('dragleave', (e) => {
+  const chip = dropTarget(e);
+  if (chip && !chip.contains(e.relatedTarget)) chip.classList.remove('drop-over');
+});
+$('#scenarioBar').addEventListener('drop', async (e) => {
+  const chip = dropTarget(e);
+  if (!chip) return;
+  e.preventDefault();
+  const ids = dragIds;
+  endDrag();
+  let target = chip.dataset.drop;
+  if (target === 'new') {
+    const sc = await createScenario();
+    if (!sc) return;
+    target = sc.id;
+  }
+  await moveSessions(ids, target === 'none' ? null : target);
+});
+
+/** Chuyển các phiên sang kịch bản (null = bỏ khỏi kịch bản), kèm nút Hoàn tác. */
+async function moveSessions(ids, scenarioId) {
+  const before = new Map(ids.map((id) => [id, (allSessions.find((s) => s.id === id) || {}).scenarioId || null]));
+  const changed = ids.filter((id) => before.get(id) !== scenarioId);
+  if (!changed.length) return;
+  try {
+    await Promise.all(changed.map((id) => api('PATCH', '/sessions/' + id, { scenarioId })));
+  } catch (err) {
+    toast(t('home.error', { msg: err.message }), 4000);
+  }
+  selected.clear();
+  await loadAll();
+  const name = scenarioId ? scenarioName(scenarioId) : t('home.unassigned');
+  toast(t('home.moved', { n: changed.length, name }), 6000, {
+    label: t('home.undo'),
+    run: async () => {
+      await Promise.all(changed.map((id) => api('PATCH', '/sessions/' + id, { scenarioId: before.get(id) })));
+      loadAll();
+    },
+  });
 }
 
 async function loadAll() {
@@ -487,11 +614,7 @@ $('#selectAll').addEventListener('change', (e) => {
   renderSessions();
 });
 
-async function bulkAssign(scenarioId) {
-  await Promise.all([...selected].map((id) => api('PATCH', '/sessions/' + id, { scenarioId })));
-  selected.clear();
-  loadAll();
-}
+const bulkAssign = (scenarioId) => moveSessions([...selected], scenarioId);
 $('#bulkApply').addEventListener('click', () => $('#bulkScenario').value && bulkAssign($('#bulkScenario').value));
 $('#bulkRemove').addEventListener('click', () => bulkAssign(null));
 
