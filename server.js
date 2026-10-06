@@ -233,7 +233,7 @@ async function moveStorage(fromRoot, toRoot) {
   let moved = 0;
   const files = await fsp.readdir(fromSessions).catch(() => []);
   for (const f of files) {
-    if (!/^[a-f0-9]{16}\.(json|ndjson)$/.test(f)) continue;
+    if (!/^[a-f0-9]{16}\.[a-z0-9.-]+$/.test(f) || f.endsWith('.tmp')) continue; // phiên + video/âm thanh/transcript
     const dest = path.join(toSessions, f);
     if (fs.existsSync(dest)) continue; // không ghi đè dữ liệu đã có ở thư mục mới
     await moveFile(path.join(fromSessions, f), dest);
@@ -587,6 +587,123 @@ async function buildSummary(scenario) {
     .sort((a, b) => b.sessions - a.sessions || b.lastAt.localeCompare(a.lastAt));
 }
 
+// ---------- ghi màn hình / ghi âm của phiên ----------
+//
+// Trình duyệt gửi từng đoạn MediaRecorder (mỗi vài giây) lên POST …/media/<mediaId>; các đoạn
+// được nối vào một file, nên app bị tắt giữa chừng vẫn giữ phần đã ghi. meta.media lưu danh sách.
+
+const MEDIA_KINDS = new Set(['screen', 'audio']);
+const MEDIA_MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4GB mỗi file
+const MEDIA_EXT = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'audio/mp4': 'm4a', 'audio/webm': 'weba', 'audio/ogg': 'ogg' };
+const MEDIA_MIME = { mp4: 'video/mp4', webm: 'video/webm', m4a: 'audio/mp4', weba: 'audio/webm', ogg: 'audio/ogg' };
+
+function mediaFilePath(id, file) {
+  return path.join(sessionsDir(), file);
+}
+
+function updateMeta(id, fn) {
+  return withSessionLock(id, async () => {
+    const fresh = await loadMeta(id);
+    if (!fresh) return null;
+    await fn(fresh);
+    await saveMeta(fresh);
+    return fresh;
+  });
+}
+
+async function handleMedia(req, res, url, meta, mediaId, action) {
+  if (!mediaId) {
+    if (req.method === 'GET') return sendJson(res, 200, meta.media || []);
+    return sendJson(res, 405, { error: 'Method not allowed' });
+  }
+  if (!/^[a-z0-9-]{1,40}$/.test(mediaId)) return sendJson(res, 400, { error: 'Invalid media id' });
+  const id = meta.id;
+  const entry = (meta.media || []).find((m) => m.id === mediaId);
+
+  // nhận thêm một đoạn dữ liệu
+  if (req.method === 'POST' && !action) {
+    let item = entry;
+    if (!item) {
+      const kind = url.searchParams.get('kind');
+      const mime = String(url.searchParams.get('mime') || '').split(';')[0].trim().toLowerCase();
+      const ext = MEDIA_EXT[mime];
+      if (!MEDIA_KINDS.has(kind) || !ext) return sendJson(res, 400, { error: 'Unsupported media type' });
+      const startT = Number(url.searchParams.get('t')) || 0;
+      item = { id: mediaId, kind, mime: url.searchParams.get('mime').slice(0, 80), file: `${id}.${mediaId}.${ext}`, startT, endT: null, size: 0, createdAt: new Date().toISOString() };
+      await updateMeta(id, (m) => { m.media = [...(m.media || []).filter((x) => x.id !== mediaId), item]; });
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const c of req) {
+      size += c.length;
+      if (size > 64 * 1024 * 1024) return sendJson(res, 413, { error: 'Chunk too large' });
+      chunks.push(c);
+    }
+    const buf = Buffer.concat(chunks);
+    const updated = await withSessionLock(id, async () => {
+      const fresh = await loadMeta(id);
+      const cur = fresh && (fresh.media || []).find((x) => x.id === mediaId);
+      if (!cur) return null;
+      if (cur.size + buf.length > MEDIA_MAX_BYTES) throw Object.assign(new Error('Media file too large'), { status: 413 });
+      await fsp.appendFile(mediaFilePath(id, cur.file), buf);
+      cur.size += buf.length;
+      await saveMeta(fresh);
+      return cur;
+    });
+    return updated ? sendJson(res, 200, updated) : sendJson(res, 404, { error: 'Media not found' });
+  }
+
+  if (!entry) return sendJson(res, 404, { error: 'Media not found' });
+
+  // kết thúc một bản ghi: lưu mốc thời gian kết thúc & thời lượng thực (đã trừ lúc tạm dừng)
+  if (req.method === 'POST' && action === 'finish') {
+    const body = await readJson(req);
+    const updated = await updateMeta(id, (m) => {
+      const cur = (m.media || []).find((x) => x.id === mediaId);
+      if (!cur) return;
+      cur.endT = num(body.endT) ?? null;
+      cur.durationMs = num(body.durationMs) ?? null;
+    });
+    return sendJson(res, 200, (updated.media || []).find((x) => x.id === mediaId));
+  }
+
+  if (req.method === 'DELETE' && !action) {
+    await fsp.rm(mediaFilePath(id, entry.file), { force: true });
+    await updateMeta(id, (m) => { m.media = (m.media || []).filter((x) => x.id !== mediaId); });
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // phát lại / tải về (hỗ trợ Range để tua video)
+  if (req.method === 'GET' && !action) {
+    const file = mediaFilePath(id, entry.file);
+    let stat;
+    try {
+      stat = await fsp.stat(file);
+    } catch {
+      return sendJson(res, 404, { error: 'Media file missing' });
+    }
+    const ext = entry.file.split('.').pop();
+    const headers = { 'Content-Type': MEDIA_MIME[ext] || 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store' };
+    if (url.searchParams.get('download')) headers['Content-Disposition'] = `attachment; filename="heatmap-${id}-${mediaId}.${ext}"`;
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && stat.size > 0) {
+      let start = range[1] ? Number(range[1]) : stat.size - Number(range[2]);
+      let end = range[1] && range[2] ? Number(range[2]) : stat.size - 1;
+      start = Math.max(0, start);
+      end = Math.min(stat.size - 1, end);
+      if (start > end) {
+        res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
+        return res.end();
+      }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${stat.size}`, 'Content-Length': end - start + 1 });
+      return fs.createReadStream(file, { start, end }).pipe(res);
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': stat.size });
+    return fs.createReadStream(file).pipe(res);
+  }
+  return sendJson(res, 405, { error: 'Method not allowed' });
+}
+
 // ---------- xuất dữ liệu một phiên ----------
 
 /** Nội dung file xuất của một phiên: { filename, contentType, body }. Dùng cho tải về và "Save as". */
@@ -697,11 +814,14 @@ async function handleApi(req, res, url) {
       return updated ? sendJson(res, 200, updated) : apiError(res, 404, 'not_found');
     }
     if (req.method === 'DELETE') {
-      await Promise.all([fsp.rm(metaPath(id), { force: true }), fsp.rm(eventsPath(id), { force: true })]);
+      const extra = (await fsp.readdir(sessionsDir()).catch(() => [])).filter((f) => f.startsWith(id + '.'));
+      await Promise.all([metaPath(id), eventsPath(id), ...extra.map((f) => path.join(sessionsDir(), f))].map((f) => fsp.rm(f, { force: true })));
       return sendJson(res, 200, { ok: true });
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
   }
+
+  if (sub === 'media') return handleMedia(req, res, url, meta, parts[4], parts[5]);
 
   if (sub === 'events' && req.method === 'POST') {
     const body = await readJson(req);

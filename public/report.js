@@ -667,6 +667,7 @@ document.addEventListener('i18n:change', (e) => {
   renderRangeLabels();
   if (!state.primary) return;
   renderHeader();
+  renderMedia();
   fillPageSelect();
   renderStats();
   renderCharts();
@@ -790,6 +791,69 @@ function renderCharts() {
   });
 }
 
+// ---------- bản ghi màn hình / âm thanh ----------
+
+function fmtBytes(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(n / 1e3)) + ' KB';
+}
+
+function renderMedia() {
+  const box = $('#mediaList');
+  const list = (state.primary.media || []).filter((m) => m.size > 0);
+  if (!list.length) {
+    box.innerHTML = `<p class="muted small">${esc(t('report.no_recordings'))}</p>`;
+    return;
+  }
+  let n = 0;
+  box.innerHTML = list.map((m) => {
+    const src = `/__et/api/sessions/${state.primary.id}/media/${encodeURIComponent(m.id)}`;
+    const title = m.kind === 'screen' ? t('report.screen_rec', { n: ++n }) : t('report.audio_rec');
+    const metaLine = t('report.rec_meta', { duration: fmtDuration(m.durationMs || 0), start: fmtDuration(m.startT || 0), size: fmtBytes(m.size) });
+    const player = m.kind === 'screen'
+      ? `<video controls preload="metadata" src="${src}"></video>`
+      : `<audio controls preload="metadata" src="${src}"></audio>`;
+    const dl = m.kind === 'screen'
+      ? `<a class="btn" href="${src}?download=1">${esc(t('report.download_video'))} (.${esc(m.file.split('.').pop())})</a>`
+      : `<button type="button" data-wav="${esc(m.id)}">${esc(t('report.download_audio'))}</button>`;
+    return `<div class="media-item">
+      <b>${esc(title)}</b>
+      <span class="small muted">${esc(metaLine)}</span>
+      ${player}
+      <div class="row">${dl}<button type="button" class="danger" data-del-media="${esc(m.id)}">${esc(t('report.delete_rec'))}</button></div>
+    </div>`;
+  }).join('');
+}
+
+$('#mediaList').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-del-media]');
+  const wav = e.target.closest('[data-wav]');
+  const base = `/__et/api/sessions/${state.primary.id}/media/`;
+  if (del) {
+    if (!confirm(t('report.delete_rec_confirm'))) return;
+    await fetch(base + encodeURIComponent(del.dataset.delMedia), { method: 'DELETE' });
+    state.primary.media = (state.primary.media || []).filter((m) => m.id !== del.dataset.delMedia);
+    renderMedia();
+  } else if (wav) {
+    // Âm thanh được ghi bằng Opus → xuất WAV để mở được ở mọi nơi (QuickTime, Word, Zoom…)
+    const label = wav.textContent;
+    wav.disabled = true;
+    wav.textContent = t('report.preparing');
+    try {
+      const samples = await EtMedia.decodeAudio(base + encodeURIComponent(wav.dataset.wav));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(EtMedia.wavBlob(samples));
+      a.download = `heatmap-${state.primary.id}-${wav.dataset.wav}.wav`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } finally {
+      wav.disabled = false;
+      wav.textContent = label;
+    }
+  }
+});
+
 function renderHeader() {
   const p = state.primary;
   $('#sessionUrl').textContent = `${p.url} — ${p.participant || t('common.anonymous')} — ${new Date(p.createdAt).toLocaleString(I18N.locale())}`;
@@ -810,6 +874,7 @@ async function init() {
   }
   const p = state.primary;
   renderHeader();
+  renderMedia();
   if (!p.eyeTracking) document.body.classList.add('no-eye');
   // mở từ "Báo cáo tất cả phiên" → xem heatmap gộp các phiên cùng link
   if (params.get('merge') === '1') $('#merge').checked = true;

@@ -151,6 +151,8 @@ function createWebviewBrowser() {
   wv.setAttribute('src', 'about:blank');
   browserView.insertBefore(wv, overlay);
 
+  let wvReady = false;
+  wv.addEventListener('dom-ready', () => { wvReady = true; });
   wv.addEventListener('ipc-message', (e) => {
     if (e.channel === 'et') onPageEvent(e.args[0]);
   });
@@ -168,7 +170,12 @@ function createWebviewBrowser() {
 
   return {
     mode: session.kind === 'figma' ? t('track.mode_figma') : t('track.mode_live'),
-    navigate: (url) => wv.loadURL(url),
+    // trước 'dom-ready' đầu tiên webview chưa nhận loadURL → đợi rồi mới mở trang
+    navigate: (url) => {
+      const go = () => wv.loadURL(url).catch(() => {}); // lỗi tải trang đã báo qua 'did-fail-load'
+      if (wvReady) go();
+      else wv.addEventListener('dom-ready', go, { once: true });
+    },
     back: () => wv.canGoBack() && wv.goBack(),
     forward: () => wv.canGoForward() && wv.goForward(),
     reload: () => wv.reload(),
@@ -607,8 +614,62 @@ $('#toggleDot').addEventListener('click', () => {
 
 $('#recalibrate').addEventListener('click', () => calibrate());
 
+// ---------- ghi màn hình khung trình duyệt (Record | Pause | Stop) ----------
+
+let screenRec = null;
+
+function fmtClock(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function renderRec() {
+  const st = screenRec ? screenRec.state : 'idle';
+  const active = st === 'recording' || st === 'paused';
+  $('#recStart').hidden = active || st === 'stopping';
+  $('#recPause').hidden = st !== 'recording';
+  $('#recResume').hidden = st !== 'paused';
+  $('#recStop').hidden = !active;
+  $('#recTime').hidden = !active && st !== 'stopping';
+  $('#recTime').classList.toggle('live', st === 'recording');
+  $('#recTime').textContent = st === 'stopping' ? t('rec.saving') : `● ${fmtClock(screenRec ? screenRec.elapsed() : 0)}`;
+}
+setInterval(() => screenRec && screenRec.state !== 'stopped' && renderRec(), 500);
+
+$('#recStart').addEventListener('click', async () => {
+  $('#recStart').disabled = true;
+  try {
+    screenRec = await EtMedia.startScreen({
+      sessionId,
+      mediaId: 'screen-' + Date.now().toString(36),
+      cropEl: browserView,
+      now,
+      onState: renderRec,
+    });
+  } catch (err) {
+    console.error(err);
+    screenRec = null;
+    toast(t(isDesktop ? 'rec.failed_desktop' : 'rec.failed', { msg: err.message || err }), 7000);
+  }
+  $('#recStart').disabled = false;
+  renderRec();
+});
+$('#recPause').addEventListener('click', () => screenRec && screenRec.pause());
+$('#recResume').addEventListener('click', () => screenRec && screenRec.resume());
+$('#recStop').addEventListener('click', async () => {
+  if (!screenRec) return;
+  const item = await screenRec.stop();
+  if (item) toast(t('rec.saved', { time: fmtClock(item.durationMs || 0) }));
+  renderRec();
+});
+
+async function stopAllRecordings() {
+  if (screenRec && screenRec.state !== 'stopped') await screenRec.stop();
+}
+
 $('#finish').addEventListener('click', async () => {
   $('#finish').disabled = true;
+  await stopAllRecordings();
   push({ type: 'leave' });
   recording = false;
   await flush();

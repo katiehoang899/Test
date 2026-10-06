@@ -6,7 +6,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipcMain, desktopCapturer, screen } = require('electron');
 
 // Dữ liệu phiên lưu trong thư mục dữ liệu của ứng dụng
 // (macOS: ~/Library/Application Support/Heatmap/sessions).
@@ -210,14 +210,46 @@ ipcMain.handle('et:pick-html', async (event) => {
 });
 
 function setupPermissions() {
-  // Chỉ trang của công cụ được xin quyền camera (cho WebGazer); mọi quyền khác bị từ chối.
+  // Chỉ trang của công cụ được xin quyền camera/micro/ghi màn hình; mọi quyền khác bị từ chối.
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
     const origin = details.requestingUrl || wc.getURL();
-    callback(permission === 'media' && isOwnUrl(origin) && (!details.mediaTypes || details.mediaTypes.every((t) => t === 'video')));
+    // camera (WebGazer), micro (ghi âm) và ghi màn hình — chỉ cho trang của công cụ
+    callback((permission === 'media' || permission === 'display-capture') && isOwnUrl(origin));
   });
   session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin) => {
-    return permission === 'media' && isOwnUrl(requestingOrigin + '/');
+    return (permission === 'media' || permission === 'display-capture') && isOwnUrl(requestingOrigin + '/');
   });
+  // Ghi màn hình: trang công cụ gọi getDisplayMedia → luôn chụp chính cửa sổ Heatmap
+  // (trang sẽ cắt lấy đúng khung trình duyệt). Không cho website đang test ghi màn hình.
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    let source = null;
+    try {
+      const frameUrl = request.frame && request.frame.url;
+      if (process.env.HEATMAP_DEBUG) console.log('display media request from', frameUrl, 'securityOrigin', request.securityOrigin);
+      if (hasWindow() && isOwnUrl(frameUrl)) {
+        // Lấy riêng từng loại: có hệ thống không liệt kê được cửa sổ và khi đó gọi chung trả về rỗng.
+        const list = (types) => desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 } }).catch(() => []);
+        const sources = [...(await list(['window'])), ...(await list(['screen']))];
+        // 1) đúng cửa sổ Heatmap (theo mã nguồn, hoặc theo tiêu đề)
+        // 2) không liệt kê được cửa sổ → màn hình chứa cửa sổ; trang tự cắt theo vị trí cửa sổ
+        const display = screen.getDisplayMatching(mainWindow.getBounds());
+        if (process.env.HEATMAP_DEBUG) console.log('display media sources', JSON.stringify(sources.map((x) => [x.id, x.name, x.display_id])), 'own', mainWindow.getMediaSourceId(), 'display', display.id);
+        source = sources.find((src) => src.id === mainWindow.getMediaSourceId())
+          || sources.find((src) => src.id.startsWith('window:') && src.name === mainWindow.getTitle())
+          || sources.find((src) => src.id.startsWith('screen:') && String(src.display_id) === String(display.id))
+          || sources.find((src) => src.id.startsWith('screen:'))
+          || null;
+      }
+    } catch (err) {
+      console.error('display media', err);
+    }
+    try {
+      callback(source ? { video: source } : {}); // {} = từ chối → trang báo lỗi cho người dùng
+    } catch (err) {
+      console.error('display media callback', err.message);
+    }
+  });
+
   // Website đang test không được xin camera, micro, vị trí, thông báo…
   const browse = session.fromPartition(BROWSE_PARTITION);
   browse.setPermissionRequestHandler((wc, permission, callback) => callback(false));

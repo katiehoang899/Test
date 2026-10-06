@@ -54,6 +54,14 @@
         <input type="text" id="address" autocomplete="off" spellcheck="false" data-i18n-aria="track.address">
         <span class="small muted" id="browserMode"></span>
         <span class="bar-sep"></span>
+        <span class="rec-group" role="group" data-i18n-aria="rec.group">
+          <button type="button" id="recStart" class="rec-btn"><span class="rec-icon">⏺</span> <span data-i18n="rec.start"></span></button>
+          <button type="button" id="recPause" class="rec-btn" hidden><span class="rec-icon">⏸</span> <span data-i18n="rec.pause"></span></button>
+          <button type="button" id="recResume" class="rec-btn" hidden><span class="rec-icon">⏵</span> <span data-i18n="rec.resume"></span></button>
+          <button type="button" id="recStop" class="rec-btn" hidden><span class="rec-icon">⏹</span> <span data-i18n="rec.stop"></span></button>
+          <span class="rec-time" id="recTime" hidden></span>
+        </span>
+        <span class="bar-sep"></span>
         <span class="rec"><span class="dot" id="recDot"></span><span id="timer">00:00</span></span>
         <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
       </form>
@@ -68,6 +76,7 @@
 
   <script src="/__et/i18n.js"></script>
   <script src="/__et/recorder.js"></script>
+  <script src="/__et/media.js"></script>
   <script src="/__et/track.js"></script>
 </body>
 </html>

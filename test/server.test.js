@@ -262,6 +262,34 @@ test('đổi thư mục lưu trữ chuyển toàn bộ dữ liệu sang thư m�
   fs.rmSync(target, { recursive: true, force: true });
 });
 
+test('ghi màn hình/âm thanh: nối từng đoạn, tua (Range), xoá cùng phiên', async () => {
+  const s1 = (await api('POST', '/api/sessions', { url: 'https://media.test/' })).body;
+  const up = (buf, qs = '') => fetch(`${base}/__et/api/sessions/${s1.id}/media/screen-1${qs}`, { method: 'POST', body: buf });
+  assert.equal((await up(Buffer.from('aaa'), '?kind=nope&mime=video/mp4')).status, 400);
+  assert.equal((await up(Buffer.from('hello '), '?kind=screen&mime=video%2Fmp4%3Bcodecs%3Davc1&t=1500')).status, 200);
+  assert.equal((await up(Buffer.from('world'))).status, 200); // đoạn sau không cần kind/mime
+  const fin = await api('POST', `/api/sessions/${s1.id}/media/screen-1/finish`, { endT: 9500, durationMs: 7000 });
+  assert.equal(fin.body.size, 11);
+  assert.equal(fin.body.startT, 1500);
+  assert.equal(fin.body.durationMs, 7000);
+  const meta = (await api('GET', `/api/sessions/${s1.id}`)).body;
+  assert.equal(meta.media[0].file, `${s1.id}.screen-1.mp4`);
+  const full = await fetch(`${base}/__et/api/sessions/${s1.id}/media/screen-1`);
+  assert.equal(full.headers.get('content-type'), 'video/mp4');
+  assert.equal(await full.text(), 'hello world');
+  const part = await fetch(`${base}/__et/api/sessions/${s1.id}/media/screen-1`, { headers: { Range: 'bytes=6-' } });
+  assert.equal(part.status, 206);
+  assert.equal(await part.text(), 'world');
+  const dl = await fetch(`${base}/__et/api/sessions/${s1.id}/media/screen-1?download=1`);
+  assert.match(dl.headers.get('content-disposition'), /attachment; filename="heatmap-.*-screen-1\.mp4"/);
+  assert.equal((await fetch(`${base}/__et/api/sessions/${s1.id}/media/..%2Fx`)).status, 400);
+  // xoá phiên → xoá luôn file video
+  const file = path.join(process.env.DATA_DIR, 'sessions', `${s1.id}.screen-1.mp4`);
+  assert.ok(fs.existsSync(file));
+  await api('DELETE', `/api/sessions/${s1.id}`);
+  assert.ok(!fs.existsSync(file));
+});
+
 test('phiên Figma', async () => {
   const ok = await api('POST', '/api/sessions', { kind: 'figma', url: 'https://www.figma.com/proto/AbC/Demo?node-id=1-2' });
   assert.equal(ok.status, 201);
