@@ -6,6 +6,8 @@ const isDesktop = !!(desktop && desktop.webview);
 let activeTab = 'web';
 let scenarios = [];
 let sessionsCache = [];
+let startPick = null; // { mode, id } — lần chọn gần nhất, nhớ giữa các lần mở
+let scenariosLoaded = false;
 const selected = new Set();
 
 function esc(s) {
@@ -148,11 +150,7 @@ function renderScenarioSelects() {
   filter.innerHTML = `<option value="">${esc(t('home.all_sessions'))}</option><option value="none">${esc(t('home.unassigned'))}</option>${opts}`;
   filter.value = [...filter.options].some((o) => o.value === fv) ? fv : '';
 
-  const start = $('#startScenario');
-  const sv = start.value;
-  start.innerHTML = `<option value="">${esc(t('home.no_scenario'))}</option>${opts}<option value="__new">${esc(t('home.new_scenario_option'))}</option>`;
-  // phiên mới mặc định thuộc kịch bản đang xem
-  start.value = [...start.options].some((o) => o.value === sv && sv !== '__new') ? sv : (filter.value && filter.value !== 'none' ? filter.value : '');
+  renderStartScenario();
 
   $('#bulkScenario').innerHTML = opts;
   const one = filter.value && filter.value !== 'none';
@@ -214,6 +212,7 @@ async function createScenario() {
 
 async function loadScenarios() {
   scenarios = await api('GET', '/scenarios').catch(() => []);
+  scenariosLoaded = true;
   renderScenarioSelects();
 }
 
@@ -222,17 +221,104 @@ $('#newScenario').addEventListener('click', async () => {
   if (sc) {
     $('#scenarioFilter').value = sc.id;
     renderScenarioSelects();
+    followFilter();
     loadSessions();
   }
 });
-$('#startScenario').addEventListener('change', async (e) => {
-  if (e.target.value !== '__new') return;
-  const sc = await createScenario();
-  e.target.value = sc ? sc.id : '';
-});
+// ---------- kịch bản cho phiên mới: không / có sẵn / tạo mới ----------
+
+const START_STORE = 'heatmap.startScenario';
+
+function loadStartPick() {
+  try {
+    return JSON.parse(localStorage.getItem(START_STORE) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function saveStartPick(pick) {
+  try {
+    localStorage.setItem(START_STORE, JSON.stringify(pick));
+  } catch { /* chỉ không nhớ được */ }
+}
+
+const startMode = () => (document.querySelector('input[name=scMode]:checked') || {}).value || 'none';
+
+function setStartMode(mode) {
+  document.querySelectorAll('input[name=scMode]').forEach((r) => { r.checked = r.value === mode; });
+  renderStartMode();
+}
+
+function renderStartScenario() {
+  const select = $('#startScenario');
+  const prev = select.value;
+  select.innerHTML = scenarios.map((sc) => `<option value="${esc(sc.id)}">${esc(sc.name)} (${sc.sessionCount})</option>`).join('');
+  const exists = (id) => scenarios.some((sc) => sc.id === id);
+  if (!scenariosLoaded) return; // chưa có danh sách thì chưa chọn mặc định được
+  if (!startPick) {
+    // lần đầu: ưu tiên kịch bản đang lọc, rồi lựa chọn lần trước
+    const filter = $('#scenarioFilter').value;
+    const saved = loadStartPick();
+    if (filter && exists(filter)) startPick = { mode: 'existing', id: filter };
+    else if (saved && saved.mode === 'existing' && exists(saved.id)) startPick = saved;
+    else startPick = { mode: 'none' };
+    setStartMode(startPick.mode);
+    if (startPick.id) select.value = startPick.id;
+  } else if (exists(prev)) {
+    select.value = prev;
+  }
+  document.querySelector('input[name=scMode][value=existing]').disabled = !scenarios.length;
+  if (startMode() === 'existing' && !scenarios.length) setStartMode('none');
+  else renderStartMode();
+}
+
+function renderStartMode() {
+  const mode = startMode();
+  $('#startScenario').hidden = mode !== 'existing';
+  $('#newScenarioName').hidden = mode !== 'new';
+  const hint = $('#scenarioHint');
+  const name = $('#newScenarioName').value.trim().toLowerCase();
+  const dup = mode === 'new' && name && scenarios.some((sc) => sc.name.trim().toLowerCase() === name);
+  hint.textContent = dup ? t('home.sc_reuse') : !scenarios.length && mode !== 'new' ? t('home.sc_empty') : '';
+  hint.hidden = !hint.textContent;
+}
+
+document.querySelectorAll('input[name=scMode]').forEach((r) => r.addEventListener('change', () => {
+  renderStartMode();
+  if (startMode() === 'new') $('#newScenarioName').focus();
+}));
+$('#newScenarioName').addEventListener('input', renderStartMode);
+
+/** Kịch bản cho phiên sắp tạo: id có sẵn, tạo mới theo tên, hoặc không có. */
+async function resolveStartScenario() {
+  const mode = startMode();
+  if (mode === 'existing') return $('#startScenario').value || undefined;
+  if (mode !== 'new') return undefined;
+  const name = $('#newScenarioName').value.trim();
+  if (!name) {
+    $('#newScenarioName').focus();
+    throw new Error(t('home.sc_name_required'));
+  }
+  // trùng tên thì dùng lại kịch bản đó thay vì tạo bản sao
+  const same = scenarios.find((sc) => sc.name.trim().toLowerCase() === name.toLowerCase());
+  if (same) return same.id;
+  const sc = await api('POST', '/scenarios', { name });
+  scenarios.push(sc);
+  return sc.id;
+}
+/** Đang xem một kịch bản → phiên mới mặc định thuộc kịch bản đó. */
+function followFilter() {
+  const id = $('#scenarioFilter').value;
+  if (!scenarios.some((sc) => sc.id === id)) return;
+  $('#startScenario').value = id;
+  setStartMode('existing');
+}
+
 $('#scenarioFilter').addEventListener('change', () => {
   selected.clear();
   renderScenarioSelects();
+  followFilter();
   loadSessions();
 });
 $('#renameScenario').addEventListener('click', async () => {
@@ -268,14 +354,15 @@ $('#startForm').addEventListener('submit', async (e) => {
     return;
   }
   try {
-    const sc = $('#startScenario').value;
+    const sc = await resolveStartScenario();
+    saveStartPick(sc ? { mode: 'existing', id: sc } : { mode: 'none' });
     const data = await api('POST', '/sessions', {
       kind,
       url,
       participant: $('#participant').value,
       eyeTracking: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked,
       recordAudio: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked && $('#recordAudio').checked,
-      scenarioId: sc && sc !== '__new' ? sc : undefined,
+      scenarioId: sc,
     });
     location.href = '/__et/track.html?id=' + data.id;
   } catch (err) {

@@ -45,15 +45,22 @@
         <p class="small muted hint" data-i18n="home.figma_hint"></p>
       </div>
 
-      <div class="row" style="margin-top: 12px">
+      <div class="row" style="margin-top: 12px; align-items: flex-start">
         <div style="flex: 1 1 240px">
           <label for="participant" data-i18n="home.participant"></label>
           <input type="text" id="participant" data-i18n-placeholder="home.participant_placeholder">
         </div>
-        <div style="flex: 1 1 240px">
-          <label for="startScenario" data-i18n="home.scenario"></label>
-          <select id="startScenario"></select>
-        </div>
+        <fieldset class="scenario-pick" style="flex: 1 1 240px">
+          <legend data-i18n="home.scenario"></legend>
+          <div class="seg" id="scenarioMode">
+            <label><input type="radio" name="scMode" value="none"><span data-i18n="home.sc_none"></span></label>
+            <label><input type="radio" name="scMode" value="existing"><span data-i18n="home.sc_existing"></span></label>
+            <label><input type="radio" name="scMode" value="new"><span data-i18n="home.sc_new"></span></label>
+          </div>
+          <select id="startScenario" data-i18n-aria="home.sc_existing" hidden></select>
+          <input type="text" id="newScenarioName" maxlength="100" autocomplete="off" data-i18n-aria="home.sc_new" data-i18n-placeholder="home.sc_new_placeholder" hidden>
+          <p class="small muted hint" id="scenarioHint" hidden></p>
+        </fieldset>
       </div>
       <label class="check" id="eyeOption"><input type="checkbox" id="eyeTracking" checked> <span data-i18n="home.eye"></span></label>
       <label class="check sub-option" id="audioOption"><input type="checkbox" id="recordAudio" checked> <span data-i18n="home.audio"></span></label>
