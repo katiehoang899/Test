@@ -124,3 +124,5 @@ $('#scope').addEventListener('change', load);
   renderScope();
   await load();
 })();
+
+Charts.bindToggleAll($('#chartsToggle'), $('#charts'));

@@ -888,3 +888,5 @@ async function init() {
 }
 
 init();
+
+Charts.bindToggleAll($('#chartsToggle'), $('#charts'));

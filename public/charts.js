@@ -54,12 +54,86 @@
     if (tip) tip.hidden = true;
   }
 
+  // ---------- thu gọn / mở rộng ----------
+  // Trạng thái nhớ theo vị trí biểu đồ trong lưới (khung + thứ tự), không theo tiêu đề vì tiêu đề đổi theo ngôn ngữ.
+  const STORE = 'heatmap.charts.collapsed';
+  let uid = 0;
+
+  function loadCollapsed() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(STORE) || '[]'));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveCollapsed(set) {
+    try {
+      localStorage.setItem(STORE, JSON.stringify([...set]));
+    } catch { /* trình duyệt chặn lưu trữ: chỉ không nhớ được */ }
+  }
+
+  function setCollapsed(c, collapsed, remember = true) {
+    c.classList.toggle('collapsed', collapsed);
+    c.querySelector('.chart-toggle').setAttribute('aria-expanded', String(!collapsed));
+    c.querySelector('.chart-body').hidden = collapsed;
+    // biểu đồ đường cần đo độ rộng nên chỉ vẽ khi đang mở
+    if (!collapsed && c._draw) {
+      const draw = c._draw;
+      c._draw = null;
+      requestAnimationFrame(draw);
+    }
+    if (remember) {
+      const set = loadCollapsed();
+      if (collapsed) set.add(c.dataset.key);
+      else set.delete(c.dataset.key);
+      saveCollapsed(set);
+    }
+    c.parentElement?.dispatchEvent(new CustomEvent('charts:change'));
+  }
+
+  /** Thẻ biểu đồ; trả về phần thân để vẽ nội dung vào. */
   function card(container, { title, subtitle }) {
-    const c = el('figure', { class: 'chart-card' });
-    c.appendChild(el('figcaption', {}, ''));
-    c.firstChild.append(el('h3', {}, title), el('p', { class: 'small muted' }, subtitle || ''));
+    const key = `${location.pathname}#${container.id}:${container.children.length}`;
+    const c = el('figure', { class: 'chart-card', 'data-key': key });
+    const bodyId = `chart-body-${++uid}`;
+    const head = el('figcaption');
+    const h = el('h3');
+    const btn = el('button', { type: 'button', class: 'chart-toggle', 'aria-expanded': 'true', 'aria-controls': bodyId });
+    btn.append(el('span', { class: 'chart-chevron', 'aria-hidden': 'true' }), el('span', {}, title));
+    btn.addEventListener('click', () => setCollapsed(c, !c.classList.contains('collapsed')));
+    h.appendChild(btn);
+    head.append(h, el('p', { class: 'small muted' }, subtitle || ''));
+    const body = el('div', { class: 'chart-body', id: bodyId });
+    c.append(head, body);
     container.appendChild(c);
-    return c;
+    setCollapsed(c, loadCollapsed().has(key), false);
+    return body;
+  }
+
+  function cardsOf(container) {
+    return [...container.querySelectorAll(':scope > .chart-card')];
+  }
+
+  /** Thu gọn hoặc mở rộng mọi biểu đồ trong khung. */
+  function setAll(container, collapsed) {
+    cardsOf(container).forEach((c) => setCollapsed(c, collapsed));
+  }
+
+  /** Nút "Thu gọn tất cả / Mở rộng tất cả" cho một khung biểu đồ. */
+  function bindToggleAll(button, container) {
+    const allCollapsed = () => {
+      const cards = cardsOf(container);
+      return cards.length > 0 && cards.every((c) => c.classList.contains('collapsed'));
+    };
+    const render = () => {
+      button.hidden = cardsOf(container).length === 0;
+      button.textContent = t(allCollapsed() ? 'chart.expand_all' : 'chart.collapse_all');
+    };
+    button.addEventListener('click', () => setAll(container, !allCollapsed()));
+    container.addEventListener('charts:change', render);
+    document.addEventListener('i18n:change', render);
+    render();
   }
 
   function table(c, label, headers, rows) {
@@ -91,11 +165,14 @@
     const pts = opts.points || [];
     if (pts.length < 2 || !pts.some((p) => p.y > 0)) return empty(c, opts.emptyText);
     // Đo độ rộng sau khi mọi thẻ trong lưới đã được thêm (lưới auto-fit đổi cột theo số thẻ).
-    requestAnimationFrame(() => drawLine(c, opts, pts));
+    // Thẻ đang thu gọn thì vẽ lúc được mở ra.
+    const draw = () => drawLine(c, opts, pts);
+    if (c.hidden) c.parentElement._draw = draw;
+    else requestAnimationFrame(draw);
   }
 
   function drawLine(c, opts, pts) {
-    const W = Math.max(280, c.clientWidth - 32);
+    const W = Math.max(280, c.clientWidth);
     const H = 180;
     const m = { l: 44, r: 14, t: 12, b: 26 };
     const iw = W - m.l - m.r;
@@ -208,5 +285,5 @@
     table(c, opts.tableLabel, opts.headers, rows.map((r) => [r.full || r.label, opts.valueLabel(r.value)]));
   }
 
-  window.Charts = { line, hbar, fmtNum };
+  window.Charts = { line, hbar, fmtNum, setAll, bindToggleAll };
 })();
