@@ -11,6 +11,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eyetrack-test-'));
 process.env.ALLOW_PRIVATE = '1';
 const { createServer, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
 
+const hfHits = [];
 let server;
 let target;
 let base;
@@ -34,6 +35,15 @@ before(async () => {
         res.end(JSON.stringify({ method: req.method, body, cookie: req.headers.cookie || '', referer: req.headers.referer || '' }));
       });
       return;
+    }
+    if (req.url.startsWith('/onnx-community/whisper-small/resolve/main/')) {
+      hfHits.push(req.url);
+      if (req.url.endsWith('/missing.json')) {
+        res.writeHead(404);
+        return res.end();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end('{"model_type":"whisper"}');
     }
     if (req.url === '/image.png') {
       res.writeHead(200, { 'Content-Type': 'image/png' });
@@ -288,6 +298,55 @@ test('ghi màn hình/âm thanh: nối từng đoạn, tua (Range), xoá cùng ph
   assert.ok(fs.existsSync(file));
   await api('DELETE', `/api/sessions/${s1.id}`);
   assert.ok(!fs.existsSync(file));
+});
+
+test('transcript: lưu, sửa, xuất Word (.docx) và .txt', async () => {
+  const s1 = (await api('POST', '/api/sessions', { url: 'https://talk.test/', participant: 'Lan' })).body;
+  assert.equal((await api('GET', `/api/sessions/${s1.id}/transcript`)).body, null);
+  const put = await api('PUT', `/api/sessions/${s1.id}/transcript`, {
+    audioId: 'audio-1', language: 'vietnamese', model: 'onnx-community/whisper-small',
+    segments: [{ start: 0, end: 4.2, text: 'Xin chào, tôi đang tìm nút thanh toán.' }, { start: 65, end: 70, text: 'Ở đây có mã giảm giá không?' }],
+  });
+  assert.equal(put.status, 200);
+  assert.equal(put.body.segments.length, 2);
+  assert.equal((await api('GET', `/api/sessions/${s1.id}`)).body.hasTranscript, true);
+  // sửa một đoạn
+  const edited = await api('PUT', `/api/sessions/${s1.id}/transcript`, { segments: [{ start: 0, text: 'Xin chào!' }] });
+  assert.equal(edited.body.language, 'vietnamese'); // giữ thông tin cũ
+  assert.equal(edited.body.segments[0].text, 'Xin chào!');
+  const txt = await fetch(`${base}/__et/api/sessions/${s1.id}/transcript?format=txt`);
+  assert.match(await txt.text(), /\[00:00\] Xin chào!/);
+  const docx = await fetch(`${base}/__et/api/sessions/${s1.id}/transcript?format=docx`);
+  assert.equal(docx.headers.get('content-type'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  const buf = Buffer.from(await docx.arrayBuffer());
+  assert.equal(buf.subarray(0, 2).toString(), 'PK'); // .docx là file zip
+  assert.ok(buf.length > 3000);
+});
+
+test('mô hình Whisper: tải qua proxy một lần, lưu đệm trên đĩa, chỉ cho phép mô hình trong danh sách', async () => {
+  process.env.HF_ENDPOINT = targetBase;
+  const url = `${base}/__et/models/onnx-community/whisper-small/resolve/main/config.json`;
+  const a = await fetch(url);
+  assert.equal(a.status, 200);
+  assert.equal(await a.text(), '{"model_type":"whisper"}');
+  const b = await fetch(url);
+  assert.equal(await b.text(), '{"model_type":"whisper"}');
+  assert.equal(hfHits.filter((h) => h.endsWith('/config.json')).length, 1); // lần 2 lấy từ đĩa
+  assert.ok(fs.existsSync(path.join(process.env.DATA_DIR, 'models', 'onnx-community', 'whisper-small', 'main', 'config.json')));
+  assert.equal((await fetch(`${base}/__et/models/onnx-community/whisper-small/resolve/main/missing.json`)).status, 404);
+  assert.equal((await fetch(`${base}/__et/models/evil/model/resolve/main/x.onnx`)).status, 404);
+  assert.equal((await fetch(`${base}/__et/models/onnx-community/whisper-small/resolve/main/..%2F..%2Fx`)).status, 404);
+  // thư viện chạy mô hình phục vụ ngay trên máy, có header cross-origin isolation
+  const lib = await fetch(`${base}/__et/vendor/transformers/transformers.min.js`);
+  assert.equal(lib.status, 200);
+  assert.equal(lib.headers.get('cross-origin-embedder-policy'), 'require-corp');
+  assert.equal((await fetch(`${base}/__et/vendor/ort/ort-wasm-simd-threaded.jsep.wasm`, { method: 'HEAD' })).headers.get('content-type'), 'application/wasm');
+  const asyncify = await fetch(`${base}/__et/vendor/ort/ort-wasm-simd-threaded.asyncify.mjs`, { method: 'HEAD' });
+  assert.equal(asyncify.status, 200);
+  assert.equal((await fetch(`${base}/__et/vendor/ort/ort-wasm.wasm`, { method: 'HEAD' })).status, 404);
+  const page = await fetch(`${base}/__et/transcript.html`, { method: 'HEAD' });
+  assert.equal(page.headers.get('cross-origin-opener-policy'), 'same-origin');
+  delete process.env.HF_ENDPOINT;
 });
 
 test('phiên Figma', async () => {

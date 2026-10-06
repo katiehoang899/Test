@@ -11,8 +11,14 @@ const { app, BrowserWindow, Menu, session, shell, systemPreferences, dialog, ipc
 // Dữ liệu phiên lưu trong thư mục dữ liệu của ứng dụng
 // (macOS: ~/Library/Application Support/Heatmap/sessions).
 process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
-// Bản đóng gói chỉ mang theo thư mục dist của WebGazer (xem build.extraResources trong package.json).
-if (app.isPackaged) process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 'webgazer');
+// Bản đóng gói không chứa node_modules, chỉ mang theo các file cần thiết (xem build.extraResources trong package.json).
+if (app.isPackaged) {
+  process.env.WEBGAZER_DIR = path.join(process.resourcesPath, 'webgazer');
+  // nhận dạng giọng nói (transformers.js + ONNX Runtime Web) và thư viện xuất Word
+  process.env.TRANSFORMERS_DIR = path.join(process.resourcesPath, 'transformers');
+  process.env.ORT_DIR = path.join(process.resourcesPath, 'ort');
+  process.env.DOCX_MODULE = path.join(process.resourcesPath, 'docx', 'index.cjs');
+}
 
 const { createServer, TOOL_PREFIX, getSettings, settingsEvents, storageDir, sessionFilePaths, exportSession } = require(path.join(__dirname, '..', 'server.js'));
 

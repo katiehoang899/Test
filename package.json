@@ -14,6 +14,8 @@
   },
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "@huggingface/transformers": "^4.3.0",
+    "docx": "^9.8.1",
     "webgazer": "3.5.3"
   },
   "devDependencies": {
@@ -65,6 +67,30 @@
         "filter": [
           "**/*",
           "!*.map"
+        ]
+      },
+      {
+        "from": "node_modules/@huggingface/transformers/dist",
+        "to": "transformers",
+        "filter": [
+          "transformers.min.js"
+        ]
+      },
+      {
+        "from": "node_modules/onnxruntime-web/dist",
+        "to": "ort",
+        "filter": [
+          "ort-wasm-simd-threaded.asyncify.mjs",
+          "ort-wasm-simd-threaded.asyncify.wasm",
+          "ort-wasm-simd-threaded.jsep.mjs",
+          "ort-wasm-simd-threaded.jsep.wasm"
+        ]
+      },
+      {
+        "from": "node_modules/docx/dist",
+        "to": "docx",
+        "filter": [
+          "index.cjs"
         ]
       }
     ]

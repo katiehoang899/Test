@@ -19,6 +19,12 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const WEBGAZER_DIR = path.resolve(process.env.WEBGAZER_DIR || path.join(__dirname, 'node_modules', 'webgazer', 'dist'));
+// Nhận dạng giọng nói chạy trong trình duyệt (transformers.js + ONNX Runtime Web), phục vụ ngay trên máy.
+const TRANSFORMERS_DIR = path.resolve(process.env.TRANSFORMERS_DIR || path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'dist'));
+const ORT_DIR = path.resolve(process.env.ORT_DIR || path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist'));
+// Mô hình Whisper tải từ Hugging Face một lần rồi lưu trên đĩa (dùng offline về sau).
+const hfEndpoint = () => (process.env.HF_ENDPOINT || 'https://huggingface.co').replace(/\/+$/, '');
+const ASR_MODELS = ['onnx-community/whisper-base', 'onnx-community/whisper-small', 'onnx-community/whisper-large-v3-turbo'];
 // Mặc định chặn proxy tới mạng nội bộ (chống SSRF). Đặt ALLOW_PRIVATE=1 để test site chạy local.
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE === '1';
 const MAX_BODY = 5 * 1024 * 1024;
@@ -38,6 +44,8 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.wasm': 'application/wasm',
+  '.onnx': 'application/octet-stream',
+  '.txt': 'text/plain; charset=utf-8',
   '.data': 'application/octet-stream',
   '.binarypb': 'application/octet-stream',
 };
@@ -188,7 +196,7 @@ async function assertPublicHost(hostname) {
 // nên origin (và localStorage) đổi sau mỗi lần mở app.
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, storageDir: '' };
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
 const settingsEvents = new EventEmitter();
 let settingsCache = null;
@@ -270,6 +278,7 @@ async function updateSettings(patch) {
   if (patch && LANGUAGES.includes(patch.language)) next.language = patch.language;
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
+  if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
   if (patch && typeof patch.storageDir === 'string') {
     let dir = patch.storageDir.trim();
     if (dir.startsWith('~/')) dir = path.join(os.homedir(), dir.slice(2));
@@ -704,6 +713,174 @@ async function handleMedia(req, res, url, meta, mediaId, action) {
   return sendJson(res, 405, { error: 'Method not allowed' });
 }
 
+// ---------- transcript (nhận dạng giọng nói chạy trong trình duyệt, lưu kết quả ở đây) ----------
+
+function transcriptPath(id) {
+  return path.join(sessionsDir(), id + '.transcript.json');
+}
+
+async function loadTranscript(id) {
+  try {
+    return JSON.parse(await fsp.readFile(transcriptPath(id), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeSegments(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 20000).map((seg) => ({
+    start: num(seg && seg.start) ?? 0,
+    end: num(seg && seg.end) ?? null,
+    text: str(seg && seg.text, 4000) || '',
+  }));
+}
+
+function fmtTime(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+const DOC_TEXT = {
+  en: { title: 'Session transcript', link: 'Link', participant: 'Participant', recorded: 'Recorded', language: 'Language', model: 'Speech model', summary: 'AI summary', transcript: 'Transcript', anon: 'anonymous', vietnamese: 'Vietnamese', english: 'English', auto: 'Auto-detect' },
+  vi: { title: 'Transcript phiên', link: 'Link', participant: 'Người tham gia', recorded: 'Thời điểm ghi', language: 'Ngôn ngữ', model: 'Mô hình giọng nói', summary: 'Tóm tắt bằng AI', transcript: 'Transcript', anon: 'ẩn danh', vietnamese: 'Tiếng Việt', english: 'Tiếng Anh', auto: 'Tự nhận diện' },
+};
+
+/** File Word (.docx) gồm thông tin phiên, tóm tắt AI (nếu có) và transcript có mốc thời gian. */
+async function transcriptDocx(meta, tr) {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = require(process.env.DOCX_MODULE || 'docx');
+  const L = DOC_TEXT[getSettings().language] || DOC_TEXT.en;
+  const info = (k, v) => new Paragraph({ children: [new TextRun({ text: `${k}: `, bold: true }), new TextRun(String(v))] });
+  const children = [
+    new Paragraph({ text: `Heatmap — ${L.title}`, heading: HeadingLevel.TITLE }),
+    info(L.link, meta.url),
+    info(L.participant, meta.participant || L.anon),
+    info(L.recorded, new Date(meta.createdAt).toLocaleString(getSettings().language === 'vi' ? 'vi-VN' : 'en-US')),
+    info(L.language, L[tr.language] || tr.language || '—'),
+    info(L.model, tr.model || '—'),
+  ];
+  if (tr.summary && tr.summary.text) {
+    children.push(new Paragraph({ text: L.summary, heading: HeadingLevel.HEADING_1 }));
+    for (const line of tr.summary.text.split(/\n/)) {
+      const bullet = /^\s*[-*•]\s+/.test(line);
+      const heading = /^#{1,3}\s+/.test(line);
+      const clean = line.replace(/^\s*[-*•]\s+/, '').replace(/^#{1,3}\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1');
+      if (!clean.trim()) continue;
+      children.push(heading
+        ? new Paragraph({ text: clean, heading: HeadingLevel.HEADING_2 })
+        : new Paragraph({ text: clean, bullet: bullet ? { level: 0 } : undefined }));
+    }
+  }
+  children.push(new Paragraph({ text: L.transcript, heading: HeadingLevel.HEADING_1 }));
+  for (const seg of tr.segments || []) {
+    children.push(new Paragraph({ children: [new TextRun({ text: `[${fmtTime(seg.start)}] `, color: '667085' }), new TextRun(seg.text.trim())] }));
+  }
+  return Packer.toBuffer(new Document({ creator: 'Heatmap', title: `${L.title} ${meta.id}`, sections: [{ children }] }));
+}
+
+function transcriptText(meta, tr) {
+  const lines = [`Heatmap — ${meta.url}`, `${meta.participant || ''} ${meta.createdAt}`.trim(), ''];
+  if (tr.summary && tr.summary.text) lines.push(tr.summary.text.trim(), '', '---', '');
+  for (const seg of tr.segments || []) lines.push(`[${fmtTime(seg.start)}] ${seg.text.trim()}`);
+  return lines.join('\n') + '\n';
+}
+
+async function handleTranscript(req, res, url, meta) {
+  const id = meta.id;
+  if (req.method === 'GET') {
+    const tr = await loadTranscript(id);
+    const format = url.searchParams.get('format');
+    if (!format) return sendJson(res, 200, tr);
+    if (!tr) return sendJson(res, 404, { error: 'No transcript yet' });
+    if (format === 'docx') {
+      const buf = await transcriptDocx(meta, tr);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': `attachment; filename="heatmap-transcript-${id}.docx"`,
+        'Content-Length': buf.length,
+      });
+      return res.end(buf);
+    }
+    if (format === 'txt') {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="heatmap-transcript-${id}.txt"` });
+      return res.end(transcriptText(meta, tr));
+    }
+    return sendJson(res, 400, { error: 'Unknown format' });
+  }
+  if (req.method === 'PUT') {
+    const body = await readJson(req);
+    const saved = await withSessionLock(id, async () => {
+      const prev = (await loadTranscript(id)) || {};
+      const next = {
+        ...prev,
+        audioId: str(body.audioId, 40) || prev.audioId || null,
+        language: ['vietnamese', 'english', 'auto'].includes(body.language) ? body.language : prev.language || 'auto',
+        model: str(body.model, 120) || prev.model || '',
+        segments: 'segments' in body ? sanitizeSegments(body.segments) : prev.segments || [],
+        updatedAt: new Date().toISOString(),
+        createdAt: prev.createdAt || new Date().toISOString(),
+      };
+      // giữ tóm tắt AI; nếu client gửi tóm tắt đã chỉnh sửa thì cập nhật nội dung
+      if (body.summary && typeof body.summary.text === 'string' && next.summary) next.summary = { ...next.summary, text: body.summary.text.slice(0, 50000), edited: true };
+      await fsp.writeFile(transcriptPath(id), JSON.stringify(next, null, 2));
+      await updateMetaUnlocked(id, (m) => { m.hasTranscript = next.segments.length > 0; });
+      return next;
+    });
+    return sendJson(res, 200, saved);
+  }
+  return sendJson(res, 405, { error: 'Method not allowed' });
+}
+
+/** Sửa meta khi đang giữ khoá của phiên (không lấy khoá lần nữa). */
+async function updateMetaUnlocked(id, fn) {
+  const fresh = await loadMeta(id);
+  if (!fresh) return null;
+  await fn(fresh);
+  await saveMeta(fresh);
+  return fresh;
+}
+
+// ---------- mô hình Whisper: proxy + lưu đệm trên đĩa ----------
+// transformers.js tải {model}/resolve/{revision}/{file} từ đây thay vì trực tiếp từ Hugging Face.
+
+const modelDownloads = new Map();
+
+async function handleModelFile(req, res, rel) {
+  const m = /^\/models\/([\w.-]+\/[\w.-]+)\/resolve\/([\w.-]+)\/([\w./-]+)$/.exec(rel);
+  if (!m || !ASR_MODELS.includes(m[1]) || m[3].includes('..')) return sendText(res, 404, 'Not found');
+  const [, model, revision, file] = m;
+  const local = path.join(DATA_DIR, 'models', model, revision, file);
+  if (!fs.existsSync(local)) {
+    // nhiều request cùng file → chỉ tải một lần
+    if (!modelDownloads.has(local)) {
+      modelDownloads.set(local, (async () => {
+        const upstream = await fetch(`${hfEndpoint()}/${model}/resolve/${revision}/${file}`, { redirect: 'follow' });
+        if (upstream.status === 404) throw Object.assign(new Error('Not found'), { status: 404 });
+        if (!upstream.ok || !upstream.body) throw Object.assign(new Error('Model download failed: HTTP ' + upstream.status), { status: 502 });
+        await fsp.mkdir(path.dirname(local), { recursive: true });
+        const tmp = local + '.part';
+        await require('node:stream/promises').pipeline(Readable.fromWeb(upstream.body), fs.createWriteStream(tmp));
+        await fsp.rename(tmp, local);
+      })().finally(() => modelDownloads.delete(local)));
+    }
+    try {
+      await modelDownloads.get(local);
+    } catch (err) {
+      return sendText(res, err.status || 502, err.message);
+    }
+  }
+  const stat = await fsp.stat(local);
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(local).toLowerCase()] || 'application/octet-stream',
+    'Content-Length': stat.size,
+    'Cache-Control': 'no-store',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+  });
+  fs.createReadStream(local).pipe(res);
+}
+
 // ---------- xuất dữ liệu một phiên ----------
 
 /** Nội dung file xuất của một phiên: { filename, contentType, body }. Dùng cho tải về và "Save as". */
@@ -824,6 +1001,7 @@ async function handleApi(req, res, url) {
   }
 
   if (sub === 'media') return handleMedia(req, res, url, meta, parts[4], parts[5]);
+  if (sub === 'transcript') return handleTranscript(req, res, url, meta);
 
   if (sub === 'events' && req.method === 'POST') {
     const body = await readJson(req);
@@ -1047,7 +1225,11 @@ async function handleReverseProxy(req, res, url) {
 
 // ---------- static ----------
 
-async function serveStatic(res, root, rel) {
+// Trang transcript bật cross-origin isolation để ONNX Runtime chạy đa luồng (nhanh hơn nhiều).
+const ISOLATION_HEADERS = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin' };
+const ISOLATED_PAGES = new Set(['transcript.html', 'transcript.js', 'asr-worker.js', 'i18n.js', 'style.css', 'logo.svg', 'media.js']);
+
+async function serveStatic(res, root, rel, extraHeaders) {
   const filePath = path.resolve(root, '.' + path.posix.normalize('/' + rel));
   if (!filePath.startsWith(root + path.sep) && filePath !== root) return sendText(res, 403, 'Forbidden');
   let stat;
@@ -1057,9 +1239,12 @@ async function serveStatic(res, root, rel) {
     return sendText(res, 404, 'Not found');
   }
   if (stat.isDirectory()) return serveStatic(res, root, path.posix.join(rel, 'index.html'));
+  const isolated = root === PUBLIC_DIR && ISOLATED_PAGES.has(path.basename(filePath));
   res.writeHead(200, {
     'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
     'Content-Length': stat.size,
+    ...(isolated ? ISOLATION_HEADERS : {}),
+    ...(extraHeaders || {}),
   });
   fs.createReadStream(filePath).pipe(res);
 }
@@ -1078,6 +1263,11 @@ async function handler(req, res) {
     if (rel.startsWith('/vendor/webgazer/')) {
       return await serveStatic(res, WEBGAZER_DIR, decodeURIComponent(rel.slice('/vendor/webgazer/'.length)));
     }
+    if (rel === '/vendor/transformers/transformers.min.js') return await serveStatic(res, TRANSFORMERS_DIR, 'transformers.min.js', ISOLATION_HEADERS);
+    if (/^\/vendor\/ort\/ort-wasm-simd-threaded\.(asyncify|jsep)\.(mjs|wasm)$/.test(rel)) {
+      return await serveStatic(res, ORT_DIR, rel.slice('/vendor/ort/'.length), ISOLATION_HEADERS);
+    }
+    if (rel.startsWith('/models/')) return await handleModelFile(req, res, rel);
     if (url.pathname === TOOL_PREFIX) {
       res.writeHead(302, { Location: TOOL_PREFIX + '/' });
       return res.end();
@@ -1103,4 +1293,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, exportSession, sessionFilePaths, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
+module.exports = { createServer, ASR_MODELS, exportSession, sessionFilePaths, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };

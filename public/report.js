@@ -816,7 +816,8 @@ function renderMedia() {
       : `<audio controls preload="metadata" src="${src}"></audio>`;
     const dl = m.kind === 'screen'
       ? `<a class="btn" href="${src}?download=1">${esc(t('report.download_video'))} (.${esc(m.file.split('.').pop())})</a>`
-      : `<button type="button" data-wav="${esc(m.id)}">${esc(t('report.download_audio'))}</button>`;
+      : `<a class="btn primary" href="/__et/transcript.html?id=${state.primary.id}&media=${encodeURIComponent(m.id)}">${esc(t('report.transcript'))}</a>
+         <button type="button" data-wav="${esc(m.id)}">${esc(t('report.download_audio'))}</button>`;
     return `<div class="media-item">
       <b>${esc(title)}</b>
       <span class="small muted">${esc(metaLine)}</span>
