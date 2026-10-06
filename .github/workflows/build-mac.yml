@@ -1,10 +1,11 @@
 name: Build macOS app (.dmg)
 
+# Chỉ build khi bấm "Run workflow" trên GitHub (Actions → Build macOS app (.dmg)),
+# hoặc khi đẩy tag phát hành v*. Push code thường không build .dmg.
 on:
-  push:
-    branches: [main, master, 'claude/**']
-    tags: ['v*']
   workflow_dispatch:
+  push:
+    tags: ['v*']
 
 jobs:
   dmg:
