@@ -49,7 +49,8 @@
       "identity": "-",
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSCameraUsageDescription": "Heatmap uses the webcam to estimate where you look on the page being tested. Video never leaves this Mac."
+        "NSCameraUsageDescription": "Heatmap uses the webcam to estimate where you look on the page being tested. Video never leaves this Mac.",
+        "NSMicrophoneUsageDescription": "Heatmap records the microphone during a session (when you turn on audio recording) so it can be transcribed. Audio is stored only on this Mac."
       },
       "icon": "build/icon.png"
     },

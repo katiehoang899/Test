@@ -764,6 +764,8 @@ async function handleApi(req, res, url) {
         participant: str(body.participant, 100) || '',
         // tắt hẳn trong Cài đặt → không phiên nào bật webcam
         eyeTracking: !!body.eyeTracking && getSettings().eyeTrackingEnabled,
+        // ghi âm micro: chỉ khi phiên bật webcam
+        recordAudio: !!body.recordAudio && !!body.eyeTracking && getSettings().eyeTrackingEnabled,
         createdAt: new Date().toISOString(),
         endedAt: null,
         calibration: null,

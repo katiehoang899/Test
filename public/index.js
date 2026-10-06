@@ -62,6 +62,7 @@ function renderSettings(settings) {
   if (document.activeElement !== $('#setStorage')) $('#setStorage').value = settings.storagePath || '';
   // Tắt eye tracking trong Cài đặt → ẩn hẳn tuỳ chọn webcam và cột Eye tracking
   $('#eyeOption').hidden = !settings.eyeTrackingEnabled;
+  renderAudioOption();
   document.body.classList.toggle('no-eye', !settings.eyeTrackingEnabled);
   if (isDesktop) {
     $('#url').placeholder = t('home.url_placeholder_desktop');
@@ -70,6 +71,12 @@ function renderSettings(settings) {
     $('#urlHint').textContent = t('home.url_hint_web');
   }
 }
+
+// Ghi âm chỉ có khi bật eye tracking bằng webcam.
+function renderAudioOption() {
+  $('#audioOption').hidden = !I18N.settings.eyeTrackingEnabled || !$('#eyeTracking').checked;
+}
+$('#eyeTracking').addEventListener('change', renderAudioOption);
 
 document.addEventListener('i18n:change', (e) => {
   renderSettings(e.detail);
@@ -208,6 +215,7 @@ $('#startForm').addEventListener('submit', async (e) => {
       url,
       participant: $('#participant').value,
       eyeTracking: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked,
+      recordAudio: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked && $('#recordAudio').checked,
       scenarioId: sc && sc !== '__new' ? sc : undefined,
     });
     location.href = '/__et/track.html?id=' + data.id;

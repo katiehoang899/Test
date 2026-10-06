@@ -603,6 +603,7 @@ async function init() {
   recording = true;
   $('#recDot').classList.add('rec');
   browser.navigate(session.url);
+  if (session.recordAudio) startAudioRecording();
   setInterval(flush, FLUSH_INTERVAL_MS);
   startClock();
 }
@@ -663,8 +664,48 @@ $('#recStop').addEventListener('click', async () => {
   renderRec();
 });
 
+// ---------- ghi âm micro (phiên bật webcam + chọn ghi âm) ----------
+
+let audioRec = null;
+
+function renderMic() {
+  const st = audioRec ? audioRec.state : 'idle';
+  $('#micChip').hidden = !audioRec;
+  if (!audioRec) return;
+  $('#micChip').classList.toggle('live', st === 'recording');
+  $('#micTime').textContent = st === 'stopping' ? t('rec.saving') : fmtClock(audioRec.elapsed());
+  const label = t(st === 'paused' ? 'mic.resume' : 'mic.pause');
+  $('#micToggle').textContent = st === 'paused' ? '⏵' : '⏸';
+  $('#micToggle').title = label;
+  $('#micToggle').setAttribute('aria-label', label);
+  $('#micToggle').hidden = st !== 'recording' && st !== 'paused';
+}
+setInterval(() => audioRec && audioRec.state !== 'stopped' && renderMic(), 500);
+
+async function startAudioRecording() {
+  try {
+    if (window.etDesktop && window.etDesktop.askMicrophone) await window.etDesktop.askMicrophone();
+    audioRec = await EtMedia.startAudio({ sessionId, mediaId: 'audio-' + Date.now().toString(36), now, onState: renderMic });
+  } catch (err) {
+    console.error(err);
+    audioRec = null;
+    toast(t('mic.failed', { msg: err.message || err }), 7000);
+  }
+  renderMic();
+}
+
+$('#micToggle').addEventListener('click', () => {
+  if (!audioRec) return;
+  if (audioRec.state === 'recording') audioRec.pause();
+  else audioRec.resume();
+  renderMic();
+});
+
 async function stopAllRecordings() {
-  if (screenRec && screenRec.state !== 'stopped') await screenRec.stop();
+  await Promise.all([
+    screenRec && screenRec.state !== 'stopped' ? screenRec.stop() : null,
+    audioRec && audioRec.state !== 'stopped' ? audioRec.stop() : null,
+  ]);
 }
 
 $('#finish').addEventListener('click', async () => {

@@ -324,3 +324,7 @@ label.inline select { width: auto; min-width: 180px; padding: 7px 10px; }
 .media-item video { width: 100%; border-radius: 6px; background: #000; max-height: 360px; }
 .media-item audio { width: 100%; }
 .media-item .row { gap: 6px; }
+.check.sub-option { margin-top: -6px; padding-left: 26px; }
+.mic-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 99px; border: 1px solid var(--border); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.mic-chip.live { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.mic-btn { padding: 2px 8px; border-radius: 99px; font-size: 11px; }

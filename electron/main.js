@@ -197,6 +197,15 @@ ipcMain.handle('et:save-session', async (event, id) => {
   return result.filePath;
 });
 
+// Ghi âm: macOS cần người dùng cho phép micro (Info.plist có NSMicrophoneUsageDescription).
+ipcMain.handle('et:ask-mic', async (event) => {
+  if (!fromTool(event) || process.platform !== 'darwin') return true;
+  const status = systemPreferences.getMediaAccessStatus('microphone');
+  if (status === 'granted') return true;
+  if (status === 'not-determined') return systemPreferences.askForMediaAccess('microphone');
+  return false;
+});
+
 // Nút "Chọn file…" ở trang chủ: chọn một file HTML trên máy để test.
 ipcMain.handle('et:pick-html', async (event) => {
   if (!fromTool(event)) return null;

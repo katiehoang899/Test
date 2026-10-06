@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('etDesktop', {
   openFolder: () => ipcRenderer.invoke('et:open-folder'),
   revealSession: (id) => ipcRenderer.invoke('et:reveal-session', String(id)),
   saveSessionAs: (id) => ipcRenderer.invoke('et:save-session', String(id)),
+  askMicrophone: () => ipcRenderer.invoke('et:ask-mic'),
 });
