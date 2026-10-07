@@ -68,7 +68,7 @@ Biến môi trường:
 
 ## Ứng dụng macOS (.dmg)
 
-Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Heatmap/sessions` (menu **Dữ liệu → Mở thư mục dữ liệu**).
+Công cụ có thể chạy như một ứng dụng desktop (Electron): server chạy ngay bên trong app, không cần cài Node.js, dữ liệu lưu ở `~/Library/Application Support/Heatmap/sessions`, mỗi kịch bản một thư mục, mỗi phiên một thư mục con (xem *Cách lưu file*; menu **Dữ liệu → Mở thư mục dữ liệu**, hoặc đổi nơi lưu trong ⚙ Cài đặt).
 
 > **Heatmap 3.0** độc lập với các bản trước ("Eye Tracking Tool" 1.0, "Eye Tracking Studio" 2.0): khác mã ứng dụng, khác thư mục dữ liệu, nên cài song song được và không ghi đè hay dùng chung dữ liệu. Muốn gỡ bản cũ: xoá app đó trong Applications (dữ liệu cũ nằm ở `~/Library/Application Support/<tên app cũ>`).
 
@@ -121,7 +121,32 @@ http://localhost:3000
 
 Toạ độ ánh mắt từ WebGazer (tính theo màn hình) được quy đổi sang **toạ độ trên tài liệu** (cộng thêm vị trí cuộn), nên heatmap vẫn đúng chỗ khi người dùng cuộn trang.
 
-Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (toạ độ trong tài liệu), `vx/vy` (toạ độ trong khung nhìn), `vw/vh/dw/dh` (kích thước khung nhìn / tài liệu), `sx/sy` (vị trí cuộn), `el` (mô tả phần tử với click/focus). Dữ liệu nằm ở `data/sessions/<id>.json` (thông tin phiên) và `<id>.ndjson` (từng sự kiện).
+Mỗi sự kiện lưu: `t` (ms từ lúc bắt đầu), `type`, `page`, `x/y` (toạ độ trong tài liệu), `vx/vy` (toạ độ trong khung nhìn), `vw/vh/dw/dh` (kích thước khung nhìn / tài liệu), `sx/sy` (vị trí cuộn), `el` (mô tả phần tử với click/focus).
+
+### Cách lưu file
+
+Mỗi kịch bản là một thư mục, mỗi phiên là một thư mục con đặt theo tên người tham gia:
+
+```
+<thư mục lưu trữ>/                      (mặc định: data/sessions, app Mac: ~/Library/Application Support/Heatmap/sessions)
+├── Droppii Mall/                       kịch bản
+│   ├── User 1/                         phiên của người tham gia "User 1"
+│   │   ├── session.json                toàn bộ dữ liệu phiên (thông tin + mọi sự kiện)
+│   │   ├── events.csv                  bảng sự kiện
+│   │   ├── screen-recording-1.mp4      video ghi màn hình (mỗi lần Record một file)
+│   │   ├── audio-recording-1.m4a       ghi âm
+│   │   ├── transcript.json             transcript + tóm tắt AI (nếu có)
+│   │   └── .session.json, .events.ndjson   file làm việc của app (ẩn)
+│   └── User 1 (2)/                     trùng tên người tham gia → thêm số
+└── No scenario/                        phiên chưa thuộc kịch bản
+```
+
+- Phiên không nhập tên người tham gia được đặt tên `Session <ngày> <giờ>`.
+- `session.json` và `events.csv` tự cập nhật vài giây sau mỗi thay đổi và ngay khi kết thúc phiên.
+- Chuyển phiên sang kịch bản khác (kéo-thả hoặc *Chuyển vào kịch bản*) sẽ chuyển cả thư mục. Đổi tên kịch bản thì đổi tên thư mục. Xoá kịch bản thì các phiên chuyển sang `No scenario`.
+- Có thể đổi tên thư mục phiên bằng Finder, app vẫn nhận ra (mã phiên nằm trong `.session.json`).
+- Nút **Mở thư mục** ở mỗi phiên (app desktop) mở thẳng thư mục của phiên đó.
+- Dữ liệu lưu theo cách cũ (mọi file chung một thư mục `sessions/<id>.*`) được tự động chuyển sang cách mới khi mở app.
 
 ### API
 

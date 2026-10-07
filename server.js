@@ -208,7 +208,7 @@ function publicSettings(s = getSettings()) {
     aiKey: anthropicApiKey ? 'settings' : fromEnv ? 'env' : '',
     aiKeyHint: anthropicApiKey ? '…' + anthropicApiKey.slice(-4) : '',
     storagePath: storageDir(),
-    defaultStoragePath: DATA_DIR,
+    defaultStoragePath: DEFAULT_ROOT,
   };
 }
 const settingsEvents = new EventEmitter();
@@ -225,65 +225,304 @@ function getSettings() {
   return { ...settingsCache };
 }
 
-/** Thư mục lưu trữ dữ liệu phiên hiện tại (tuyệt đối). */
+// ---------- thư mục lưu trữ: <gốc>/<Kịch bản>/<Người tham gia>/ ----------
+//
+// Mỗi phiên là một thư mục đặt theo tên người tham gia, nằm trong thư mục của kịch bản
+// (phiên chưa thuộc kịch bản nằm trong "No scenario"). Trong đó có:
+//   session.json, events.csv          bản xuất đầy đủ, tự cập nhật
+//   screen-recording-N.mp4, audio-recording-N.m4a, transcript.json
+//   .session.json, .events.ndjson     file làm việc của app (ẩn), ghi trực tiếp khi đang ghi phiên
+// Mã phiên (id) nằm trong .session.json; app tìm thư mục của phiên qua bảng chỉ mục quét từ ổ đĩa,
+// nên đổi tên / chuyển thư mục bằng Finder vẫn không mất phiên.
+
+const DEFAULT_ROOT = path.join(DATA_DIR, 'sessions');
+const UNASSIGNED_FOLDER = 'No scenario';
+const META_FILE = '.session.json';
+const EVENTS_FILE = '.events.ndjson';
+const SCENARIOS_FILE = '.scenarios.json';
+const EXPORT_JSON = 'session.json';
+const EXPORT_CSV = 'events.csv';
+const TRANSCRIPT_FILE = 'transcript.json';
+const EXPORT_DELAY_MS = 3000;
+
+/** Thư mục gốc chứa các thư mục kịch bản (tuyệt đối). */
 function storageDir() {
   const dir = getSettings().storageDir;
-  return dir ? path.resolve(dir) : DATA_DIR;
+  return dir ? path.resolve(dir) : DEFAULT_ROOT;
 }
 
-function sessionsDir() {
-  return path.join(storageDir(), 'sessions');
+/** Tên thư mục an toàn trên macOS/Windows từ tên người dùng nhập. */
+function safeName(name, fallback) {
+  let s = String(name || '').normalize('NFC')
+    .replace(/[/\\:*?"<>|\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+/, '')
+    .slice(0, 80)
+    .replace(/[. ]+$/, '')
+    .trim();
+  if (!s || /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = fallback;
+  return s;
+}
+
+/** Đường dẫn chưa dùng: "User 1", "User 1 (2)", … (so sánh không phân biệt hoa thường như macOS). */
+function uniquePath(parent, base, taken = []) {
+  const used = new Set(taken.map((x) => x.toLowerCase()));
+  for (let n = 1; ; n++) {
+    const name = n === 1 ? base : `${base} (${n})`;
+    const full = path.join(parent, name);
+    if (!used.has(name.toLowerCase()) && !fs.existsSync(full)) return full;
+  }
+}
+
+function sessionFolderName(meta) {
+  const d = new Date(meta.createdAt || Date.now());
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}`;
+  return safeName(meta.participant, `Session ${stamp}`);
+}
+
+function readJsonSync(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+
+// ---- chỉ mục id → thư mục phiên ----
+
+let sessionIndex = null;
+let indexRoot = null;
+
+function scanSessions(root) {
+  const map = new Map();
+  const dirs = (dir) => {
+    try {
+      return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => path.join(dir, d.name));
+    } catch {
+      return [];
+    }
+  };
+  for (const group of dirs(root)) {
+    for (const dir of dirs(group)) {
+      const meta = readJsonSync(path.join(dir, META_FILE), null);
+      if (meta && isValidSessionId(meta.id) && !map.has(meta.id)) map.set(meta.id, dir);
+    }
+  }
+  return map;
+}
+
+function rebuildIndex() {
+  indexRoot = storageDir();
+  sessionIndex = scanSessions(indexRoot);
+  return sessionIndex;
+}
+
+/** Thư mục của phiên, hoặc null nếu không có. Quét lại ổ đĩa khi thư mục bị đổi tên / di chuyển. */
+function sessionDir(id) {
+  if (!isValidSessionId(id)) return null;
+  if (!sessionIndex || indexRoot !== storageDir()) rebuildIndex();
+  let dir = sessionIndex.get(id);
+  if (!dir || !fs.existsSync(path.join(dir, META_FILE))) dir = rebuildIndex().get(id);
+  return dir || null;
+}
+
+function sessionFile(id, name) {
+  const dir = sessionDir(id);
+  if (!dir) throw Object.assign(new Error('Session not found'), { status: 404 });
+  return path.join(dir, name);
+}
+
+/** Thư mục của kịch bản (hoặc "No scenario"). */
+function scenarioDirSync(scenarioId, list = readJsonSync(scenariosPath(), [])) {
+  const sc = scenarioId && list.find((x) => x.id === scenarioId);
+  return path.join(storageDir(), sc ? sc.folder || safeName(sc.name, 'Scenario') : UNASSIGNED_FOLDER);
+}
+
+/** Tên thư mục chưa trùng cho một kịch bản (khác "No scenario" và các kịch bản khác). */
+function scenarioFolderName(name, list, selfId) {
+  const taken = [UNASSIGNED_FOLDER, ...list.filter((x) => x.id !== selfId && x.folder).map((x) => x.folder)];
+  return path.basename(uniquePath(storageDir(), safeName(name, 'Scenario'), taken));
+}
+
+async function moveDir(from, to) {
+  await fsp.mkdir(path.dirname(to), { recursive: true });
+  try {
+    await fsp.rename(from, to);
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err; // khác ổ đĩa → copy rồi xoá
+    await fsp.cp(from, to, { recursive: true, errorOnExist: true });
+    await fsp.rm(from, { recursive: true, force: true });
+  }
+}
+
+/** Xoá thư mục nếu rỗng (bỏ qua file ẩn của hệ thống như .DS_Store). */
+async function removeIfEmpty(dir) {
+  try {
+    const left = (await fsp.readdir(dir)).filter((f) => f !== '.DS_Store');
+    if (left.length) return;
+    await fsp.rm(dir, { recursive: true, force: true });
+  } catch { /* không sao */ }
+}
+
+/** Chuyển thư mục phiên sang thư mục của kịch bản khác. Gọi khi đang giữ khoá của phiên. */
+async function relocateSession(meta) {
+  const from = sessionDir(meta.id);
+  if (!from) return;
+  const parent = scenarioDirSync(meta.scenarioId, await loadScenarios());
+  if (path.dirname(from) === parent) return;
+  const to = uniquePath(parent, sessionFolderName(meta));
+  await moveDir(from, to);
+  sessionIndex.set(meta.id, to);
+  await removeIfEmpty(path.join(storageDir(), UNASSIGNED_FOLDER));
+}
+
+// ---- chuyển dữ liệu từ cách lưu cũ (mọi file nằm chung trong sessions/<id>.*) ----
+
+function nextMediaName(media, kind, ext, dir) {
+  const prefix = kind === 'screen' ? 'screen-recording' : 'audio-recording';
+  const taken = new Set((media || []).map((m) => m.file));
+  for (let n = (media || []).filter((m) => m.kind === kind).length + 1; ; n++) {
+    const name = `${prefix}-${n}.${ext}`;
+    if (!taken.has(name) && !(dir && fs.existsSync(path.join(dir, name)))) return name;
+  }
+}
+
+function migrateLegacySession(legacyDir, id, scenarios) {
+  const from = (suffix) => path.join(legacyDir, id + suffix);
+  const meta = readJsonSync(from('.json'), null);
+  if (!meta || meta.id !== id) return false;
+  const dir = uniquePath(scenarioDirSync(meta.scenarioId, scenarios), sessionFolderName(meta));
+  fs.mkdirSync(dir, { recursive: true });
+  const move = (src, name) => { if (fs.existsSync(src)) fs.renameSync(src, path.join(dir, name)); };
+  move(from('.ndjson'), EVENTS_FILE);
+  move(from('.transcript.json'), TRANSCRIPT_FILE);
+  const media = [];
+  for (const m of meta.media || []) {
+    const ext = path.extname(m.file).slice(1) || 'bin';
+    const name = nextMediaName(media, m.kind, ext, dir);
+    move(path.join(legacyDir, m.file), name);
+    media.push({ ...m, file: name });
+  }
+  if (meta.media) meta.media = media;
+  if (!fs.existsSync(path.join(dir, EVENTS_FILE))) fs.writeFileSync(path.join(dir, EVENTS_FILE), '');
+  fs.writeFileSync(path.join(dir, META_FILE), JSON.stringify(meta, null, 2));
+  fs.rmSync(from('.json'), { force: true });
+  for (const f of fs.readdirSync(legacyDir)) if (f.startsWith(id + '.')) fs.rmSync(path.join(legacyDir, f), { force: true });
+  return true;
 }
 
 /**
- * Đổi thư mục lưu trữ: tạo thư mục, kiểm tra ghi được, rồi chuyển toàn bộ phiên + kịch bản sang.
- * Trả về số file đã chuyển. Ném lỗi (status 400) nếu đường dẫn không dùng được.
+ * Chuẩn bị thư mục lưu trữ: chuyển dữ liệu kiểu cũ sang thư mục kịch bản / phiên, đặt tên thư mục
+ * cho kịch bản, tạo thư mục kịch bản, dựng chỉ mục và bổ sung file xuất còn thiếu.
+ */
+function prepareStorage() {
+  const root = storageDir();
+  fs.mkdirSync(root, { recursive: true });
+  const custom = root !== DEFAULT_ROOT;
+  const legacyScenarios = custom ? path.join(root, 'scenarios.json') : path.join(DATA_DIR, 'scenarios.json');
+  if (fs.existsSync(legacyScenarios)) {
+    if (!fs.existsSync(scenariosPath())) fs.renameSync(legacyScenarios, scenariosPath());
+    else {
+      // cả hai cùng có (ví dụ vừa chuyển dữ liệu vào thư mục cũ) → gộp
+      const cur = readJsonSync(scenariosPath(), []);
+      const ids = new Set(cur.map((x) => x.id));
+      fs.writeFileSync(scenariosPath(), JSON.stringify([...cur, ...readJsonSync(legacyScenarios, []).filter((x) => !ids.has(x.id))], null, 2));
+      fs.rmSync(legacyScenarios, { force: true });
+    }
+  }
+
+  const scenarios = readJsonSync(scenariosPath(), []);
+  let changed = false;
+  for (const sc of scenarios) {
+    if (!sc.folder) {
+      sc.folder = scenarioFolderName(sc.name, scenarios, sc.id);
+      changed = true;
+    }
+    fs.mkdirSync(path.join(root, sc.folder), { recursive: true });
+  }
+  if (changed) fs.writeFileSync(scenariosPath(), JSON.stringify(scenarios, null, 2));
+
+  const legacyDir = custom ? path.join(root, 'sessions') : root;
+  let files = [];
+  try {
+    files = fs.readdirSync(legacyDir).filter((f) => /^[a-f0-9]{16}\.json$/.test(f));
+  } catch { /* chưa có dữ liệu cũ */ }
+  for (const f of files) {
+    try {
+      migrateLegacySession(legacyDir, f.slice(0, 16), scenarios);
+    } catch (err) {
+      console.error('migrate session', f, err);
+    }
+  }
+  if (custom && files.length) {
+    try {
+      const left = fs.readdirSync(legacyDir).filter((f) => f !== '.DS_Store');
+      if (!left.length) fs.rmSync(legacyDir, { recursive: true, force: true });
+    } catch { /* không sao */ }
+  }
+
+  rebuildIndex();
+  // file xuất thiếu hoặc cũ hơn dữ liệu (ví dụ app bị tắt trước khi kịp ghi) → ghi lại
+  for (const [id, dir] of sessionIndex) {
+    const mtime = (f) => { try { return fs.statSync(path.join(dir, f)).mtimeMs; } catch { return 0; } };
+    const latest = Math.max(mtime(META_FILE), mtime(EVENTS_FILE));
+    if (Math.min(mtime(EXPORT_JSON), mtime(EXPORT_CSV)) < latest) scheduleExport(id, 0);
+  }
+}
+
+/**
+ * Đổi thư mục lưu trữ: kiểm tra ghi được, rồi chuyển các thư mục kịch bản / phiên và danh sách kịch bản sang.
+ * Trả về số phiên đã chuyển. Ném lỗi (status 400) nếu đường dẫn không dùng được.
  */
 async function moveStorage(fromRoot, toRoot) {
   if (path.resolve(fromRoot) === path.resolve(toRoot)) return 0;
-  const toSessions = path.join(toRoot, 'sessions');
   try {
-    await fsp.mkdir(toSessions, { recursive: true });
+    await fsp.mkdir(toRoot, { recursive: true });
     const probe = path.join(toRoot, '.heatmap-write-test');
     await fsp.writeFile(probe, 'ok');
     await fsp.rm(probe, { force: true });
   } catch (err) {
     throw Object.assign(new Error(st('storage_unwritable', { msg: err.message })), { status: 400, code: 'storage_unwritable' });
   }
-  const fromSessions = path.join(fromRoot, 'sessions');
-  let moved = 0;
-  const files = await fsp.readdir(fromSessions).catch(() => []);
-  for (const f of files) {
-    if (!/^[a-f0-9]{16}\.[a-z0-9.-]+$/.test(f) || f.endsWith('.tmp')) continue; // phiên + video/âm thanh/transcript
-    const dest = path.join(toSessions, f);
-    if (fs.existsSync(dest)) continue; // không ghi đè dữ liệu đã có ở thư mục mới
-    await moveFile(path.join(fromSessions, f), dest);
-    moved++;
+  if (path.resolve(toRoot).startsWith(path.resolve(fromRoot) + path.sep)) {
+    throw Object.assign(new Error(st('storage_unwritable', { msg: 'inside the current folder' })), { status: 400, code: 'storage_unwritable' });
   }
-  const fromScenarios = path.join(fromRoot, 'scenarios.json');
-  const toScenarios = path.join(toRoot, 'scenarios.json');
+  let moved = 0;
+  // chỉ chuyển thư mục của app: thư mục kịch bản đã biết, "No scenario", hoặc thư mục có chứa phiên
+  const sessions = scanSessions(fromRoot);
+  const scenarios = readJsonSync(path.join(fromRoot, SCENARIOS_FILE), []);
+  const groups = new Set([UNASSIGNED_FOLDER, ...scenarios.map((x) => x.folder).filter(Boolean)].map((g) => path.join(fromRoot, g)));
+  for (const dir of sessions.values()) groups.add(path.dirname(dir));
+  for (const group of groups) {
+    if (!fs.existsSync(group)) continue;
+    const dest = path.join(toRoot, path.basename(group));
+    if (!fs.existsSync(dest)) {
+      moved += [...sessions.values()].filter((d) => path.dirname(d) === group).length;
+      await moveDir(group, dest);
+      continue;
+    }
+    // đã có thư mục cùng tên ở nơi mới → gộp từng phiên, đổi tên nếu trùng
+    for (const dir of [...sessions.values()].filter((d) => path.dirname(d) === group)) {
+      await moveDir(dir, uniquePath(dest, path.basename(dir)));
+      moved++;
+    }
+    await removeIfEmpty(group);
+  }
+  const fromScenarios = path.join(fromRoot, SCENARIOS_FILE);
+  const toScenarios = path.join(toRoot, SCENARIOS_FILE);
   if (fs.existsSync(fromScenarios)) {
-    if (!fs.existsSync(toScenarios)) await moveFile(fromScenarios, toScenarios);
+    if (!fs.existsSync(toScenarios)) await moveDir(fromScenarios, toScenarios);
     else {
       // gộp danh sách kịch bản của hai nơi
-      const a = JSON.parse(await fsp.readFile(fromScenarios, 'utf8').catch(() => '[]'));
-      const b = JSON.parse(await fsp.readFile(toScenarios, 'utf8').catch(() => '[]'));
+      const b = readJsonSync(toScenarios, []);
       const ids = new Set(b.map((x) => x.id));
-      await fsp.writeFile(toScenarios, JSON.stringify([...b, ...a.filter((x) => !ids.has(x.id))], null, 2));
+      await fsp.writeFile(toScenarios, JSON.stringify([...b, ...scenarios.filter((x) => !ids.has(x.id))], null, 2));
       await fsp.rm(fromScenarios, { force: true });
     }
   }
   return moved;
-}
-
-async function moveFile(from, to) {
-  try {
-    await fsp.rename(from, to);
-  } catch (err) {
-    if (err.code !== 'EXDEV') throw err; // khác ổ đĩa → copy rồi xoá
-    await fsp.copyFile(from, to);
-    await fsp.rm(from, { force: true });
-  }
 }
 
 async function updateSettings(patch) {
@@ -297,13 +536,15 @@ async function updateSettings(patch) {
     let dir = patch.storageDir.trim();
     if (dir.startsWith('~/')) dir = path.join(os.homedir(), dir.slice(2));
     if (dir && !path.isAbsolute(dir)) throw Object.assign(new Error(st('storage_absolute')), { status: 400, code: 'storage_absolute' });
-    const target = dir ? path.resolve(dir) : DATA_DIR;
+    const target = dir ? path.resolve(dir) : DEFAULT_ROOT;
     await withGlobalLock(() => moveStorage(storageDir(), target));
-    next.storageDir = target === DATA_DIR ? '' : target;
+    next.storageDir = target === DEFAULT_ROOT ? '' : target;
   }
   await fsp.writeFile(SETTINGS_PATH + '.tmp', JSON.stringify(next, null, 2));
   await fsp.rename(SETTINGS_PATH + '.tmp', SETTINGS_PATH);
+  const storageChanged = settingsCache && settingsCache.storageDir !== next.storageDir;
   settingsCache = next;
+  if (storageChanged) prepareStorage();
   settingsEvents.emit('change', { ...next });
   return { ...next };
 }
@@ -367,11 +608,11 @@ function apiError(res, status, code, vars) {
 // ---------- session storage ----------
 
 function metaPath(id) {
-  return path.join(sessionsDir(), id + '.json');
+  return sessionFile(id, META_FILE);
 }
 
 function eventsPath(id) {
-  return path.join(sessionsDir(), id + '.ndjson');
+  return sessionFile(id, EVENTS_FILE);
 }
 
 async function loadMeta(id) {
@@ -383,9 +624,43 @@ async function loadMeta(id) {
 }
 
 async function saveMeta(meta) {
-  const tmp = metaPath(meta.id) + '.tmp';
-  await fsp.writeFile(tmp, JSON.stringify(meta, null, 2));
-  await fsp.rename(tmp, metaPath(meta.id));
+  const file = metaPath(meta.id);
+  await fsp.writeFile(file + '.tmp', JSON.stringify(meta, null, 2));
+  await fsp.rename(file + '.tmp', file);
+  scheduleExport(meta.id);
+}
+
+// ---- session.json + events.csv trong thư mục phiên: ghi lại vài giây sau lần thay đổi cuối ----
+
+const exportTimers = new Map();
+
+function scheduleExport(id, delay = EXPORT_DELAY_MS) {
+  clearTimeout(exportTimers.get(id));
+  const timer = setTimeout(() => {
+    exportTimers.delete(id);
+    withSessionLock(id, () => writeExports(id)).catch(() => {});
+  }, delay);
+  timer.unref();
+  exportTimers.set(id, timer);
+}
+
+/** Ghi file xuất của phiên ngay. Gọi khi đang giữ khoá của phiên (hoặc khi không có ai ghi). */
+async function writeExports(id) {
+  const dir = sessionDir(id);
+  if (!dir) return;
+  for (const [format, name] of [['json', EXPORT_JSON], ['csv', EXPORT_CSV]]) {
+    const out = await exportSession(id, format);
+    if (!out) return;
+    await fsp.writeFile(path.join(dir, name + '.tmp'), out.body);
+    await fsp.rename(path.join(dir, name + '.tmp'), path.join(dir, name));
+  }
+}
+
+/** Ghi file xuất ngay (ví dụ trước khi mở thư mục phiên trong Finder). */
+function flushExports(id) {
+  clearTimeout(exportTimers.get(id));
+  exportTimers.delete(id);
+  return withSessionLock(id, () => writeExports(id));
 }
 
 async function loadEvents(id) {
@@ -482,7 +757,7 @@ function withGlobalLock(fn) {
 // ---------- kịch bản (nhóm nhiều phiên) ----------
 
 function scenariosPath() {
-  return path.join(storageDir(), 'scenarios.json');
+  return path.join(storageDir(), SCENARIOS_FILE);
 }
 
 async function loadScenarios() {
@@ -501,8 +776,9 @@ async function saveScenarios(list) {
 }
 
 async function listSessions() {
-  const files = (await fsp.readdir(sessionsDir()).catch(() => [])).filter((f) => /^[a-f0-9]{16}\.json$/.test(f));
-  const metas = (await Promise.all(files.map((f) => loadMeta(f.slice(0, -5))))).filter(Boolean);
+  // quét lại mỗi lần để thấy cả thay đổi làm bằng Finder
+  const ids = [...rebuildIndex().keys()];
+  const metas = (await Promise.all(ids.map((id) => loadMeta(id)))).filter(Boolean);
   return metas.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -524,8 +800,13 @@ async function handleScenarios(req, res, parts) {
       const body = await readJson(req);
       const name = str(body.name, 120)?.trim();
       if (!name) return apiError(res, 400, 'scenario_name');
-      const sc = { id: crypto.randomBytes(6).toString('hex'), name, createdAt: new Date().toISOString() };
-      await withGlobalLock(async () => saveScenarios([...(await loadScenarios()), sc]));
+      const sc = await withGlobalLock(async () => {
+        const list = await loadScenarios();
+        const item = { id: crypto.randomBytes(6).toString('hex'), name, folder: scenarioFolderName(name, list), createdAt: new Date().toISOString() };
+        await fsp.mkdir(path.join(storageDir(), item.folder), { recursive: true });
+        await saveScenarios([...list, item]);
+        return item;
+      });
       return sendJson(res, 201, { ...sc, sessionCount: 0 });
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
@@ -539,8 +820,17 @@ async function handleScenarios(req, res, parts) {
       const list = await loadScenarios();
       const sc = list.find((x) => x.id === id);
       if (!sc) return null;
+      // đổi tên thư mục kịch bản theo tên mới
+      const folder = scenarioFolderName(name, list, id);
+      const from = path.join(storageDir(), sc.folder || safeName(sc.name, 'Scenario'));
+      const to = path.join(storageDir(), folder);
+      if (from.toLowerCase() !== to.toLowerCase() && fs.existsSync(from)) await moveDir(from, to);
+      else if (from !== to && fs.existsSync(from)) await fsp.rename(from, to); // chỉ đổi hoa/thường
+      else await fsp.mkdir(to, { recursive: true });
       sc.name = name;
+      sc.folder = folder;
       await saveScenarios(list);
+      rebuildIndex();
       return sc;
     });
     return updated ? sendJson(res, 200, updated) : apiError(res, 404, 'scenario_not_found');
@@ -549,14 +839,20 @@ async function handleScenarios(req, res, parts) {
     // Xoá kịch bản không xoá phiên: các phiên chỉ được bỏ khỏi kịch bản.
     const ok = await withGlobalLock(async () => {
       const list = await loadScenarios();
-      if (!list.some((x) => x.id === id)) return false;
+      const sc = list.find((x) => x.id === id);
+      if (!sc) return false;
       await saveScenarios(list.filter((x) => x.id !== id));
+      // các phiên chuyển sang "No scenario"; thư mục kịch bản bị xoá nếu không còn gì
       for (const m of await listSessions()) {
         if (m.scenarioId === id) await withSessionLock(m.id, async () => {
           const fresh = await loadMeta(m.id);
-          if (fresh) { delete fresh.scenarioId; await saveMeta(fresh); }
+          if (!fresh) return;
+          delete fresh.scenarioId;
+          await relocateSession(fresh);
+          await saveMeta(fresh);
         });
       }
+      if (sc.folder) await removeIfEmpty(path.join(storageDir(), sc.folder));
       return true;
     });
     return ok ? sendJson(res, 200, { ok: true }) : apiError(res, 404, 'scenario_not_found');
@@ -635,7 +931,7 @@ const MEDIA_EXT = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'audio/mp4': 'm4a'
 const MEDIA_MIME = { mp4: 'video/mp4', webm: 'video/webm', m4a: 'audio/mp4', weba: 'audio/webm', ogg: 'audio/ogg' };
 
 function mediaFilePath(id, file) {
-  return path.join(sessionsDir(), file);
+  return sessionFile(id, path.basename(file));
 }
 
 function updateMeta(id, fn) {
@@ -666,8 +962,13 @@ async function handleMedia(req, res, url, meta, mediaId, action) {
       const ext = MEDIA_EXT[mime];
       if (!MEDIA_KINDS.has(kind) || !ext) return sendJson(res, 400, { error: 'Unsupported media type' });
       const startT = Number(url.searchParams.get('t')) || 0;
-      item = { id: mediaId, kind, mime: url.searchParams.get('mime').slice(0, 80), file: `${id}.${mediaId}.${ext}`, startT, endT: null, size: 0, createdAt: new Date().toISOString() };
-      await updateMeta(id, (m) => { m.media = [...(m.media || []).filter((x) => x.id !== mediaId), item]; });
+      item = { id: mediaId, kind, mime: url.searchParams.get('mime').slice(0, 80), file: '', startT, endT: null, size: 0, createdAt: new Date().toISOString() };
+      // tên file dễ đọc trong thư mục phiên: screen-recording-1.mp4, audio-recording-1.m4a…
+      await updateMeta(id, (m) => {
+        const others = (m.media || []).filter((x) => x.id !== mediaId);
+        item.file = nextMediaName(others, kind, ext, sessionDir(id));
+        m.media = [...others, item];
+      });
     }
     const chunks = [];
     let size = 0;
@@ -744,7 +1045,7 @@ async function handleMedia(req, res, url, meta, mediaId, action) {
 // ---------- transcript (nhận dạng giọng nói chạy trong trình duyệt, lưu kết quả ở đây) ----------
 
 function transcriptPath(id) {
-  return path.join(sessionsDir(), id + '.transcript.json');
+  return sessionFile(id, TRANSCRIPT_FILE);
 }
 
 async function loadTranscript(id) {
@@ -1034,15 +1335,16 @@ async function exportSession(id, format = 'json') {
     const cols = ['t', 'type', 'page', 'x', 'y', 'vx', 'vy', 'vw', 'vh', 'dw', 'dh', 'sx', 'sy', 'el_tag', 'el_selector', 'el_text', 'el_href'];
     const q = (v) => (v === undefined || v === null ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
     const rows = events.map((e) => cols.map((c) => q(c.startsWith('el_') ? e.el && e.el[c.slice(3)] : e[c])).join(','));
-    return { filename: `heatmap-session-${id}.csv`, contentType: 'text/csv; charset=utf-8', body: [cols.join(','), ...rows].join('\n') };
+    return { filename: `${sessionFolderName(meta)}.csv`, contentType: 'text/csv; charset=utf-8', body: [cols.join(','), ...rows].join('\n') };
   }
-  return { filename: `heatmap-session-${id}.json`, contentType: MIME['.json'], body: JSON.stringify({ ...meta, events }, null, 2) };
+  return { filename: `${sessionFolderName(meta)}.json`, contentType: MIME['.json'], body: JSON.stringify({ ...meta, events }, null, 2) };
 }
 
-/** Đường dẫn các file gốc của phiên trên ổ đĩa (để mở trong Finder). */
+/** Thư mục và các file chính của phiên trên ổ đĩa (để mở trong Finder). */
 function sessionFilePaths(id) {
-  if (!isValidSessionId(id)) return null;
-  return { meta: metaPath(id), events: eventsPath(id) };
+  const dir = sessionDir(id);
+  if (!dir) return null;
+  return { dir, json: path.join(dir, EXPORT_JSON), csv: path.join(dir, EXPORT_CSV), meta: path.join(dir, META_FILE), events: path.join(dir, EVENTS_FILE) };
 }
 
 // ---------- API ----------
@@ -1091,12 +1393,20 @@ async function handleApi(req, res, url) {
         eventCount: 0,
         durationMs: 0,
       };
-      if (typeof body.scenarioId === 'string' && (await loadScenarios()).some((x) => x.id === body.scenarioId)) {
+      const scenarios = await loadScenarios();
+      if (typeof body.scenarioId === 'string' && scenarios.some((x) => x.id === body.scenarioId)) {
         meta.scenarioId = body.scenarioId;
       }
-      await fsp.mkdir(sessionsDir(), { recursive: true });
-      await saveMeta(meta);
-      await fsp.writeFile(eventsPath(meta.id), '');
+      // thư mục riêng: <kịch bản>/<người tham gia>/
+      await withGlobalLock(async () => {
+        const dir = uniquePath(scenarioDirSync(meta.scenarioId, scenarios), sessionFolderName(meta));
+        await fsp.mkdir(dir, { recursive: true });
+        await fsp.writeFile(path.join(dir, EVENTS_FILE), '');
+        await fsp.writeFile(path.join(dir, META_FILE), JSON.stringify(meta, null, 2));
+        if (!sessionIndex || indexRoot !== storageDir()) rebuildIndex();
+        sessionIndex.set(meta.id, dir);
+      });
+      scheduleExport(meta.id);
       return sendJson(res, 201, meta);
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
@@ -1120,6 +1430,7 @@ async function handleApi(req, res, url) {
         if ('scenarioId' in body) {
           if (body.scenarioId === null || body.scenarioId === '') delete fresh.scenarioId;
           else if ((await loadScenarios()).some((x) => x.id === body.scenarioId)) fresh.scenarioId = body.scenarioId;
+          await relocateSession(fresh); // chuyển thư mục phiên sang thư mục kịch bản mới
         }
         if (body.calibration && typeof body.calibration === 'object') {
           fresh.calibration = {
@@ -1129,13 +1440,21 @@ async function handleApi(req, res, url) {
           };
         }
         await saveMeta(fresh);
+        if (body.ended) await writeExports(id); // kết thúc phiên → session.json / events.csv đầy đủ ngay
         return fresh;
       });
       return updated ? sendJson(res, 200, updated) : apiError(res, 404, 'not_found');
     }
     if (req.method === 'DELETE') {
-      const extra = (await fsp.readdir(sessionsDir()).catch(() => [])).filter((f) => f.startsWith(id + '.'));
-      await Promise.all([metaPath(id), eventsPath(id), ...extra.map((f) => path.join(sessionsDir(), f))].map((f) => fsp.rm(f, { force: true })));
+      await withSessionLock(id, async () => {
+        clearTimeout(exportTimers.get(id));
+        exportTimers.delete(id);
+        const dir = sessionDir(id);
+        if (!dir) return;
+        await fsp.rm(dir, { recursive: true, force: true });
+        sessionIndex.delete(id);
+        await removeIfEmpty(path.join(storageDir(), UNASSIGNED_FOLDER));
+      });
       return sendJson(res, 200, { ok: true });
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
@@ -1425,7 +1744,8 @@ async function handler(req, res) {
 function createServer() {
   settingsCache = null;
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.mkdirSync(sessionsDir(), { recursive: true });
+  sessionIndex = null;
+  prepareStorage();
   return http.createServer(handler);
 }
 
@@ -1435,4 +1755,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, ASR_MODELS, exportSession, sessionFilePaths, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
+module.exports = { createServer, ASR_MODELS, exportSession, sessionFilePaths, flushExports, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };

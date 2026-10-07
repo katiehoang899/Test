@@ -22,7 +22,7 @@ if (app.isPackaged) {
   process.env.ANTHROPIC_SDK_MODULE = path.join(process.resourcesPath, 'node_modules', '@anthropic-ai', 'sdk');
 }
 
-const { createServer, TOOL_PREFIX, getSettings, settingsEvents, storageDir, sessionFilePaths, exportSession } = require(path.join(__dirname, '..', 'server.js'));
+const { createServer, TOOL_PREFIX, getSettings, settingsEvents, storageDir, sessionFilePaths, flushExports, exportSession } = require(path.join(__dirname, '..', 'server.js'));
 
 // Chuỗi của main process (menu, hộp thoại) theo ngôn ngữ trong Cài đặt.
 const TEXT = {
@@ -178,12 +178,13 @@ ipcMain.handle('et:open-folder', async (event) => {
   await shell.openPath(storageDir());
 });
 
-// Danh sách phiên → "Mở file gốc": hiện file dữ liệu của phiên trong Finder.
+// Danh sách phiên → "Mở thư mục": mở thư mục của phiên (json, csv, video, ghi âm, transcript) trong Finder.
 ipcMain.handle('et:reveal-session', async (event, id) => {
   if (!fromTool(event)) return false;
   const files = sessionFilePaths(id);
-  if (!files || !fs.existsSync(files.events)) return false;
-  shell.showItemInFolder(files.events);
+  if (!files || !fs.existsSync(files.dir)) return false;
+  await flushExports(id).catch(() => {}); // session.json / events.csv mới nhất
+  await shell.openPath(files.dir);
   return true;
 });
 
@@ -192,7 +193,7 @@ ipcMain.handle('et:save-session', async (event, id) => {
   if (!fromTool(event) || !sessionFilePaths(id)) return null;
   const result = await dialog.showSaveDialog(mainWindow, {
     title: tx('saveTitle'),
-    defaultPath: path.join(app.getPath('documents'), `heatmap-session-${id}.json`),
+    defaultPath: path.join(app.getPath('documents'), path.basename(sessionFilePaths(id).dir) + '.json'),
     filters: [
       { name: tx('jsonFilter'), extensions: ['json'] },
       { name: tx('csvFilter'), extensions: ['csv'] },

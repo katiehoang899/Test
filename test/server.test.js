@@ -9,7 +9,7 @@ const path = require('node:path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'eyetrack-test-'));
 process.env.ALLOW_PRIVATE = '1';
-const { createServer, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
+const { createServer, sessionFilePaths, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl } = require('../server');
 
 const hfHits = [];
 let server;
@@ -198,7 +198,7 @@ test('cài đặt: mặc định English, lưu ngôn ngữ và tắt eye trackin
   assert.equal(def.language, 'en');
   assert.equal(def.eyeTrackingEnabled, true);
   assert.equal(def.showCamera, false); // cột camera mặc định ẩn
-  assert.equal(def.storagePath, process.env.DATA_DIR);
+  assert.equal(def.storagePath, path.join(process.env.DATA_DIR, 'sessions'));
   const bad = await api('POST', '/api/sessions', { url: 'ftp://x' });
   assert.equal(bad.body.code, 'invalid_url');
   assert.match(bad.body.error, /Invalid link/);
@@ -261,15 +261,106 @@ test('đổi thư mục lưu trữ chuyển toàn bộ dữ liệu sang thư m�
   const res = await api('PUT', '/api/settings', { storageDir: target });
   assert.equal(res.status, 200);
   assert.equal(res.body.storagePath, target);
-  assert.ok(fs.existsSync(path.join(target, 'sessions', s1.id + '.json')));
-  assert.ok(!fs.existsSync(path.join(process.env.DATA_DIR, 'sessions', s1.id + '.json')));
+  assert.ok(fs.existsSync(path.join(target, 'Moved')));
+  const moved = fs.readdirSync(path.join(target, 'No scenario')).find((d) => {
+    try { return JSON.parse(fs.readFileSync(path.join(target, 'No scenario', d, '.session.json'), 'utf8')).id === s1.id; } catch { return false; }
+  });
+  assert.ok(moved);
+  assert.ok(!fs.existsSync(path.join(process.env.DATA_DIR, 'sessions', 'Moved')));
   assert.ok((await api('GET', '/api/scenarios')).body.some((x) => x.id === sc.id));
   assert.equal((await api('GET', `/api/sessions/${s1.id}`)).status, 200);
   // về lại thư mục mặc định
   const back = await api('PUT', '/api/settings', { storageDir: '' });
-  assert.equal(back.body.storagePath, process.env.DATA_DIR);
+  assert.equal(back.body.storagePath, path.join(process.env.DATA_DIR, 'sessions'));
   assert.equal((await api('GET', `/api/sessions/${s1.id}`)).status, 200);
   fs.rmSync(target, { recursive: true, force: true });
+});
+
+const localStamp = (iso) => {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}.${p(d.getMinutes())}`;
+};
+
+test('lưu file: thư mục kịch bản / người tham gia, chuyển, đổi tên, xoá và chuyển dữ liệu kiểu cũ', async () => {
+  const root = path.join(process.env.DATA_DIR, 'sessions');
+  const ls = (...p) => fs.readdirSync(path.join(root, ...p)).filter((f) => f !== '.DS_Store').sort();
+  const sc = (await api('POST', '/api/scenarios', { name: 'Droppii Mall' })).body;
+  assert.equal(sc.folder, 'Droppii Mall');
+  assert.ok(fs.statSync(path.join(root, 'Droppii Mall')).isDirectory());
+  // tên trùng / ký tự không hợp lệ
+  const sc2 = (await api('POST', '/api/scenarios', { name: 'droppii mall' })).body;
+  assert.equal(sc2.folder, 'droppii mall (2)');
+  const sc3 = (await api('POST', '/api/scenarios', { name: 'A/B: test?' })).body;
+  assert.equal(sc3.folder, 'A B test');
+
+  const u1 = (await api('POST', '/api/sessions', { url: 'https://mall.test/', participant: 'User 1', scenarioId: sc.id })).body;
+  const u1b = (await api('POST', '/api/sessions', { url: 'https://mall.test/', participant: 'User 1', scenarioId: sc.id })).body;
+  await api('POST', `/api/sessions/${u1.id}/events`, { events: [{ type: 'pageview', t: 0, page: 'https://mall.test/' }, { type: 'click', t: 900, page: 'https://mall.test/', x: 1, y: 2, el: { tag: 'a', text: 'Mua' } }] });
+  await fetch(`${base}/__et/api/sessions/${u1.id}/media/screen-1?kind=screen&mime=video%2Fmp4&t=0`, { method: 'POST', body: Buffer.from('v') });
+  await fetch(`${base}/__et/api/sessions/${u1.id}/media/audio-1?kind=audio&mime=audio%2Fmp4&t=0`, { method: 'POST', body: Buffer.from('a') });
+  await fetch(`${base}/__et/api/sessions/${u1.id}/media/audio-2?kind=audio&mime=audio%2Fwebm&t=0`, { method: 'POST', body: Buffer.from('b') });
+  await api('PUT', `/api/sessions/${u1.id}/transcript`, { language: 'vietnamese', segments: [{ start: 0, text: 'Xin chào' }] });
+  await api('PATCH', `/api/sessions/${u1.id}`, { ended: true }); // kết thúc → ghi session.json / events.csv ngay
+
+  assert.deepEqual(ls('Droppii Mall'), ['User 1', 'User 1 (2)']);
+  assert.deepEqual(ls('Droppii Mall', 'User 1'), ['.events.ndjson', '.session.json', 'audio-recording-1.m4a', 'audio-recording-2.weba', 'events.csv', 'screen-recording-1.mp4', 'session.json', 'transcript.json']);
+  const exported = JSON.parse(fs.readFileSync(path.join(root, 'Droppii Mall', 'User 1', 'session.json'), 'utf8'));
+  assert.equal(exported.id, u1.id);
+  assert.equal(exported.events.length, 2);
+  assert.match(fs.readFileSync(path.join(root, 'Droppii Mall', 'User 1', 'events.csv'), 'utf8'), /^t,type,page[\s\S]*click/);
+
+  // chuyển sang kịch bản khác → chuyển thư mục; về "chưa thuộc kịch bản" → "No scenario"
+  await api('PATCH', `/api/sessions/${u1b.id}`, { scenarioId: sc3.id });
+  assert.deepEqual(ls('A B test'), ['User 1']);
+  await api('PATCH', `/api/sessions/${u1b.id}`, { scenarioId: null });
+  assert.ok(ls('No scenario').includes('User 1'));
+  await api('PATCH', `/api/sessions/${u1b.id}`, { scenarioId: sc.id });
+  assert.deepEqual(ls('Droppii Mall'), ['User 1', 'User 1 (2)']);
+
+  // đổi tên kịch bản → đổi tên thư mục, phiên vẫn mở được
+  const ren = await api('PATCH', `/api/scenarios/${sc.id}`, { name: 'Droppii Mall v2' });
+  assert.equal(ren.body.folder, 'Droppii Mall v2');
+  assert.ok(!fs.existsSync(path.join(root, 'Droppii Mall')));
+  assert.equal((await api('GET', `/api/sessions/${u1.id}`)).body.events.length, 2);
+  assert.equal((await fetch(`${base}/__et/api/sessions/${u1.id}/media/screen-1`)).status, 200);
+
+  // người dùng đổi tên thư mục phiên trong Finder → app vẫn tìm thấy
+  fs.renameSync(path.join(root, 'Droppii Mall v2', 'User 1'), path.join(root, 'Droppii Mall v2', 'Lan'));
+  assert.equal((await api('GET', `/api/sessions/${u1.id}`)).status, 200);
+  assert.ok((await api('GET', '/api/sessions')).body.some((m) => m.id === u1.id));
+
+  // xoá kịch bản → các phiên sang "No scenario", thư mục kịch bản bị xoá
+  await api('DELETE', `/api/scenarios/${sc.id}`);
+  assert.ok(!fs.existsSync(path.join(root, 'Droppii Mall v2')));
+  assert.ok(ls('No scenario').includes('User 1 (2)') || ls('No scenario').includes('User 1'));
+  assert.equal((await api('GET', `/api/sessions/${u1.id}`)).body.scenarioId, undefined);
+  for (const x of [u1, u1b]) await api('DELETE', `/api/sessions/${x.id}`);
+  for (const x of [sc2, sc3]) await api('DELETE', `/api/scenarios/${x.id}`);
+
+  // dữ liệu kiểu cũ (mọi file chung trong <thư mục>/sessions/<id>.*) → tự chuyển sang thư mục mới
+  const legacy = fs.mkdtempSync(path.join(os.tmpdir(), 'heatmap-legacy-'));
+  fs.mkdirSync(path.join(legacy, 'sessions'));
+  const oldId = 'abcdef0123456789';
+  fs.writeFileSync(path.join(legacy, 'scenarios.json'), JSON.stringify([{ id: 'aaaaaaaaaaaa', name: 'Cũ', createdAt: new Date().toISOString() }]));
+  fs.writeFileSync(path.join(legacy, 'sessions', oldId + '.json'), JSON.stringify({ id: oldId, url: 'https://old.test/', participant: 'Bà Tư', scenarioId: 'aaaaaaaaaaaa', createdAt: new Date().toISOString(), eventCount: 1, media: [{ id: 'screen-x', kind: 'screen', file: `${oldId}.screen-x.mp4`, size: 3 }] }));
+  fs.writeFileSync(path.join(legacy, 'sessions', oldId + '.ndjson'), '{"type":"pageview","t":0,"page":"https://old.test/"}\n');
+  fs.writeFileSync(path.join(legacy, 'sessions', `${oldId}.screen-x.mp4`), 'mp4');
+  fs.writeFileSync(path.join(legacy, 'sessions', `${oldId}.transcript.json`), '{"segments":[]}');
+  assert.equal((await api('PUT', '/api/settings', { storageDir: legacy })).status, 200);
+  assert.deepEqual(fs.readdirSync(path.join(legacy, 'Cũ', 'Bà Tư')).sort(), ['.events.ndjson', '.session.json', 'screen-recording-1.mp4', 'transcript.json']);
+  assert.ok(!fs.existsSync(path.join(legacy, 'sessions')));
+  assert.ok(!fs.existsSync(path.join(legacy, 'scenarios.json')));
+  const old = (await api('GET', `/api/sessions/${oldId}`)).body;
+  assert.equal(old.events.length, 1);
+  assert.equal(old.media[0].file, 'screen-recording-1.mp4');
+  assert.equal(await (await fetch(`${base}/__et/api/sessions/${oldId}/media/screen-x`)).text(), 'mp4');
+  // quay về thư mục mặc định: kịch bản và phiên đi theo
+  await api('PUT', '/api/settings', { storageDir: '' });
+  assert.ok(fs.existsSync(path.join(root, 'Cũ', 'Bà Tư', '.session.json')));
+  await api('DELETE', `/api/sessions/${oldId}`);
+  await api('DELETE', '/api/scenarios/aaaaaaaaaaaa');
+  fs.rmSync(legacy, { recursive: true, force: true });
 });
 
 test('ghi màn hình/âm thanh: nối từng đoạn, tua (Range), xoá cùng phiên', async () => {
@@ -283,7 +374,7 @@ test('ghi màn hình/âm thanh: nối từng đoạn, tua (Range), xoá cùng ph
   assert.equal(fin.body.startT, 1500);
   assert.equal(fin.body.durationMs, 7000);
   const meta = (await api('GET', `/api/sessions/${s1.id}`)).body;
-  assert.equal(meta.media[0].file, `${s1.id}.screen-1.mp4`);
+  assert.equal(meta.media[0].file, 'screen-recording-1.mp4');
   const full = await fetch(`${base}/__et/api/sessions/${s1.id}/media/screen-1`);
   assert.equal(full.headers.get('content-type'), 'video/mp4');
   assert.equal(await full.text(), 'hello world');
@@ -294,10 +385,13 @@ test('ghi màn hình/âm thanh: nối từng đoạn, tua (Range), xoá cùng ph
   assert.match(dl.headers.get('content-disposition'), /attachment; filename="heatmap-.*-screen-1\.mp4"/);
   assert.equal((await fetch(`${base}/__et/api/sessions/${s1.id}/media/..%2Fx`)).status, 400);
   // xoá phiên → xoá luôn file video
-  const file = path.join(process.env.DATA_DIR, 'sessions', `${s1.id}.screen-1.mp4`);
+  const dir = sessionFilePaths(s1.id).dir;
+  assert.match(path.basename(dir), new RegExp('^Session ' + localStamp(s1.createdAt).replace('.', '\\.')));
+  assert.equal(path.basename(path.dirname(dir)), 'No scenario');
+  const file = path.join(dir, 'screen-recording-1.mp4');
   assert.ok(fs.existsSync(file));
   await api('DELETE', `/api/sessions/${s1.id}`);
-  assert.ok(!fs.existsSync(file));
+  assert.ok(!fs.existsSync(path.dirname(file)));
 });
 
 test('transcript: lưu, sửa, xuất Word (.docx) và .txt', async () => {
