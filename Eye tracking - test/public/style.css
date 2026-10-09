@@ -505,3 +505,86 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 /* dòng trong bảng danh sách (phiên, người tham gia, kịch bản…): chữ căn giữa theo chiều cao dòng */
 .sessions-table td { vertical-align: middle; }
 .sessions-table th { vertical-align: bottom; }
+
+/* ---------- responsive (bản online: điện thoại, tablet) ---------- */
+@media (max-width: 720px) {
+  /* header: nút xuống dòng thay vì tràn ngang */
+  .app-header { flex-wrap: wrap; row-gap: 8px; padding: 10px 12px; }
+  .app-header .url { display: none; }
+  .header-actions { width: 100%; flex-wrap: wrap; gap: 6px; }
+  .header-actions .btn, .header-actions > button, .account-box .btn { padding: 6px 10px; font-size: 13px; }
+  .account-box { flex-wrap: wrap; gap: 6px; }
+  .header-actions .lang-switch { margin-left: auto; }
+
+  .container { padding: 20px 12px; }
+  .card { padding: 16px; }
+  h1 { font-size: 20px; }
+  .crumb-bar { padding: 8px 12px; }
+  .pager { width: 100%; justify-content: space-between; }
+  .pager-btn .pager-name { max-width: 110px; }
+
+  /* bảng danh sách → thẻ: mỗi dòng một thẻ, mỗi ô có nhãn cột bên trái */
+  .sessions-table thead { display: none; }
+  .sessions-table, .sessions-table tbody, .sessions-table tr { display: block; width: 100%; }
+  .sessions-table tr { border: 1px solid var(--border); border-radius: 10px; padding: 6px 12px; margin-bottom: 10px; background: var(--panel); }
+  .sessions-table td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border: 0; padding: 5px 0; text-align: right; min-width: 0; width: 100%;
+  }
+  .sessions-table td::before {
+    content: attr(data-label); flex: none; max-width: 45%; text-align: left;
+    font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--muted);
+  }
+  .sessions-table td[data-label=""]::before, .sessions-table td:not([data-label])::before { content: none; }
+  .sessions-table td[colspan] { display: block; text-align: left; }
+  .sessions-table td.url { word-break: break-all; min-width: 0; }
+  .sessions-table td.sel { justify-content: flex-start; width: auto; }
+  .sessions-table td.actions {
+    justify-content: flex-start; flex-wrap: wrap; gap: 6px; text-align: left; white-space: normal;
+    border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 10px;
+  }
+  .sessions-table td.actions .btn, .sessions-table td.actions button { margin: 0; }
+  .scn-table .scn-url { max-width: 60vw; }
+  .progress-mini { margin-left: auto; }
+  .creds-table td::before { content: none; }
+
+  /* thanh công cụ của các danh sách */
+  .sessions-head { align-items: stretch; }
+  .sessions-tools { width: 100%; }
+  .scn-search { flex: 1 1 100%; min-width: 0; }
+  .bulk-bar label.inline select { min-width: 0; }
+  .side-list nav { flex-direction: row; overflow-x: auto; }
+  .side-item { flex: none; width: auto; max-width: 70vw; }
+
+  /* báo cáo */
+  .report-layout, .transcript-layout { padding: 12px; gap: 12px; }
+  .timeline { flex-wrap: wrap; }
+  .timeline input[type=range] { flex: 1 1 140px; }
+  .chart-grid { grid-template-columns: minmax(0, 1fr); }
+  .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-tile b { font-size: 20px; }
+}
+
+/* màn hình cảm ứng: không kéo-thả được → ẩn gợi ý kéo-thả, dùng thanh "Chuyển vào kịch bản" */
+@media (hover: none) and (pointer: coarse) {
+  .drag-hint, .grip { display: none; }
+  .sessions-table tr[draggable="true"] { cursor: auto; }
+}
+
+/* header: luôn được xuống dòng khi không đủ chỗ (tablet dọc, cửa sổ hẹp) */
+.app-header { flex-wrap: wrap; row-gap: 8px; }
+.header-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* trang ghi (track) trên màn hình hẹp: camera ở trên, trình duyệt chiếm phần còn lại */
+@media (max-width: 860px) {
+  .split, .split.camera-hidden { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .split.camera-hidden { grid-template-rows: 0 minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  /* thanh trình duyệt: nút ở hàng trên, ô địa chỉ cả hàng dưới */
+  .browser-bar { flex-wrap: wrap; row-gap: 6px; padding: 6px 8px; }
+  .browser-bar input { order: 10; flex: 1 1 100%; }
+  .browser-bar #browserMode, .browser-bar .bar-sep { display: none; }
+  .browser-bar #finish { margin-left: auto; }
+  .browser-bar .rec-btn { padding: 6px 8px; }
+}

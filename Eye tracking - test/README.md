@@ -102,6 +102,10 @@ docker compose up -d --build
 - Cookie đăng nhập không bao giờ được chuyển tiếp sang website đang test, và website đó không ghi đè được cookie của công cụ.
 - **Lưu ý quan trọng:** để ghi được tương tác, website được test chạy **cùng origin** với công cụ (qua proxy). Vì vậy chỉ nên test website bạn tin cậy (ví dụ website của chính công ty). Một website độc hại có thể gọi API của công cụ bằng phiên đăng nhập của người đang xem nó, kể cả admin khi mở báo cáo. Bước tiếp theo nên làm là tách proxy sang một tên miền phụ riêng (ví dụ `test.<domain>`).
 
+## Điện thoại và tablet
+
+Giao diện tự co giãn theo màn hình: trên điện thoại, header xuống dòng, các bảng (phiên, người tham gia, kịch bản, nhóm quản lý) hiện thành thẻ có nhãn cột, trang ghi đặt ô địa chỉ thành một hàng riêng. Kéo-thả phiên không dùng được trên màn hình cảm ứng; hãy tick các phiên rồi dùng thanh **Chuyển vào kịch bản**.
+
 ## Giới hạn
 
 - Eye tracking bằng webcam cần máy tính, Chrome hoặc Edge. Trên điện thoại chỉ nên ghi chạm và cuộn.

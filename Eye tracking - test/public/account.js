@@ -205,6 +205,33 @@
     }
   }
 
-  document.addEventListener('i18n:change', render);
+  // Màn hình hẹp: bảng danh sách hiện thành thẻ, mỗi ô cần nhãn cột (lấy từ tiêu đề bảng).
+  function labelTables() {
+    document.querySelectorAll('table.sessions-table').forEach((table) => {
+      const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      if (!heads.length) return;
+      table.querySelectorAll('tbody tr').forEach((tr) => {
+        [...tr.children].forEach((td, i) => {
+          if (td.colSpan > 1) return;
+          const label = heads[i] || '';
+          if (td.dataset.label !== label) td.dataset.label = label;
+        });
+      });
+    });
+  }
+  let labelQueued = false;
+  new MutationObserver(() => {
+    if (labelQueued) return;
+    labelQueued = true;
+    requestAnimationFrame(() => {
+      labelQueued = false;
+      labelTables();
+    });
+  }).observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener('i18n:change', () => {
+    render();
+    labelTables();
+  });
   init();
 })();
