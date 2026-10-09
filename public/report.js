@@ -912,6 +912,8 @@ Charts.bindToggleAll($('#chartsToggle'), $('#charts'));
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       open(true);
+    } else if (e.key === 'Escape') {
+      close(true);
     }
   });
   list.addEventListener('keydown', (e) => {

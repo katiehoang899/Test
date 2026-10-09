@@ -427,3 +427,6 @@ body.dragging-sessions .sc-chip.add { display: inline-flex; }
 .dropdown[hidden] { display: none; }
 .dropdown [role=menuitem] { padding: 8px 12px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; white-space: nowrap; cursor: pointer; }
 .dropdown [role=menuitem]:hover, .dropdown [role=menuitem]:focus-visible { background: var(--bg); outline: none; }
+
+/* nút Tải xuống nằm cuối hàng Phát lại ở trang báo cáo */
+.timeline .menu-wrap { margin-left: auto; flex: none; }
