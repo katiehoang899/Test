@@ -38,6 +38,20 @@ function randomPassword(len = 10) {
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+// Mã khôi phục: 10 mã, mỗi mã 8 ký tự (khoảng 40 bit ngẫu nhiên), hiển thị dạng ABCD-EFGH, dùng một lần.
+const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const RECOVERY_COUNT = 10;
+
+function randomRecoveryCode() {
+  const bytes = crypto.randomBytes(8);
+  let out = '';
+  for (let i = 0; i < 8; i++) out += RECOVERY_ALPHABET[bytes[i] % RECOVERY_ALPHABET.length];
+  return `${out.slice(0, 4)}-${out.slice(4)}`;
+}
+
+/** Người dùng gõ có thể thiếu gạch, có dấu cách, chữ thường → "ABCDEFGH". */
+const normalizeRecoveryCode = (code) => String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 /** "Nguyễn Văn Đức" → "nguyenvanduc" (tên đăng nhập chỉ gồm a-z0-9). */
 function slug(name) {
   return String(name || '')
@@ -72,6 +86,15 @@ function createAuth({ dataDir, log = console.log }) {
   let sessions = new Map(); // sha256(token) → { userId, expiresAt }
   const fails = new Map(); // `${ip}|${username}` → [thời điểm sai]
   let saveTimer = null;
+  let loadedMtime = 0; // để nhận ra khi file bị sửa từ ngoài (lệnh reset-admin lúc server đang chạy)
+
+  const mtimeOf = (file) => {
+    try {
+      return fs.statSync(file).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
 
   function load() {
     try {
@@ -86,6 +109,14 @@ function createAuth({ dataDir, log = console.log }) {
     } catch {
       sessions = new Map();
     }
+    loadedMtime = mtimeOf(usersFile);
+  }
+
+  function refreshIfChanged() {
+    if (mtimeOf(usersFile) === loadedMtime) return;
+    load();
+    // người quản lý máy chủ vừa sửa tài khoản (reset-admin) → gỡ khoá tạm vì đăng nhập sai
+    fails.clear();
   }
 
   function writeAtomic(file, data) {
@@ -94,7 +125,10 @@ function createAuth({ dataDir, log = console.log }) {
     fs.renameSync(file + '.tmp', file);
   }
 
-  const saveUsers = () => writeAtomic(usersFile, users);
+  const saveUsers = () => {
+    writeAtomic(usersFile, users);
+    loadedMtime = mtimeOf(usersFile);
+  };
 
   function saveSessionsSoon() {
     clearTimeout(saveTimer);
@@ -120,6 +154,7 @@ function createAuth({ dataDir, log = console.log }) {
     name: u.name,
     scenarioIds: u.scenarioIds || [],
     disabled: !!u.disabled,
+    recoveryCodesLeft: (u.recoveryCodes || []).length,
     createdAt: u.createdAt,
     lastLoginAt: u.lastLoginAt || null,
   };
@@ -172,6 +207,69 @@ function createAuth({ dataDir, log = console.log }) {
     return null;
   }
 
+  /**
+   * Tạo bộ mã khôi phục mới cho admin (cần nhập đúng mật khẩu hiện tại). Bộ mã cũ hết hiệu lực.
+   * Trả về { codes } (chỉ hiện một lần) hoặc { error }.
+   */
+  function generateRecoveryCodes(id, password) {
+    const user = users.find((u) => u.id === id);
+    if (!user || user.role !== 'admin') return { error: 'forbidden' };
+    if (!verifyPassword(password, user.passwordHash)) return { error: 'wrong_password' };
+    const codes = Array.from({ length: RECOVERY_COUNT }, randomRecoveryCode);
+    user.recoveryCodes = codes.map((c) => hashPassword(normalizeRecoveryCode(c)));
+    user.recoveryCodesAt = new Date().toISOString();
+    saveUsers();
+    return { codes };
+  }
+
+  /**
+   * Quên mật khẩu: tên đăng nhập + một mã khôi phục → đặt mật khẩu mới, mã đó bị xoá,
+   * mọi phiên đăng nhập cũ bị huỷ và đăng nhập luôn. Bị giới hạn số lần thử như đăng nhập.
+   */
+  function recover(username, code, nextPassword, ip) {
+    refreshIfChanged();
+    const name = String(username || '').trim().toLowerCase();
+    const key = `${ip}|${name}`;
+    const now = Date.now();
+    const recent = (fails.get(key) || []).filter((t) => now - t < LOGIN_WINDOW_MS);
+    if (recent.length >= LOGIN_MAX_FAILS) return { error: 'rate_limited' };
+    if (String(nextPassword || '').length < 8) return { error: 'weak_password' };
+    const user = users.find((u) => u.username === name);
+    const normalized = normalizeRecoveryCode(code);
+    const index = user && !user.disabled && normalized.length === 8
+      ? (user.recoveryCodes || []).findIndex((h) => verifyPassword(normalized, h))
+      : -1;
+    if (index < 0) {
+      recent.push(now);
+      fails.set(key, recent);
+      return { error: 'bad_recovery' };
+    }
+    fails.delete(key);
+    user.recoveryCodes.splice(index, 1);
+    user.passwordHash = hashPassword(nextPassword);
+    for (const [k, sess] of sessions) if (sess.userId === user.id) sessions.delete(k);
+    const token = crypto.randomBytes(32).toString('base64url');
+    sessions.set(sha256(token), { userId: user.id, expiresAt: now + TTL_MS[user.role] });
+    user.lastLoginAt = new Date().toISOString();
+    saveUsers();
+    saveSessionsSoon();
+    return { token, user: publicUser(user), remaining: user.recoveryCodes.length };
+  }
+
+  /** Dự phòng cuối (lệnh reset-admin trên máy chủ): mật khẩu mới ngẫu nhiên cho một admin. */
+  function resetAdmin(username) {
+    const admins = users.filter((u) => u.role === 'admin');
+    const user = username ? admins.find((u) => u.username === String(username).toLowerCase()) : admins[0];
+    if (!user) return null;
+    const password = randomPassword(14);
+    user.passwordHash = hashPassword(password);
+    user.disabled = false;
+    saveUsers();
+    for (const [k, sess] of sessions) if (sess.userId === user.id) sessions.delete(k);
+    writeAtomic(sessionsFile, Object.fromEntries(sessions));
+    return { username: user.username, password };
+  }
+
   function updateUser(id, patch) {
     const user = users.find((u) => u.id === id);
     if (!user) return null;
@@ -208,6 +306,7 @@ function createAuth({ dataDir, log = console.log }) {
 
   /** Kiểm tra đăng nhập; trả về { token, user } hoặc { error: 'rate_limited' | 'bad_login' }. */
   function login(username, password, ip) {
+    refreshIfChanged();
     const key = `${ip}|${String(username || '').toLowerCase()}`;
     const now = Date.now();
     const recent = (fails.get(key) || []).filter((t) => now - t < LOGIN_WINDOW_MS);
@@ -236,6 +335,7 @@ function createAuth({ dataDir, log = console.log }) {
 
   /** Người dùng của request (đối tượng đầy đủ, chỉ dùng trong server), hoặc null. */
   function userFromRequest(req) {
+    refreshIfChanged();
     const token = parseCookies(req)[COOKIE];
     if (!token) return null;
     const s = sessions.get(sha256(token));
@@ -260,6 +360,9 @@ function createAuth({ dataDir, log = console.log }) {
     createGuest,
     resetPassword,
     changePassword,
+    generateRecoveryCodes,
+    recover,
+    resetAdmin,
     updateUser,
     deleteUser,
     removeScenario,
@@ -274,4 +377,4 @@ function createAuth({ dataDir, log = console.log }) {
   };
 }
 
-module.exports = { createAuth, hashPassword, verifyPassword, randomPassword, slug, COOKIE };
+module.exports = { createAuth, hashPassword, verifyPassword, randomPassword, randomRecoveryCode, normalizeRecoveryCode, slug, COOKIE };

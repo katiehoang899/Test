@@ -29,6 +29,22 @@
       <p class="small form-error" id="loginError" role="alert"></p>
       <button type="submit" class="primary" id="loginBtn" data-i18n="login.submit"></button>
       <p class="small muted" data-i18n="login.help"></p>
+      <button type="button" class="link-btn" id="showRecover" data-i18n="login.forgot"></button>
+    </form>
+
+    <form class="card auth-card" id="recoverForm" hidden>
+      <h1 data-i18n="recover.title"></h1>
+      <p class="muted small" data-i18n="recover.subtitle"></p>
+      <label for="recUsername" data-i18n="login.username"></label>
+      <input type="text" id="recUsername" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="recCode" data-i18n="recover.code"></label>
+      <input type="text" id="recCode" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH" required>
+      <label for="recPassword" data-i18n="acct.next"></label>
+      <input type="password" id="recPassword" autocomplete="new-password" minlength="8" required>
+      <p class="small form-error" id="recError" role="alert"></p>
+      <button type="submit" class="primary" id="recBtn" data-i18n="recover.submit"></button>
+      <p class="small muted" data-i18n="recover.guest_note"></p>
+      <button type="button" class="link-btn" id="backToLogin" data-i18n="recover.back"></button>
     </form>
   </main>
 

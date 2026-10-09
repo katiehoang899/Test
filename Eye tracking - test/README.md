@@ -27,6 +27,20 @@ Guest không xem được báo cáo, phiên của người khác, danh sách k�
 
 Dữ liệu lưu giống app desktop: `Droppii Mall/User 1/` chứa `session.json`, `events.csv`, video ghi màn hình, ghi âm, transcript. Mỗi phiên còn ghi lại `guestId` và thời điểm đồng ý (`consentAt`).
 
+## Quên mật khẩu
+
+- **Người tham gia (guest):** liên hệ người tổ chức. Admin bấm **Cấp mật khẩu mới** ở trang **Người tham gia** rồi gửi lại cho họ.
+- **Admin: mã khôi phục.** Bấm vào tên mình ở góc phải trên → **Mã khôi phục** → nhập mật khẩu hiện tại → **Tạo mã khôi phục**.
+  - App tạo 10 mã dạng `ABCD-EFGH`, chỉ hiện một lần. Hãy sao chép hoặc tải file `.txt` và cất ở nơi an toàn.
+  - Khi quên mật khẩu: trang đăng nhập → **Quên mật khẩu?** → nhập tên đăng nhập, một mã và mật khẩu mới.
+  - Mỗi mã dùng được một lần. Khi còn từ 2 mã trở xuống, header hiện cảnh báo để tạo bộ mới; tạo bộ mới thì bộ cũ hết hiệu lực.
+  - Mã được lưu dạng băm. Nhập sai nhiều lần thì bị chặn tạm như khi đăng nhập sai.
+- **Admin: dự phòng cuối** khi mất hết mã. Người có quyền vào máy chủ chạy lệnh dưới đây; lệnh in ra mật khẩu mới ngẫu nhiên, không đụng tới tài khoản guest hay dữ liệu, và chạy được cả khi server đang chạy:
+  ```bash
+  npm run reset-admin                          # chạy trên máy
+  docker compose exec heatmap npm run reset-admin   # chạy bằng Docker
+  ```
+
 ## Chạy thử trên máy
 
 ```bash

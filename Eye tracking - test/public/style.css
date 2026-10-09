@@ -459,3 +459,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .sessions-table .tag { white-space: nowrap; }
 .people-layout td.actions { white-space: normal; text-align: right; }
 .people-layout td.actions .btn, .people-layout td.actions button { margin: 2px 0 2px 2px; }
+
+/* mã khôi phục */
+.recovery-warn { border-color: var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); font-size: 12px; padding: 6px 10px; }
+.recovery-section { border-top: 1px solid var(--border); margin-top: 18px; }
+.recovery-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; padding: 12px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--border); }
+.recovery-codes code { font-size: 15px; letter-spacing: .06em; text-align: center; }
+.auth-card .link-btn { display: block; margin: 10px auto 0; font-size: 13px; }

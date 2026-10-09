@@ -204,3 +204,60 @@ test('đổi mật khẩu, thông báo theo ngôn ngữ của người dùng', a
   const res = await fetch(base + '/__et/api/users', { headers: { cookie: 'hm_lang=vi' } });
   assert.match((await res.json()).error, /đăng nhập/);
 });
+
+test('mã khôi phục: tạo (cần mật khẩu), dùng một lần, tạo lại thì mã cũ hết hiệu lực', async () => {
+  const { normalizeRecoveryCode, randomRecoveryCode } = require('../auth');
+  assert.match(randomRecoveryCode(), /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal(normalizeRecoveryCode(' abcd efgh '), 'ABCDEFGH');
+
+  // admin riêng cho test này
+  const { getAuth } = require('../server');
+  const a = getAuth();
+  const created = a.createGuest({ name: 'Tmp' }); // guest không có mã khôi phục
+  const gc = (await login(created.user.username, created.password)).cookie;
+  assert.equal((await call('POST', '/__et/api/account/recovery-codes', gc, { password: created.password })).status, 403);
+
+  const pw = 'new-admin-pass'; // từ test trước
+  const ac = (await login('admin', pw)).cookie;
+  assert.equal((await call('POST', '/__et/api/account/recovery-codes', ac, { password: 'wrong' })).body.code, 'wrong_password');
+  const first = (await call('POST', '/__et/api/account/recovery-codes', ac, { password: pw })).body.codes;
+  assert.equal(first.length, 10);
+  assert.equal(new Set(first).size, 10);
+  assert.equal((await call('GET', '/__et/api/me', ac)).body.user.recoveryCodesLeft, 10);
+  // không lưu mã gốc
+  const usersFile = fs.readFileSync(path.join(process.env.DATA_DIR, 'users.json'), 'utf8');
+  for (const c of first) assert.ok(!usersFile.includes(c) && !usersFile.includes(c.replace('-', '')));
+
+  // tạo lại → bộ cũ hết hiệu lực
+  const codes = (await call('POST', '/__et/api/account/recovery-codes', ac, { password: pw })).body.codes;
+  assert.equal((await call('POST', '/__et/api/recover', null, { username: 'admin', code: first[0], password: 'reset-pass-1' })).body.code, 'bad_recovery');
+
+  // mật khẩu mới quá ngắn
+  assert.equal((await call('POST', '/__et/api/recover', null, { username: 'admin', code: codes[0], password: 'short' })).body.code, 'weak_password');
+  // dùng mã (chữ thường, không gạch vẫn được) → đăng nhập luôn, phiên cũ bị huỷ
+  const ok = await call('POST', '/__et/api/recover', null, { username: 'Admin', code: codes[0].toLowerCase().replace('-', ''), password: 'reset-pass-1' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.remaining, 9);
+  const nc = ok.headers.get('set-cookie').split(';')[0];
+  assert.equal((await call('GET', '/__et/api/me', nc)).body.user.role, 'admin');
+  assert.equal((await call('GET', '/__et/api/me', ac)).status, 401);
+  assert.equal((await login('admin', pw)).status, 401);
+  assert.equal((await login('admin', 'reset-pass-1')).status, 200);
+  // mã đã dùng không dùng lại được
+  assert.equal((await call('POST', '/__et/api/recover', null, { username: 'admin', code: codes[0], password: 'reset-pass-2' })).body.code, 'bad_recovery');
+  // đoán mã liên tục → bị chặn
+  for (let i = 0; i < 7; i++) await call('POST', '/__et/api/recover', null, { username: 'admin', code: 'AAAA-AAAA', password: 'whatever-123' });
+  assert.equal((await call('POST', '/__et/api/recover', null, { username: 'admin', code: codes[1], password: 'reset-pass-2' })).status, 429);
+});
+
+test('lệnh reset-admin: mật khẩu mới ngẫu nhiên, server đang chạy vẫn nhận ra', async () => {
+  const { execFileSync } = require('node:child_process');
+  const out = execFileSync(process.execPath, [path.join(__dirname, '..', 'reset-admin.js')], { env: { ...process.env }, encoding: 'utf8' });
+  const password = /Mật khẩu mới:\s+(\S+)/.exec(out)[1];
+  assert.equal(password.length, 14);
+  assert.equal((await login('admin', 'reset-pass-1')).status, 401);
+  const res = await login('admin', password);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.recoveryCodesLeft, 9); // mã khôi phục còn nguyên
+  assert.throws(() => execFileSync(process.execPath, [path.join(__dirname, '..', 'reset-admin.js'), 'nobody'], { env: { ...process.env }, stdio: 'pipe' }));
+});

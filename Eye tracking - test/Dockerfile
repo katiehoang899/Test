@@ -14,7 +14,7 @@ RUN npm ci --omit=dev --ignore-scripts \
  && rm -rf node_modules/onnxruntime-node node_modules/@img node_modules/sharp node_modules/@tensorflow node_modules/@mediapipe \
  && npm cache clean --force
 
-COPY server.js auth.js ./
+COPY server.js auth.js reset-admin.js ./
 COPY public ./public
 
 RUN mkdir -p /data && chown node:node /data

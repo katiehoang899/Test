@@ -576,6 +576,7 @@ const SERVER_TEXT = {
     scenario_no_url: 'This scenario has no link to test yet. Ask the organiser.',
     consent_required: 'Please agree to the recording first.',
     outside_scenario: 'This page is outside the scenario you are taking part in.',
+    bad_recovery: 'Wrong username or recovery code (each code works only once).',
     no_transcript: 'Transcribe the audio first.',
     ai_no_key: 'Add your Anthropic API key in Settings to use AI summaries.',
     ai_auth: 'The Anthropic API key was rejected. Check it in Settings.',
@@ -608,6 +609,7 @@ const SERVER_TEXT = {
     scenario_no_url: 'Kịch bản này chưa có link để test. Hãy liên hệ người tổ chức.',
     consent_required: 'Vui lòng đồng ý cho ghi lại trước.',
     outside_scenario: 'Trang này nằm ngoài phạm vi kịch bản bạn đang tham gia.',
+    bad_recovery: 'Sai tên đăng nhập hoặc mã khôi phục (mỗi mã chỉ dùng được một lần).',
     no_transcript: 'Hãy chuyển âm thanh thành chữ trước.',
     ai_no_key: 'Nhập Anthropic API key trong Cài đặt để dùng tóm tắt AI.',
     ai_auth: 'Anthropic API key không hợp lệ. Kiểm tra lại trong Cài đặt.',
@@ -1526,6 +1528,14 @@ async function handleApi(req, res, url) {
     res.setHeader('Set-Cookie', auth.cookieHeader(req, out.token, out.user.role));
     return sendJson(res, 200, { user: out.user });
   }
+  // quên mật khẩu: tên đăng nhập + mã khôi phục + mật khẩu mới
+  if (parts[1] === 'recover' && req.method === 'POST') {
+    const body = await readJson(req);
+    const out = auth.recover(body.username, body.code, body.password, clientIp(req));
+    if (out.error) return apiError(res, out.error === 'rate_limited' ? 429 : 400, out.error);
+    res.setHeader('Set-Cookie', auth.cookieHeader(req, out.token, out.user.role));
+    return sendJson(res, 200, { user: out.user, remaining: out.remaining });
+  }
   if (parts[1] === 'logout' && req.method === 'POST') {
     auth.logout(req);
     res.setHeader('Set-Cookie', auth.cookieHeader(req, null));
@@ -1544,6 +1554,12 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     const err = auth.changePassword(user.id, body.current, body.next);
     return err ? apiError(res, 400, err) : sendJson(res, 200, { ok: true });
+  }
+  if (parts[1] === 'account' && parts[2] === 'recovery-codes' && req.method === 'POST') {
+    const body = await readJson(req);
+    const out = auth.generateRecoveryCodes(user.id, body.password);
+    if (out.error) return apiError(res, out.error === 'forbidden' ? 403 : 400, out.error);
+    return sendJson(res, 200, out);
   }
   if (user.role !== 'admin') {
     if (parts[1] === 'guest') return handleGuest(req, res, parts);
