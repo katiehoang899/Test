@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <span class="brand"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></span>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="done-banner" id="doneBanner" role="status" hidden>
+      <b data-i18n="guest.done_title"></b>
+      <span data-i18n="guest.done_text"></span>
+    </div>
+    <h1 id="hello"></h1>
+    <p class="muted" data-i18n="guest.intro"></p>
+    <div id="scenarios"><p class="muted" data-i18n="common.loading"></p></div>
+  </div>
+
+  <dialog id="consentDialog" class="settings">
+    <form method="dialog" id="consentForm">
+      <h2 data-i18n="guest.consent_title"></h2>
+      <p class="small" id="consentScenario"></p>
+      <ul class="consent-list" id="consentList"></ul>
+      <label class="check"><input type="checkbox" id="consentCheck" required> <span data-i18n="guest.consent_agree"></span></label>
+      <p class="small form-error" id="consentError" role="alert"></p>
+      <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 12px">
+        <button type="button" id="consentCancel" data-i18n="sum.cancel"></button>
+        <button type="submit" class="primary" id="consentStart" data-i18n="guest.start_now"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/guest.js"></script>
+</body>
+</html>

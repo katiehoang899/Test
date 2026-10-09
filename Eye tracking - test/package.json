@@ -1,0 +1,19 @@
+{
+  "name": "heatmap-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Heatmap online: admin dashboard and guest accounts for remote participants (based on Heatmap 4.1.0)",
+  "license": "GPL-3.0-or-later",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@huggingface/transformers": "^4.3.0",
+    "docx": "^9.8.1",
+    "webgazer": "3.5.3"
+  }
+}

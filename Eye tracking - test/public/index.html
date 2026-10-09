@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+      <button type="button" id="openSettings" class="icon-btn" data-i18n-title="common.settings" data-i18n-aria="common.settings">⚙</button>
+    </div>
+  </header>
+
+  <div class="container wide">
+    <p class="muted" data-i18n="app.tagline"></p>
+
+    <form class="card" id="startForm">
+      <h2 data-i18n="home.new_session"></h2>
+
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" class="tab" data-tab="web" aria-selected="true" data-i18n="home.tab_web"></button>
+        <button type="button" role="tab" class="tab" data-tab="figma" aria-selected="false" data-i18n="home.tab_figma"></button>
+      </div>
+
+      <div class="tab-panel" data-panel="web">
+        <label for="url" data-i18n="home.url_label"></label>
+        <div class="row" style="gap: 8px; flex-wrap: nowrap">
+          <input type="text" id="url" placeholder="https://example.com" autocomplete="url">
+          <button type="button" id="pickFile" hidden data-i18n="home.pick_file"></button>
+        </div>
+        <p class="small muted hint" id="urlHint"></p>
+      </div>
+
+      <div class="tab-panel" data-panel="figma" hidden>
+        <label for="figmaUrl" data-i18n="home.figma_label"></label>
+        <input type="text" id="figmaUrl" placeholder="https://www.figma.com/proto/…" autocomplete="off">
+        <p class="small muted hint" data-i18n="home.figma_hint"></p>
+      </div>
+
+      <div class="row" style="margin-top: 12px; align-items: flex-start">
+        <div style="flex: 1 1 240px">
+          <label for="participant" data-i18n="home.participant"></label>
+          <input type="text" id="participant" data-i18n-placeholder="home.participant_placeholder">
+        </div>
+        <fieldset class="scenario-pick" style="flex: 1 1 240px">
+          <legend data-i18n="home.scenario"></legend>
+          <div class="seg" id="scenarioMode">
+            <label><input type="radio" name="scMode" value="none"><span data-i18n="home.sc_none"></span></label>
+            <label><input type="radio" name="scMode" value="existing"><span data-i18n="home.sc_existing"></span></label>
+            <label><input type="radio" name="scMode" value="new"><span data-i18n="home.sc_new"></span></label>
+          </div>
+          <select id="startScenario" data-i18n-aria="home.sc_existing" hidden></select>
+          <input type="text" id="newScenarioName" maxlength="100" autocomplete="off" data-i18n-aria="home.sc_new" data-i18n-placeholder="home.sc_new_placeholder" hidden>
+          <p class="small muted hint" id="scenarioHint" hidden></p>
+        </fieldset>
+      </div>
+      <label class="check" id="eyeOption"><input type="checkbox" id="eyeTracking" checked> <span data-i18n="home.eye"></span></label>
+      <label class="check sub-option" id="audioOption"><input type="checkbox" id="recordAudio" checked> <span data-i18n="home.audio"></span></label>
+      <button class="primary" type="submit" data-i18n="home.start"></button>
+      <p class="small" id="formError" style="color: var(--danger)"></p>
+    </form>
+
+    <div class="card">
+      <div class="sessions-head">
+        <h2 style="margin: 0" data-i18n="home.sessions"></h2>
+        <div class="sessions-tools">
+          <!-- bộ lọc thật; người dùng chọn qua thanh kịch bản bên dưới -->
+          <select id="scenarioFilter" hidden></select>
+          <button type="button" id="newScenario" data-i18n="home.new_scenario"></button>
+          <button type="button" id="renameScenario" hidden data-i18n="home.rename_scenario"></button>
+          <button type="button" id="deleteScenario" class="danger" hidden data-i18n="home.delete_scenario"></button>
+          <a class="btn primary" id="overviewLink" href="/__et/overview.html" data-i18n="home.overview"></a>
+          <button type="button" id="reload" data-i18n="common.reload"></button>
+        </div>
+      </div>
+
+      <!-- Thanh kịch bản: bấm để lọc, kéo phiên thả vào để chuyển kịch bản -->
+      <div class="scenario-bar" id="scenarioBar" role="group" data-i18n-aria="home.scenario"></div>
+      <p class="small muted drag-hint" data-i18n="home.drag_hint"></p>
+
+      <div class="bulk-bar" id="bulkBar" hidden>
+        <b id="bulkCount"></b>
+        <label class="inline" for="bulkScenario"><span class="small muted" data-i18n="home.move_to"></span>
+          <select id="bulkScenario"></select>
+        </label>
+        <button type="button" id="bulkApply" data-i18n="home.apply"></button>
+        <button type="button" id="bulkRemove" data-i18n="home.remove_from"></button>
+      </div>
+
+      <div style="overflow-x: auto">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th class="sel"><input type="checkbox" id="selectAll" data-i18n-aria="home.select_all"></th>
+              <th data-i18n="home.col_time"></th>
+              <th data-i18n="home.col_link"></th>
+              <th data-i18n="home.col_participant"></th>
+              <th data-i18n="home.col_duration"></th>
+              <th data-i18n="home.col_events"></th>
+              <th data-i18n="home.col_eye" class="eye-col"></th>
+              <th data-i18n="home.col_scenario"></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sessions"><tr><td colspan="9" class="muted" data-i18n="common.loading"></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="settingsDialog" class="settings">
+    <form method="dialog">
+      <h2 data-i18n="settings.title"></h2>
+      <label for="setLanguage" data-i18n="settings.language"></label>
+      <select id="setLanguage">
+        <option value="en">English</option>
+        <option value="vi">Tiếng Việt</option>
+      </select>
+
+      <label class="switch-row">
+        <span>
+          <b data-i18n="settings.eye"></b>
+          <span class="small muted" data-i18n="settings.eye_desc"></span>
+        </span>
+        <input type="checkbox" id="setEye" class="switch">
+      </label>
+
+      <label class="switch-row" id="cameraSetting">
+        <span>
+          <b data-i18n="settings.camera"></b>
+          <span class="small muted" data-i18n="settings.camera_desc"></span>
+        </span>
+        <input type="checkbox" id="setCamera" class="switch">
+      </label>
+
+      <div class="setting-block">
+        <b data-i18n="settings.storage"></b>
+        <span class="small muted" data-i18n="settings.storage_desc"></span>
+        <input type="text" id="setStorage" spellcheck="false" data-i18n-placeholder="settings.storage_placeholder">
+        <div class="row" style="gap: 6px; margin-top: 6px">
+          <button type="button" id="storageChoose" hidden data-i18n="settings.storage_choose"></button>
+          <button type="button" id="storageApply" data-i18n="settings.storage_apply"></button>
+          <button type="button" id="storageDefault" data-i18n="settings.storage_default"></button>
+          <button type="button" id="storageOpen" hidden data-i18n="settings.storage_open"></button>
+        </div>
+        <p class="small" id="storageError" style="color: var(--danger); margin: 4px 0 0"></p>
+      </div>
+
+      <div class="setting-block">
+        <b data-i18n="settings.ai"></b>
+        <span class="small muted" data-i18n-html="settings.ai_desc"></span>
+        <div class="row" style="gap: 6px; flex-wrap: nowrap">
+          <input type="password" id="setAiKey" spellcheck="false" autocomplete="off" placeholder="sk-ant-…">
+          <button type="button" id="aiKeySave" data-i18n="settings.ai_save"></button>
+        </div>
+        <div class="row small" style="gap: 8px; margin-top: 4px; align-items: center">
+          <span class="muted" id="aiKeyState"></span>
+          <button type="button" id="aiKeyRemove" class="link-btn" hidden data-i18n="settings.ai_remove"></button>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content: flex-end; margin-top: 16px">
+        <button class="primary" value="close" data-i18n="common.close"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Hộp nhập tên kịch bản: app desktop (Electron) không hỗ trợ window.prompt() -->
+  <dialog id="nameDialog" class="settings">
+    <form method="dialog" id="nameForm">
+      <h2 id="nameTitle"></h2>
+      <label for="nameInput" data-i18n="home.new_scenario_prompt"></label>
+      <input type="text" id="nameInput" maxlength="100" autocomplete="off" required>
+      <p class="small" id="nameError" style="color: var(--danger); margin: 6px 0 0"></p>
+      <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 16px">
+        <button type="button" id="nameCancel" data-i18n="sum.cancel"></button>
+        <button type="submit" class="primary" id="nameOk"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/index.js"></script>
+</body>
+</html>

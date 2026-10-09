@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <span class="url muted small" id="sessionUrl"></span>
+    <div class="header-actions">
+      <a class="btn" id="backReport" data-i18n="tr.back_report"></a>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="transcript-layout">
+    <aside class="side">
+      <div class="card">
+        <h2 data-i18n="tr.audio"></h2>
+        <select id="audioSelect" hidden></select>
+        <audio id="player" controls preload="metadata"></audio>
+
+        <label for="trLanguage" data-i18n="tr.language"></label>
+        <select id="trLanguage">
+          <option value="vietnamese" data-i18n="tr.lang_vi"></option>
+          <option value="english" data-i18n="tr.lang_en"></option>
+          <option value="auto" data-i18n="tr.lang_auto"></option>
+        </select>
+
+        <label for="trModel" data-i18n="tr.model"></label>
+        <select id="trModel">
+          <option value="onnx-community/whisper-base" data-i18n="tr.model_base"></option>
+          <option value="onnx-community/whisper-small" data-i18n="tr.model_small"></option>
+          <option value="onnx-community/whisper-large-v3-turbo" data-i18n="tr.model_large"></option>
+        </select>
+
+        <button type="button" class="primary" id="transcribe" style="margin-top: 12px; width: 100%"></button>
+        <div class="progress" id="progressBox" hidden>
+          <div class="progress-bar"><span id="progressFill"></span></div>
+          <span class="small muted" id="progressText"></span>
+        </div>
+        <p class="small muted" data-i18n="tr.privacy"></p>
+      </div>
+    </aside>
+
+    <main>
+      <div class="card summary-card" id="summaryCard">
+        <div class="sessions-head">
+          <h2 style="margin: 0"><span data-i18n="sum.title"></span> <span class="small muted" data-i18n="sum.by"></span></h2>
+          <div class="summary-actions" id="summaryActions"></div>
+        </div>
+        <div id="summaryBody"></div>
+      </div>
+
+      <div class="card">
+        <div class="sessions-head">
+          <h2 style="margin: 0" data-i18n="tr.title"></h2>
+          <div class="sessions-tools">
+            <span class="small muted" id="saveState"></span>
+            <button type="button" id="save" data-i18n="tr.save" disabled></button>
+            <a class="btn" id="exportDocx" data-i18n="tr.export_docx"></a>
+            <a class="btn" id="exportTxt" data-i18n="tr.export_txt"></a>
+          </div>
+        </div>
+        <p class="small muted" id="trMeta"></p>
+        <div class="segments" id="segments"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/media.js"></script>
+  <script src="/__et/transcript.js"></script>
+</body>
+</html>

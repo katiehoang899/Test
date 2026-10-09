@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container wide">
+    <div class="sessions-head" style="margin-top: 4px">
+      <div>
+        <h1 data-i18n="overview.title"></h1>
+        <p class="muted small" style="margin: 0" data-i18n="overview.subtitle"></p>
+      </div>
+      <div class="sessions-tools">
+        <label class="inline" for="scope"><span class="small muted" data-i18n="overview.scope"></span>
+          <select id="scope"></select>
+        </label>
+        <a class="btn" href="/__et/" data-i18n="common.back_home"></a>
+      </div>
+    </div>
+
+    <div class="stat-tiles" id="tiles"></div>
+
+    <div class="card">
+      <div style="overflow-x: auto">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th data-i18n="overview.col_link"></th>
+              <th class="num" data-i18n="overview.col_sessions"></th>
+              <th class="num" data-i18n="overview.col_participants"></th>
+              <th class="num" data-i18n="overview.col_avg_time"></th>
+              <th class="num" data-i18n="overview.col_total_time"></th>
+              <th class="num" data-i18n="overview.col_avg_clicks"></th>
+              <th class="num" data-i18n="overview.col_depth"></th>
+              <th class="num eye-col" data-i18n="overview.col_accuracy"></th>
+              <th data-i18n="overview.col_last"></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"><tr><td colspan="10" class="muted" data-i18n="common.loading"></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <section class="charts">
+      <div class="section-head">
+        <h2 data-i18n="chart.section"></h2>
+        <button type="button" class="chart-all" id="chartsToggle" hidden></button>
+      </div>
+      <div class="chart-grid" id="charts"></div>
+    </section>
+  </div>
+  <div class="chart-tooltip" id="chartTooltip" role="status" hidden></div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/charts.js"></script>
+  <script src="/__et/overview.js"></script>
+</body>
+</html>

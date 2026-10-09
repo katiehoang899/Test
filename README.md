@@ -44,6 +44,10 @@ Heatmap 4.0 là bản nâng cấp của Heatmap 3.0 (cùng app, cài đè và gi
 
 **Figma — lưu ý:** trong **app desktop**, prototype chạy trong trình duyệt thật nên ghi đủ ánh mắt, chuột, click và từng màn hình; có thể đăng nhập Figma ngay trong khung trình duyệt để xem file riêng tư. Ở **bản web**, Figma được nhúng bằng Figma Embed (khác origin) nên chỉ ghi được ánh mắt và việc chuyển màn hình (khi Figma gửi sự kiện), không ghi được chuột/click bên trong.
 
+## Bản online
+
+Thư mục [`Eye tracking - test/`](Eye%20tracking%20-%20test/) là bản online chạy trên máy chủ: admin đăng nhập để quản lý, mỗi người tham gia được cấp một tài khoản guest để vào làm kịch bản từ xa. Cách cài đặt và triển khai xem README trong thư mục đó.
+
 ## Chạy
 
 Yêu cầu Node.js ≥ 18.

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body class="track-body">
+  <div class="split camera-hidden" id="split">
+    <!-- Màn hình 1: webcam -->
+    <aside class="cam-pane">
+      <div class="cam-head">
+        <img src="/__et/logo.svg" alt="" width="22" height="22" style="border-radius:6px"><strong>Heatmap</strong>
+      </div>
+
+      <div class="cam-box eye-only" id="camBox">
+        <div class="cam-placeholder" id="camPlaceholder" data-i18n="track.camera_off"></div>
+      </div>
+      <div class="cam-status small" id="gazeStatus">—</div>
+      <p class="small muted" id="figmaNote" hidden data-i18n="track.figma_web_note"></p>
+
+      <div class="cam-section eye-only">
+        <div class="cam-label small muted" data-i18n="track.looking_at"></div>
+        <canvas id="gazeMap" width="320" height="110"></canvas>
+      </div>
+
+      <div class="cam-stats">
+        <div><span data-i18n="track.participant"></span><b id="statParticipant">—</b></div>
+        <div class="eye-only"><span data-i18n="track.accuracy"></span><b id="statAccuracy">—</b></div>
+        <div class="eye-only"><span data-i18n="track.gaze_rate"></span><b id="statRate">0</b></div>
+        <div><span data-i18n="track.clicks"></span><b id="statClicks">0</b></div>
+        <div><span data-i18n="track.pages"></span><b id="statPages">0</b></div>
+        <div><span data-i18n="track.saved"></span><b id="eventCount">0</b></div>
+      </div>
+
+      <div class="cam-actions">
+        <div class="cam-actions-row">
+          <button type="button" id="toggleDot" hidden data-i18n="track.show_dot"></button>
+          <button type="button" id="recalibrate" hidden data-i18n="track.recalibrate"></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Màn hình 2: trình duyệt -->
+    <section class="browser-pane">
+      <form class="browser-bar" id="browserBar">
+        <button type="button" id="cameraToggle" aria-pressed="false" data-i18n-title="track.camera_show" data-i18n-aria="track.camera_show">📷</button>
+        <span class="bar-sep"></span>
+        <button type="button" id="navBack" data-i18n-title="track.back" data-i18n-aria="track.back">◀</button>
+        <button type="button" id="navForward" data-i18n-title="track.forward" data-i18n-aria="track.forward">▶</button>
+        <button type="button" id="navReload" data-i18n-title="track.reload" data-i18n-aria="track.reload">⟳</button>
+        <input type="text" id="address" autocomplete="off" spellcheck="false" data-i18n-aria="track.address">
+        <span class="small muted" id="browserMode"></span>
+        <span class="bar-sep"></span>
+        <span class="rec-group" role="group" data-i18n-aria="rec.group">
+          <button type="button" id="recStart" class="rec-btn"><span class="rec-icon">⏺</span> <span data-i18n="rec.start"></span></button>
+          <button type="button" id="recPause" class="rec-btn" hidden><span class="rec-icon">⏸</span> <span data-i18n="rec.pause"></span></button>
+          <button type="button" id="recResume" class="rec-btn" hidden><span class="rec-icon">⏵</span> <span data-i18n="rec.resume"></span></button>
+          <button type="button" id="recStop" class="rec-btn" hidden><span class="rec-icon">⏹</span> <span data-i18n="rec.stop"></span></button>
+          <span class="rec-time" id="recTime" hidden></span>
+        </span>
+        <span class="mic-chip" id="micChip" hidden>
+          <span class="mic-icon" aria-hidden="true">🎙</span><span id="micTime">00:00</span>
+          <button type="button" id="micToggle" class="mic-btn" data-i18n-title="mic.pause" data-i18n-aria="mic.pause">⏸</button>
+        </span>
+        <span class="bar-sep"></span>
+        <span class="rec"><span class="dot" id="recDot"></span><span id="timer">00:00</span></span>
+        <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
+      </form>
+      <div class="browser-view" id="browserView">
+        <div class="overlay" id="overlay" hidden>
+          <div class="center-msg" id="overlayMsg"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="gazeDot"></div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/recorder.js"></script>
+  <script src="/__et/media.js"></script>
+  <script src="/__et/track.js"></script>
+</body>
+</html>

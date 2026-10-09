@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body class="auth-page">
+  <header class="app-header">
+    <span class="brand"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></span>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="auth-wrap">
+    <form class="card auth-card" id="loginForm">
+      <h1 data-i18n="login.title"></h1>
+      <p class="muted small" data-i18n="login.subtitle"></p>
+      <label for="username" data-i18n="login.username"></label>
+      <input type="text" id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="password" data-i18n="login.password"></label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <p class="small form-error" id="loginError" role="alert"></p>
+      <button type="submit" class="primary" id="loginBtn" data-i18n="login.submit"></button>
+      <p class="small muted" data-i18n="login.help"></p>
+    </form>
+  </main>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/login.js"></script>
+</body>
+</html>

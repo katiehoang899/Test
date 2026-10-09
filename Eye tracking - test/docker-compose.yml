@@ -1,0 +1,31 @@
+# Chạy trên một VPS có tên miền trỏ về: `cp .env.example .env`, sửa .env, rồi `docker compose up -d`.
+# Caddy tự lấy chứng chỉ HTTPS (Let's Encrypt) cho DOMAIN — webcam chỉ chạy trên HTTPS.
+services:
+  heatmap:
+    build: .
+    restart: unless-stopped
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Đặt ADMIN_PASSWORD trong file .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      TRUST_PROXY: "1"     # lấy IP thật từ Caddy (để giới hạn số lần đăng nhập sai)
+      COOKIE_SECURE: "1"   # cookie đăng nhập chỉ gửi qua HTTPS
+    volumes:
+      - heatmap-data:/data # phiên, kịch bản, tài khoản, mô hình Whisper đã tải
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [heatmap]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Đặt DOMAIN trong file .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  heatmap-data:
+  caddy-data:

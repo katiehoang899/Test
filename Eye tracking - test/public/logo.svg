@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Heatmap">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2150"/>
+      <stop offset="1" stop-color="#0a0d24"/>
+    </linearGradient>
+    <radialGradient id="heat" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff3b30"/>
+      <stop offset="0.28" stop-color="#ff8a00"/>
+      <stop offset="0.5" stop-color="#ffd60a"/>
+      <stop offset="0.72" stop-color="#34d399" stop-opacity="0.85"/>
+      <stop offset="0.88" stop-color="#2a78d6" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#2a78d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="heat2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd60a"/>
+      <stop offset="0.45" stop-color="#34d399" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#2a78d6" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <circle cx="352" cy="348" r="120" fill="url(#heat2)" opacity="0.9"/>
+    <circle cx="226" cy="222" r="190" fill="url(#heat)"/>
+  </g>
+  <!-- con trỏ chuột -->
+  <path d="M206 186 L206 372 L252 328 L284 398 L318 383 L286 314 L350 312 Z"
+        fill="#ffffff" stroke="#0a0d24" stroke-width="14" stroke-linejoin="round"/>
+</svg>

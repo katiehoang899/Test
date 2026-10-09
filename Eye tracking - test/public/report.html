@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <span class="url muted small" id="sessionUrl"></span>
+    <div class="header-actions">
+      <a class="btn" id="exportJson" data-i18n="report.export_json"></a>
+      <a class="btn" id="exportCsv" data-i18n="report.export_csv"></a>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="report-layout">
+    <aside class="side">
+      <div class="card">
+        <h2 data-i18n="report.display"></h2>
+        <label for="pageSelect" data-i18n="report.page"></label>
+        <select id="pageSelect"></select>
+
+        <label for="layer" data-i18n="report.layer"></label>
+        <select id="layer">
+          <option value="gaze" class="eye-only" data-i18n="report.layer_gaze"></option>
+          <option value="scanpath" class="eye-only" data-i18n="report.layer_scanpath"></option>
+          <option value="move" data-i18n="report.layer_move"></option>
+          <option value="click" data-i18n="report.layer_click"></option>
+        </select>
+
+        <label for="radius" id="radiusLabel"></label>
+        <input type="range" id="radius" min="10" max="120" value="45" style="width: 100%">
+        <label for="opacity" id="opacityLabel"></label>
+        <input type="range" id="opacity" min="10" max="100" value="70" style="width: 100%">
+        <div class="legend"></div>
+        <div class="row small muted" style="justify-content: space-between"><span data-i18n="report.less"></span><span data-i18n="report.more"></span></div>
+
+        <label class="check"><input type="checkbox" id="showClicks" checked> <span data-i18n="report.show_clicks"></span></label>
+        <label class="check"><input type="checkbox" id="merge"> <span data-i18n="report.merge"></span></label>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="report.page_stats"></h2>
+        <div id="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="report.top_clicks"></h2>
+        <ol class="list-compact small" id="topClicks"></ol>
+      </div>
+    </aside>
+
+    <main>
+      <div class="timeline card" style="padding: 10px 14px">
+        <button type="button" id="play" data-i18n="report.play"></button>
+        <input type="range" id="time" min="0" max="1000" value="1000">
+        <span class="small muted" id="timeLabel" style="min-width: 110px; text-align: right"></span>
+      </div>
+      <div class="stage-wrap">
+        <div class="stage-outer" id="stageOuter">
+          <div class="stage" id="stage">
+            <iframe id="pageFrame" data-i18n-title="report.frame_title" sandbox="allow-scripts allow-same-origin"></iframe>
+            <canvas id="overlayCanvas"></canvas>
+          </div>
+        </div>
+        <canvas id="minimap" data-i18n-title="report.minimap"></canvas>
+      </div>
+      <p class="small muted" data-i18n="report.scroll_hint"></p>
+
+      <section class="charts" aria-labelledby="recTitle">
+        <h2 id="recTitle" data-i18n="report.recordings"></h2>
+        <div class="media-list" id="mediaList"></div>
+      </section>
+
+      <section class="charts" aria-labelledby="chartsTitle">
+        <div class="section-head">
+          <h2 id="chartsTitle" data-i18n="chart.section"></h2>
+          <button type="button" class="chart-all" id="chartsToggle" hidden></button>
+        </div>
+        <div class="chart-grid" id="charts"></div>
+      </section>
+    </main>
+  </div>
+  <div class="chart-tooltip" id="chartTooltip" role="status" hidden></div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/charts.js"></script>
+  <script src="/__et/media.js"></script>
+  <script src="/__et/report.js"></script>
+</body>
+</html>

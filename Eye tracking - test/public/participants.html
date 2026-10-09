@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container wide">
+    <h1 data-i18n="ppl.title"></h1>
+    <p class="muted" data-i18n="ppl.intro"></p>
+
+    <div class="people-layout">
+      <aside class="card side-list">
+        <h2 data-i18n="home.scenario"></h2>
+        <nav id="scenarioList" aria-label="Scenarios"></nav>
+        <form id="newScenarioForm" class="row" style="gap: 6px; flex-wrap: nowrap; margin-top: 10px">
+          <input type="text" id="newScenarioInput" maxlength="100" data-i18n-placeholder="ppl.new_scenario_placeholder" data-i18n-aria="home.new_scenario">
+          <button type="submit" data-i18n="home.create"></button>
+        </form>
+      </aside>
+
+      <main id="detail">
+        <div class="card muted" id="emptyDetail" data-i18n="ppl.pick"></div>
+
+        <form class="card" id="configForm" hidden>
+          <div class="sessions-head">
+            <h2 style="margin: 0" data-i18n="ppl.config"></h2>
+            <a class="btn" id="overviewLink" data-i18n="home.overview"></a>
+          </div>
+          <label for="cfgName" data-i18n="ppl.name"></label>
+          <input type="text" id="cfgName" maxlength="120" required>
+          <label for="cfgUrl" style="margin-top: 10px" data-i18n="ppl.url"></label>
+          <input type="text" id="cfgUrl" placeholder="https://droppii.vn/" spellcheck="false">
+          <p class="small muted hint" data-i18n="ppl.url_hint"></p>
+          <label for="cfgInstructions" style="margin-top: 10px" data-i18n="ppl.instructions"></label>
+          <textarea id="cfgInstructions" rows="4" maxlength="4000" data-i18n-placeholder="ppl.instructions_placeholder"></textarea>
+          <label class="check"><input type="checkbox" id="cfgEye"> <span data-i18n="home.eye"></span></label>
+          <label class="check sub-option"><input type="checkbox" id="cfgAudio"> <span data-i18n="home.audio"></span></label>
+          <p class="small form-error" id="cfgError" role="alert"></p>
+          <button type="submit" class="primary" data-i18n="home.save"></button>
+        </form>
+
+        <section class="card" id="peopleCard" hidden>
+          <h2 data-i18n="ppl.participants"></h2>
+          <form id="addForm">
+            <label for="addNames" data-i18n="ppl.add_label"></label>
+            <textarea id="addNames" rows="3" data-i18n-placeholder="ppl.add_placeholder"></textarea>
+            <p class="small form-error" id="addError" role="alert"></p>
+            <button type="submit" class="primary" data-i18n="ppl.add"></button>
+          </form>
+
+          <div class="creds" id="creds" hidden>
+            <div class="sessions-head">
+              <b data-i18n="ppl.creds_title"></b>
+              <span class="row" style="gap: 6px">
+                <button type="button" id="copyAll" data-i18n="ppl.copy_all"></button>
+                <button type="button" id="downloadCsv" data-i18n="ppl.download_csv"></button>
+                <button type="button" id="closeCreds" data-i18n="common.close"></button>
+              </span>
+            </div>
+            <p class="small" style="color: var(--warn)" data-i18n="ppl.creds_once"></p>
+            <table class="sessions-table creds-table"><tbody id="credsBody"></tbody></table>
+          </div>
+
+          <div style="overflow-x: auto; margin-top: 14px">
+            <table class="sessions-table">
+              <thead>
+                <tr>
+                  <th data-i18n="home.col_participant"></th>
+                  <th data-i18n="acct.username"></th>
+                  <th data-i18n="ppl.col_status"></th>
+                  <th data-i18n="ppl.col_login"></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="people"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/participants.js"></script>
+</body>
+</html>
