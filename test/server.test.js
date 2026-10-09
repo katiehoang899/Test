@@ -625,9 +625,31 @@ test('ghi chú của phiên: lưu, xoá, có trong session.json', async () => {
   assert.equal(list.find((x) => x.id === s.id).note, 'Không tìm thấy nút thanh toán');
   const exported = await (await fetch(`${base}/__et/api/sessions/${s.id}/export?format=json`)).json();
   assert.equal(exported.note, 'Không tìm thấy nút thanh toán');
-  assert.equal((await api('PATCH', `/api/sessions/${s.id}`, { note: 'x'.repeat(30000) })).body.note.length, 20000);
+  assert.equal((await api('PATCH', `/api/sessions/${s.id}`, { note: 'x'.repeat(120000) })).body.note.length, 100000);
   const cleared = (await api('PATCH', `/api/sessions/${s.id}`, { note: '   ' })).body;
   assert.equal(cleared.note, undefined);
   assert.equal(cleared.noteUpdatedAt, undefined);
+  await api('DELETE', `/api/sessions/${s.id}`);
+});
+
+test('ghi chú có định dạng: chỉ giữ thẻ an toàn, lưu thêm bản chữ thường', async () => {
+  const { sanitizeNoteHtml, noteToText } = require('../server');
+  assert.equal(sanitizeNoteHtml('<p onclick="x()">A <b style="color:red">đậm</b><script>alert(1)</script></p>'), '<p>A <b>đậm</b>alert(1)</p>');
+  assert.equal(sanitizeNoteHtml('<img src=x onerror=alert(1)><svg/onload=alert(1)>ok'), 'ok');
+  assert.equal(sanitizeNoteHtml('<a href="javascript:alert(1)">x</a>'), '<a>x</a>');
+  assert.equal(sanitizeNoteHtml('<a href=" https://a.vn/?q=1&amp;b=2 " onmouseover="x">a</a>'), '<a href="https://a.vn/?q=1&amp;b=2" target="_blank" rel="noopener noreferrer">a</a>');
+  assert.equal(sanitizeNoteHtml('<a href="https://a.vn/x>y">t</a>'), '<a>y"&gt;t</a>');
+  assert.equal(sanitizeNoteHtml('1 < 2 <!-- c --> <unknown>z</unknown>'), '1 &lt; 2  z');
+  assert.equal(noteToText('<h3>Vấn đề</h3><ul><li>Nút &quot;Mua&quot;</li><li>Giỏ hàng</li></ul><p>a<br>b</p>'), 'Vấn đề\n• Nút "Mua"\n• Giỏ hàng\na\nb');
+
+  const s = (await api('POST', '/api/sessions', { url: 'https://rich.test/', participant: 'User 2' })).body;
+  const saved = (await api('PATCH', `/api/sessions/${s.id}`, { note: '<p><b>Lỗi</b> ở <a href="https://x.vn">trang</a></p><script>x</script>', noteFormat: 'html' })).body;
+  assert.equal(saved.note, '<p><b>Lỗi</b> ở <a href="https://x.vn" target="_blank" rel="noopener noreferrer">trang</a></p>x');
+  assert.equal(saved.noteFormat, 'html');
+  assert.equal(saved.noteText, 'Lỗi ở trang\nx');
+  // chỉ có thẻ rỗng = xoá ghi chú
+  const cleared = (await api('PATCH', `/api/sessions/${s.id}`, { note: '<p><br></p><ul><li></li></ul>', noteFormat: 'html' })).body;
+  assert.equal(cleared.note, undefined);
+  assert.equal(cleared.noteFormat, undefined);
   await api('DELETE', `/api/sessions/${s.id}`);
 });

@@ -658,7 +658,38 @@ async function loadMeta(id) {
   }
 }
 
-const NOTE_MAX = 20000; // ký tự, ghi chú của một phiên
+const NOTE_MAX = 100000; // ký tự HTML, ghi chú của một phiên
+const NOTE_TAGS = new Set(['b', 'i', 'u', 's', 'p', 'br', 'h3', 'ul', 'ol', 'li', 'blockquote', 'a', 'code']);
+
+/**
+ * Ghi chú có định dạng: chỉ giữ thẻ trong NOTE_TAGS, bỏ mọi thuộc tính (trừ href http/https/mailto của link),
+ * mọi "<" ">" còn lại thành chữ. Trang soạn thảo cũng tự làm sạch khi hiện ra; đây là lớp bảo vệ thứ hai.
+ */
+function sanitizeNoteHtml(html) {
+  return String(html).replace(/<!--[\s\S]*?(?:-->|$)/g, '').split(/(<\/?[a-z][a-z0-9]*\b[^>]*>)/i).map((part, i) => {
+    if (i % 2 === 0) return part.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const [, close, name, attrs] = /^<(\/?)([a-z][a-z0-9]*)\b([^>]*)>$/i.exec(part);
+    const tag = name.toLowerCase();
+    if (!NOTE_TAGS.has(tag)) return '';
+    if (close) return tag === 'br' ? '' : `</${tag}>`;
+    if (tag !== 'a') return `<${tag}>`;
+    const m = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(attrs);
+    const href = m ? (m[1] ?? m[2] ?? m[3]).replace(/&amp;/g, '&').trim() : '';
+    if (!/^(https?:|mailto:)/i.test(href)) return '<a>';
+    return `<a href="${href.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}" target="_blank" rel="noopener noreferrer">`;
+  }).join('');
+}
+
+/** HTML của ghi chú → chữ thường (session.json, xem nhanh trong danh sách phiên). */
+function noteToText(html) {
+  return String(html)
+    .replace(/<br>/g, '\n')
+    .replace(/<li>/g, '• ')
+    .replace(/<\/(p|h3|blockquote|li)>/g, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .replace(/[ \t ]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 async function saveMeta(meta) {
   const file = metaPath(meta.id);
@@ -1705,7 +1736,7 @@ async function createSessionRecord(req, body, extra = {}) {
 /** Ghi chú là của admin / mod: guest không thấy, kể cả trên phiên của chính mình. */
 function forViewer(req, meta) {
   if (req.user.role !== 'guest') return meta;
-  const { note, noteUpdatedAt, noteBy, ...rest } = meta;
+  const { note, noteText, noteFormat, noteUpdatedAt, noteBy, ...rest } = meta;
   return rest;
 }
 
@@ -1752,16 +1783,22 @@ async function handleSessionItem(req, res, url, parts) {
             at: new Date().toISOString(),
           };
         }
-        // ghi chú của người xem báo cáo (nhận xét, vấn đề phát hiện…); để trống = xoá
+        // ghi chú của người xem báo cáo (nhận xét, vấn đề phát hiện…), dạng HTML có định dạng
+        // (noteFormat 'html') hoặc chữ thường; không còn chữ nào = xoá
         if (typeof body.note === 'string') {
-          const note = body.note.slice(0, NOTE_MAX);
-          if (note.trim()) {
+          const html = body.noteFormat === 'html';
+          const note = html ? sanitizeNoteHtml(body.note.slice(0, NOTE_MAX)) : body.note.slice(0, NOTE_MAX);
+          const text = html ? noteToText(note) : note;
+          const empty = !(html ? note.replace(/<[^>]*>|&nbsp;/g, '') : note).trim();
+          if (!empty) {
             fresh.note = note;
+            fresh.noteText = text;
+            if (html) fresh.noteFormat = 'html';
+            else delete fresh.noteFormat;
             fresh.noteUpdatedAt = new Date().toISOString();
             fresh.noteBy = req.user.name || req.user.username;
           } else {
-            delete fresh.note;
-            delete fresh.noteUpdatedAt; delete fresh.noteBy;
+            for (const k of ['note', 'noteText', 'noteFormat', 'noteUpdatedAt', 'noteBy']) delete fresh[k];
           }
         }
         await saveMeta(fresh);
@@ -2131,4 +2168,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { getAuth: () => auth, createServer, ASR_MODELS, exportSession, sessionFilePaths, flushExports, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, toProxyUrl, TOOL_PREFIX };
+module.exports = { getAuth: () => auth, createServer, ASR_MODELS, exportSession, sessionFilePaths, flushExports, storageDir, normalizeTargetUrl, normalizeSessionUrl, normalizeFigmaUrl, getSettings, updateSettings, settingsEvents, rewriteHtml, isPrivateAddress, sanitizeEvent, sanitizeNoteHtml, noteToText, toProxyUrl, TOOL_PREFIX };

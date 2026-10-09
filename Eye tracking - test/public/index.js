@@ -443,7 +443,8 @@ function renderSessions() {
 /** Biểu tượng 📝 cạnh tên người tham gia khi phiên có ghi chú; rê chuột để xem nhanh. */
 function noteFlag(s) {
   if (!s.note) return '';
-  const preview = s.note.length > 300 ? s.note.slice(0, 300) + '…' : s.note;
+  const text = s.noteText || s.note;
+  const preview = text.length > 300 ? text.slice(0, 300) + '…' : text;
   return ` <a class="note-flag" href="/__et/report.html?id=${s.id}" title="${esc(t('home.has_note') + ':\n' + preview)}" aria-label="${esc(t('home.has_note'))}">📝</a>`;
 }
 
