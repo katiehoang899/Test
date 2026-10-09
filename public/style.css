@@ -412,3 +412,7 @@ body.dragging-sessions .sc-chip.add { display: inline-flex; }
   background: var(--accent); color: var(--accent-text); font-size: 13px; font-weight: 600; white-space: nowrap;
 }
 .toast .undo { margin-left: 12px; padding: 2px 10px; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.5); font-size: 12px; }
+
+/* dòng trong bảng danh sách (phiên, người tham gia, kịch bản…): chữ căn giữa theo chiều cao dòng */
+.sessions-table td { vertical-align: middle; }
+.sessions-table th { vertical-align: bottom; }
