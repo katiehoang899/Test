@@ -179,7 +179,10 @@ function renderCreds() {
       <td><b>${esc(user.name)}</b></td>
       <td><code>${esc(user.username)}</code></td>
       <td><code>${esc(password)}</code></td>
-      <td class="actions"><button type="button" data-copy="${i}">${esc(t('ppl.copy_invite'))}</button></td>
+      <td class="actions">
+        <button type="button" data-copy="${i}">${esc(t('ppl.copy_invite'))}</button>
+        <button type="button" data-copy-link="${i}">${esc(t('ppl.copy_link'))}</button>
+      </td>
     </tr>`).join('');
 }
 
@@ -199,12 +202,16 @@ $('#addForm').addEventListener('submit', async (e) => {
 });
 
 $('#credsBody').addEventListener('click', (e) => {
+  const linkBtn = e.target.closest('[data-copy-link]');
+  if (linkBtn) return copy(loginLink(lastCreds[Number(linkBtn.dataset.copyLink)].user.username), t('ppl.link_copied'));
   const b = e.target.closest('[data-copy]');
   if (!b) return;
   const { user, password } = lastCreds[Number(b.dataset.copy)];
   copy(inviteText(user, password), t('ppl.invite_copied'));
 });
 $('#copyAll').addEventListener('click', () => copy(lastCreds.map(({ user, password }) => inviteText(user, password)).join('\n\n----\n\n'), t('ppl.invite_copied')));
+// chỉ link mời, mỗi người một dòng (mật khẩu gửi riêng)
+$('#copyAllLinks').addEventListener('click', () => copy(lastCreds.map(({ user }) => loginLink(user.username)).join('\n'), t('ppl.links_copied')));
 $('#closeCreds').addEventListener('click', () => {
   lastCreds = [];
   renderCreds();
@@ -226,7 +233,7 @@ $('#people').addEventListener('click', async (e) => {
   if (!u) return;
   try {
     if (b.dataset.act === 'link') {
-      copy(inviteText(u, null), t('ppl.invite_copied'));
+      copy(loginLink(u.username), t('ppl.link_copied'));
     } else if (b.dataset.act === 'reset') {
       if (!confirm(t('ppl.reset_confirm', { name: u.name }))) return;
       const out = await api('POST', `/users/${u.id}/reset-password`);

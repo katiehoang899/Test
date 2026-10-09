@@ -90,6 +90,20 @@ $('#copyCreds').addEventListener('click', async () => {
   }
   toast(t('ppl.invite_copied'));
 });
+$('#copyCredsLink').addEventListener('click', async () => {
+  const link = `${location.origin}/__et/login.html?u=${encodeURIComponent(creds.user.username)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast(t('ppl.link_copied'));
+});
 $('#closeCreds').addEventListener('click', () => { creds = null; renderCreds(); });
 
 $('#rows').addEventListener('click', async (e) => {
