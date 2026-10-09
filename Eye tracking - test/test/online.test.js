@@ -333,3 +333,12 @@ test('Mod: quản lý guest, xem báo cáo, tạo / đổi tên kịch bản, ch
   assert.equal((await call('DELETE', `/__et/api/users/${mod.user.id}`, ac)).status, 200);
   assert.equal((await call('DELETE', `/__et/api/sessions/${s.id}`, ac)).status, 200);
 });
+
+test('tải JSON / CSV khi tên người tham gia có dấu', async () => {
+  const { getAuth } = require('../server');
+  const ac = (await login('admin', getAuth().resetAdmin('admin').password)).cookie;
+  const s = (await call('POST', '/__et/api/sessions', ac, { url: siteBase + '/', participant: 'Nguyễn Thu Hà' })).body;
+  const res = await fetch(`${base}/__et/api/sessions/${s.id}/export?format=csv`, { headers: { cookie: ac } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition'), /filename="Nguyen Thu Ha\.csv"; filename\*=UTF-8''Nguy%E1%BB%85n%20Thu%20H%C3%A0\.csv/);
+});

@@ -1326,6 +1326,17 @@ async function handleModelFile(req, res, rel) {
 
 // ---------- xuất dữ liệu một phiên ----------
 
+/**
+ * Content-Disposition cho tên file có dấu (tên người tham gia, ví dụ "Nguyễn Thu Hà.csv"): header HTTP chỉ
+ * nhận ASCII, nên gửi kèm tên ASCII dự phòng (bỏ dấu) và tên UTF-8 đầy đủ theo RFC 5987.
+ */
+function attachmentHeader(filename) {
+  const ascii = String(filename).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, (c) => (c === 'đ' ? 'd' : 'D'))
+    .replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  const encoded = encodeURIComponent(filename).replace(/['()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 /** Nội dung file xuất của một phiên: { filename, contentType, body }. Dùng cho tải về và "Save as". */
 async function exportSession(id, format = 'json') {
   const meta = await loadMeta(id);
@@ -1474,7 +1485,7 @@ async function handleApi(req, res, url) {
 
   if (sub === 'export' && req.method === 'GET') {
     const out = await exportSession(id, url.searchParams.get('format') === 'csv' ? 'csv' : 'json');
-    res.writeHead(200, { 'Content-Type': out.contentType, 'Content-Disposition': `attachment; filename="${out.filename}"` });
+    res.writeHead(200, { 'Content-Type': out.contentType, 'Content-Disposition': attachmentHeader(out.filename) });
     return res.end(out.body);
   }
 

@@ -109,6 +109,7 @@
 
       'report.title': 'Session report',
       'report.heading': 'Report',
+      'report.download': 'Download',
       'report.export_json': 'Download JSON',
       'report.export_csv': 'Download CSV',
       'report.display': 'Display',
@@ -445,6 +446,7 @@
 
       'report.title': 'Báo cáo phiên',
       'report.heading': 'Báo cáo',
+      'report.download': 'Tải xuống',
       'report.export_json': 'Tải JSON',
       'report.export_csv': 'Tải CSV',
       'report.display': 'Hiển thị',

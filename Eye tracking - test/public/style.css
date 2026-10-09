@@ -588,3 +588,14 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
   .browser-bar #finish { margin-left: auto; }
   .browser-bar .rec-btn { padding: 6px 8px; }
 }
+
+/* menu thả xuống (nút Tải xuống ở trang báo cáo) */
+.menu-wrap { position: relative; display: inline-block; }
+.dropdown {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 50; min-width: 170px;
+  display: flex; flex-direction: column; padding: 4px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
+.dropdown[hidden] { display: none; }
+.dropdown [role=menuitem] { padding: 8px 12px; border-radius: 6px; color: var(--text); text-decoration: none; font-size: 14px; white-space: nowrap; cursor: pointer; }
+.dropdown [role=menuitem]:hover, .dropdown [role=menuitem]:focus-visible { background: var(--bg); outline: none; }

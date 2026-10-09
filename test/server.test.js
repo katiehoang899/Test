@@ -603,3 +603,15 @@ test('static: phục vụ trang và WebGazer, chặn path traversal', async () =
     assert.doesNotMatch(await res.text(), /createServer/, p);
   }
 });
+
+test('tải JSON / CSV khi tên người tham gia có dấu (Content-Disposition)', async () => {
+  const s = (await api('POST', '/api/sessions', { url: 'https://dau.test/', participant: 'Nguyễn Thu Hà "Đức"' })).body;
+  for (const format of ['json', 'csv']) {
+    const res = await fetch(`${base}/__et/api/sessions/${s.id}/export?format=${format}`);
+    assert.equal(res.status, 200);
+    const cd = res.headers.get('content-disposition');
+    assert.match(cd, new RegExp(`^attachment; filename="Nguyen Thu Ha Duc\\.${format}"; filename\\*=UTF-8''`));
+    assert.equal(decodeURIComponent(cd.split("UTF-8''")[1]), `Nguyễn Thu Hà Đức.${format}`);
+  }
+  await api('DELETE', `/api/sessions/${s.id}`);
+});

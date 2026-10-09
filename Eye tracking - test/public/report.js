@@ -899,3 +899,45 @@ async function init() {
 init();
 
 Charts.bindToggleAll($('#chartsToggle'), $('#charts'));
+
+// ---------- nút "Tải xuống" → menu Tải JSON / Tải CSV ----------
+(() => {
+  const btn = $('#downloadBtn');
+  const list = $('#downloadList');
+  const items = () => [...list.querySelectorAll('[role=menuitem]')];
+  const open = (focusFirst) => {
+    list.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    if (focusFirst) items()[0].focus();
+  };
+  const close = (refocus) => {
+    if (list.hidden) return;
+    list.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (refocus) btn.focus();
+  };
+  btn.addEventListener('click', () => (list.hidden ? open(false) : close(false)));
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      open(true);
+    }
+  });
+  list.addEventListener('keydown', (e) => {
+    const all = items();
+    const i = all.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      all[(i + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length].focus();
+    } else if (e.key === 'Escape') {
+      close(true);
+    } else if (e.key === 'Tab') {
+      close(false);
+    }
+  });
+  // chọn xong (tải file) thì đóng menu — đợi trình duyệt xử lý link xong mới ẩn
+  list.addEventListener('click', () => setTimeout(() => close(false), 0));
+  document.addEventListener('click', (e) => { if (!$('#downloadMenu').contains(e.target)) close(false); });
+  // bấm vào khung website trong báo cáo (iframe) không tạo click ở trang này → đóng khi trang mất focus
+  window.addEventListener('blur', () => close(false));
+})();

@@ -12,8 +12,15 @@
     <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
     <span class="url muted small" id="sessionUrl"></span>
     <div class="header-actions">
-      <a class="btn" id="exportJson" data-i18n="report.export_json"></a>
-      <a class="btn" id="exportCsv" data-i18n="report.export_csv"></a>
+      <div class="menu-wrap" id="downloadMenu">
+        <button type="button" class="btn" id="downloadBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="downloadList">
+          <span data-i18n="report.download"></span> <span aria-hidden="true">▾</span>
+        </button>
+        <div class="dropdown" id="downloadList" role="menu" hidden>
+          <a role="menuitem" id="exportJson" data-i18n="report.export_json"></a>
+          <a role="menuitem" id="exportCsv" data-i18n="report.export_csv"></a>
+        </div>
+      </div>
       <div class="lang-switch" role="group" aria-label="Language">
         <button type="button" data-lang="en">EN</button>
         <button type="button" data-lang="vi">VI</button>
