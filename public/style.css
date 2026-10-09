@@ -430,3 +430,12 @@ body.dragging-sessions .sc-chip.add { display: inline-flex; }
 
 /* nút Tải xuống nằm cuối hàng Phát lại ở trang báo cáo */
 .timeline .menu-wrap { margin-left: auto; flex: none; }
+
+/* ghi chú của phiên (trang báo cáo, transcript) */
+.note-card .sessions-head { margin-bottom: 8px; }
+.note-card h2 label, #inviteCard h2 label { display: inline; margin: 0; font: inherit; color: inherit; }
+.note-text {
+  width: 100%; min-height: 110px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; resize: vertical;
+}
+.note-flag { margin-left: 4px; text-decoration: none; cursor: help; }

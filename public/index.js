@@ -424,7 +424,7 @@ function renderSessions() {
       <td class="sel"><span class="grip" aria-hidden="true">⋮⋮</span><input type="checkbox" data-sel="${s.id}" ${selected.has(s.id) ? 'checked' : ''} aria-label="${esc(t('home.select_row'))}"></td>
       <td class="nowrap">${esc(new Date(s.createdAt).toLocaleString(I18N.locale()))}</td>
       <td class="url">${kind}${esc(s.url)}</td>
-      <td>${esc(s.participant || '—')}</td>
+      <td>${esc(s.participant || '—')}${noteFlag(s)}</td>
       <td class="num">${fmtDuration(s.durationMs)}</td>
       <td class="num">${s.eventCount || 0}</td>
       <td class="eye-col">${acc}</td>
@@ -438,6 +438,13 @@ function renderSessions() {
     </tr>`;
   }).join('');
   renderBulk();
+}
+
+/** Biểu tượng 📝 cạnh tên người tham gia khi phiên có ghi chú; rê chuột để xem nhanh. */
+function noteFlag(s) {
+  if (!s.note) return '';
+  const preview = s.note.length > 300 ? s.note.slice(0, 300) + '…' : s.note;
+  return ` <a class="note-flag" href="/__et/report.html?id=${s.id}" title="${esc(t('home.has_note') + ':\n' + preview)}" aria-label="${esc(t('home.has_note'))}">📝</a>`;
 }
 
 async function loadSessions() {

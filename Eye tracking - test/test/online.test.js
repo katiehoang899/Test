@@ -342,3 +342,36 @@ test('tải JSON / CSV khi tên người tham gia có dấu', async () => {
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-disposition'), /filename="Nguyen Thu Ha\.csv"; filename\*=UTF-8''Nguy%E1%BB%85n%20Thu%20H%C3%A0\.csv/);
 });
+
+test('ghi chú phiên: admin / mod viết, guest không thấy và không sửa được; thư mời riêng theo kịch bản', async () => {
+  const { getAuth } = require('../server');
+  const ac = (await login('admin', getAuth().resetAdmin('admin').password)).cookie;
+  const sc = (await call('POST', '/__et/api/scenarios', ac, { name: 'Note scenario', url: siteBase + '/' })).body;
+  const [g] = (await call('POST', '/__et/api/users', ac, { names: ['Minh'], scenarioId: sc.id })).body;
+  const gc = (await login(g.user.username, g.password)).cookie;
+  const s = (await call('POST', '/__et/api/guest/sessions', gc, { scenarioId: sc.id, consent: true })).body;
+
+  // admin ghi chú → ghi lại người viết
+  const saved = (await call('PATCH', `/__et/api/sessions/${s.id}`, ac, { note: 'Lúng túng ở bước thanh toán' })).body;
+  assert.equal(saved.note, 'Lúng túng ở bước thanh toán');
+  assert.equal(saved.noteBy, 'Admin');
+  // guest: không thấy ghi chú trên phiên của mình, gửi note cũng bị bỏ qua
+  const own = (await call('GET', `/__et/api/sessions/${s.id}`, gc)).body;
+  assert.equal(own.note, undefined);
+  assert.equal(own.noteBy, undefined);
+  const ended = (await call('PATCH', `/__et/api/sessions/${s.id}`, gc, { ended: true, note: 'guest ghi đè' })).body;
+  assert.equal(ended.note, undefined);
+  assert.equal((await call('GET', `/__et/api/sessions/${s.id}`, ac)).body.note, 'Lúng túng ở bước thanh toán');
+
+  // mod sửa được ghi chú
+  const mod = (await call('POST', '/__et/api/users', ac, { role: 'mod', name: 'Hoa', username: 'hoa.mod' })).body;
+  const mc = (await login('hoa.mod', mod.password)).cookie;
+  assert.equal((await call('PATCH', `/__et/api/sessions/${s.id}`, mc, { note: 'Đã xem lại video' })).body.noteBy, 'Hoa');
+
+  // thư mời riêng: lưu, guest không thấy, để trống = về mẫu mặc định
+  const tpl = 'Hi {name}, mở {link} và đăng nhập bằng {username} / {password}';
+  assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, mc, { inviteTemplate: tpl })).body.inviteTemplate, tpl);
+  assert.equal((await call('GET', '/__et/api/scenarios', ac)).body.find((x) => x.id === sc.id).inviteTemplate, tpl);
+  assert.equal((await call('GET', '/__et/api/guest/scenarios', gc)).body[0].inviteTemplate, undefined);
+  assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, ac, { inviteTemplate: '  ' })).body.inviteTemplate, undefined);
+});

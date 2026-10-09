@@ -658,6 +658,8 @@ async function loadMeta(id) {
   }
 }
 
+const NOTE_MAX = 20000; // ký tự, ghi chú của một phiên
+
 async function saveMeta(meta) {
   const file = metaPath(meta.id);
   await fsp.writeFile(file + '.tmp', JSON.stringify(meta, null, 2));
@@ -842,6 +844,11 @@ function applyScenarioConfig(sc, body) {
     }
   }
   if (typeof body.instructions === 'string') sc.instructions = body.instructions.slice(0, 4000);
+  // nội dung thư mời riêng của kịch bản; để trống = dùng mẫu mặc định (theo ngôn ngữ giao diện)
+  if (typeof body.inviteTemplate === 'string') {
+    if (body.inviteTemplate.trim()) sc.inviteTemplate = body.inviteTemplate.slice(0, 4000);
+    else delete sc.inviteTemplate;
+  }
   if (typeof body.eyeTracking === 'boolean') sc.eyeTracking = body.eyeTracking;
   if (typeof body.recordAudio === 'boolean') sc.recordAudio = body.recordAudio;
   return null;
@@ -875,7 +882,7 @@ async function handleScenarios(req, res, parts) {
   if (!/^[a-f0-9]{12}$/.test(id)) return apiError(res, 404, 'scenario_not_found');
   if (req.method === 'PATCH') {
     const body = await readJson(req);
-    // đổi tên (name) và/hoặc cấu hình (url, instructions, eyeTracking, recordAudio)
+    // đổi tên (name) và/hoặc cấu hình (url, instructions, inviteTemplate, eyeTracking, recordAudio)
     const name = 'name' in body ? str(body.name, 120)?.trim() : null;
     if ('name' in body && !name) return apiError(res, 400, 'scenario_name');
     let bad = null;
@@ -1695,6 +1702,13 @@ async function createSessionRecord(req, body, extra = {}) {
       return { meta };
 }
 
+/** Ghi chú là của admin / mod: guest không thấy, kể cả trên phiên của chính mình. */
+function forViewer(req, meta) {
+  if (req.user.role !== 'guest') return meta;
+  const { note, noteUpdatedAt, noteBy, ...rest } = meta;
+  return rest;
+}
+
 async function handleSessionItem(req, res, url, parts) {
   const id = parts[2];
   if (!isValidSessionId(id)) return apiError(res, 400, 'invalid_id');
@@ -1718,7 +1732,7 @@ async function handleSessionItem(req, res, url, parts) {
   }
 
   if (!sub) {
-    if (req.method === 'GET') return sendJson(res, 200, { ...meta, events: await loadEvents(id) });
+    if (req.method === 'GET') return sendJson(res, 200, { ...forViewer(req, meta), events: await loadEvents(id) });
     if (req.method === 'PATCH') {
       const body = req.patchBody || await readJson(req);
       const updated = await withSessionLock(id, async () => {
@@ -1738,11 +1752,23 @@ async function handleSessionItem(req, res, url, parts) {
             at: new Date().toISOString(),
           };
         }
+        // ghi chú của người xem báo cáo (nhận xét, vấn đề phát hiện…); để trống = xoá
+        if (typeof body.note === 'string') {
+          const note = body.note.slice(0, NOTE_MAX);
+          if (note.trim()) {
+            fresh.note = note;
+            fresh.noteUpdatedAt = new Date().toISOString();
+            fresh.noteBy = req.user.name || req.user.username;
+          } else {
+            delete fresh.note;
+            delete fresh.noteUpdatedAt; delete fresh.noteBy;
+          }
+        }
         await saveMeta(fresh);
         if (body.ended) await writeExports(id); // kết thúc phiên → session.json / events.csv đầy đủ ngay
         return fresh;
       });
-      return updated ? sendJson(res, 200, updated) : apiError(res, 404, 'not_found');
+      return updated ? sendJson(res, 200, forViewer(req, updated)) : apiError(res, 404, 'not_found');
     }
     if (req.method === 'DELETE') {
       await withSessionLock(id, async () => {

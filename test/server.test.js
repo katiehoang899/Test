@@ -615,3 +615,19 @@ test('tải JSON / CSV khi tên người tham gia có dấu (Content-Disposition
   }
   await api('DELETE', `/api/sessions/${s.id}`);
 });
+
+test('ghi chú của phiên: lưu, xoá, có trong session.json', async () => {
+  const s = (await api('POST', '/api/sessions', { url: 'https://note.test/', participant: 'User 1' })).body;
+  const saved = (await api('PATCH', `/api/sessions/${s.id}`, { note: 'Không tìm thấy nút thanh toán' })).body;
+  assert.equal(saved.note, 'Không tìm thấy nút thanh toán');
+  assert.ok(saved.noteUpdatedAt);
+  const list = (await api('GET', '/api/sessions')).body;
+  assert.equal(list.find((x) => x.id === s.id).note, 'Không tìm thấy nút thanh toán');
+  const exported = await (await fetch(`${base}/__et/api/sessions/${s.id}/export?format=json`)).json();
+  assert.equal(exported.note, 'Không tìm thấy nút thanh toán');
+  assert.equal((await api('PATCH', `/api/sessions/${s.id}`, { note: 'x'.repeat(30000) })).body.note.length, 20000);
+  const cleared = (await api('PATCH', `/api/sessions/${s.id}`, { note: '   ' })).body;
+  assert.equal(cleared.note, undefined);
+  assert.equal(cleared.noteUpdatedAt, undefined);
+  await api('DELETE', `/api/sessions/${s.id}`);
+});

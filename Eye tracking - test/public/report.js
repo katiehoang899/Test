@@ -876,6 +876,7 @@ async function init() {
   const p = state.primary;
   renderHeader();
   renderMedia();
+  SessionNote.mount($('#noteCard'), p);
   // Trang chủ › Kịch bản › Người tham gia › Báo cáo, và nút sang phiên trước / sau cùng kịch bản
   Nav.scenarios().then((list) => Nav.breadcrumb(() => [
     Nav.home(),

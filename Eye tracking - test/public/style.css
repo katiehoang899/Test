@@ -602,3 +602,23 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 
 /* nút Tải xuống nằm cuối hàng Phát lại ở trang báo cáo */
 .timeline .menu-wrap { margin-left: auto; flex: none; }
+
+/* ghi chú của phiên (trang báo cáo, transcript) */
+.note-card .sessions-head { margin-bottom: 8px; }
+.note-card h2 label, #inviteCard h2 label { display: inline; margin: 0; font: inherit; color: inherit; }
+.note-text {
+  width: 100%; min-height: 110px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; resize: vertical;
+}
+.note-flag { margin-left: 4px; text-decoration: none; cursor: help; }
+
+/* trang Người tham gia: sửa nội dung thư mời */
+.invite-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.invite-tags button { padding: 3px 9px; font-size: 12px; border-radius: 99px; }
+.invite-tags code { font-size: 11px; opacity: .7; margin-left: 4px; }
+.invite-preview { margin: 10px 0 0; }
+.invite-preview summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.invite-preview pre {
+  margin: 6px 0 0; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 7px; background: var(--bg);
+  white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 13px; line-height: 1.5;
+}

@@ -623,6 +623,8 @@ async function loadMeta(id) {
   }
 }
 
+const NOTE_MAX = 20000; // ký tự, ghi chú của một phiên
+
 async function saveMeta(meta) {
   const file = metaPath(meta.id);
   await fsp.writeFile(file + '.tmp', JSON.stringify(meta, null, 2));
@@ -1449,6 +1451,18 @@ async function handleApi(req, res, url) {
             meanErrorPx: num(body.calibration.meanErrorPx),
             at: new Date().toISOString(),
           };
+        }
+        // ghi chú của người xem báo cáo (nhận xét, vấn đề phát hiện…); để trống = xoá
+        if (typeof body.note === 'string') {
+          const note = body.note.slice(0, NOTE_MAX);
+          delete fresh.noteBy; // bản desktop không có tài khoản người viết
+          if (note.trim()) {
+            fresh.note = note;
+            fresh.noteUpdatedAt = new Date().toISOString();
+          } else {
+            delete fresh.note;
+            delete fresh.noteUpdatedAt;
+          }
         }
         await saveMeta(fresh);
         if (body.ended) await writeExports(id); // kết thúc phiên → session.json / events.csv đầy đủ ngay

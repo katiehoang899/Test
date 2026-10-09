@@ -10,6 +10,8 @@ Thư mục này độc lập với app desktop ở thư mục gốc: có `packag
 |---|---|---|---|
 | Tạo bởi | Lần chạy đầu (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) | Admin, trang **Nhóm quản lý** | Admin hoặc Mod, trang **Người tham gia** của kịch bản |
 | Xem báo cáo, transcript, tóm tắt AI, tải JSON/CSV | ✓ | ✓ | – |
+| Ghi chú cho từng phiên | ✓ | ✓ | – |
+| Sửa nội dung thư mời của kịch bản | ✓ | ✓ | – |
 | Tạo, đổi tên, cấu hình kịch bản | ✓ | ✓ | – |
 | Chuyển phiên giữa kịch bản (kéo-thả) | ✓ | ✓ | – |
 | Quản lý tài khoản guest | ✓ | ✓ | – |
@@ -32,9 +34,11 @@ Guest không xem được báo cáo, phiên của người khác, danh sách k�
    - **Nhiệm vụ** cho người tham gia.
    - Bật / tắt eye tracking bằng webcam, ghi âm micro.
 2. Nhập tên người tham gia (mỗi dòng một người) → **Tạo tài khoản**. Mỗi người có tên đăng nhập (ví dụ `user12995`) và mật khẩu ngẫu nhiên. Mật khẩu **chỉ hiện một lần**: bấm **Sao chép thư mời** (có sẵn link, tên đăng nhập, mật khẩu) hoặc **Tải CSV**. Quên thì bấm **Cấp mật khẩu mới**.
+   - **Thư mời** (cùng trang): sửa nội dung thư mời riêng cho kịch bản. Bấm các thẻ để chèn `{name}`, `{scenario}`, `{link}`, `{username}`, `{password}`, `{instructions}`; khung **Xem trước** hiện thư mời đã điền. **Dùng mẫu mặc định** quay về mẫu chuẩn (đổi theo ngôn ngữ giao diện).
 3. **Người tham gia** mở link mời → đăng nhập → đọc nhiệm vụ → **Bắt đầu** → đồng ý ghi (màn hình đồng ý liệt kê rõ dữ liệu nào được ghi) → hiệu chỉnh webcam (nếu bật) → làm nhiệm vụ → **Hoàn thành**.
 4. **Admin** xem kết quả. Thanh dưới header có breadcrumb (`Trang chủ › Droppii Mall › User 1 › Báo cáo`) và nút **‹ Trước / Sau ›** (hoặc phím Alt+← / Alt+→) để chuyển giữa các phiên cùng kịch bản trên trang Báo cáo và Transcript.
-5. **Admin** thấy trạng thái tự cập nhật (Đã mời → Đã đăng nhập → Đang ghi → Đã xong), mở **Báo cáo** của từng người hoặc **Báo cáo tất cả phiên** của kịch bản.
+5. **Ghi chú:** trang Báo cáo và Transcript của mỗi phiên có ô **Ghi chú** (nhận xét, vấn đề phát hiện…), tự lưu khi ngừng gõ và ghi tên người viết. Phiên có ghi chú hiện biểu tượng 📝 trong danh sách phiên (rê chuột để đọc nhanh). Ghi chú nằm trong `session.json`; người tham gia không thấy ghi chú.
+6. **Admin** thấy trạng thái tự cập nhật (Đã mời → Đã đăng nhập → Đang ghi → Đã xong), mở **Báo cáo** của từng người hoặc **Báo cáo tất cả phiên** của kịch bản.
 
 Dữ liệu lưu giống app desktop: `Droppii Mall/User 1/` chứa `session.json`, `events.csv`, video ghi màn hình, ghi âm, transcript. Mỗi phiên còn ghi lại `guestId` và thời điểm đồng ý (`consentAt`).
 

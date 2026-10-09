@@ -436,6 +436,7 @@ async function init() {
     document.querySelector('main').innerHTML = `<div class="card">${esc(t('report.load_failed', { msg: err.message }))}</div>`;
     return;
   }
+  SessionNote.mount(document.getElementById('noteCard'), state.meta);
   state.audios = (state.meta.media || []).filter((m) => m.kind === 'audio' && m.size > 0);
   state.segments = (state.transcript?.segments || []).map((s) => ({ ...s }));
   const wanted = params.get('media') || state.transcript?.audioId;

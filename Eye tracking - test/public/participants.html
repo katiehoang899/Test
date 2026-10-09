@@ -53,6 +53,25 @@
           <button type="submit" class="primary" data-i18n="home.save"></button>
         </form>
 
+        <section class="card" id="inviteCard" hidden>
+          <div class="sessions-head">
+            <h2 style="margin: 0"><label for="inviteText" data-i18n="ppl.invite_title"></label></h2>
+            <span class="small muted" id="inviteState" role="status"></span>
+          </div>
+          <p class="small muted" style="margin: 4px 0 0" data-i18n="ppl.invite_desc"></p>
+          <div class="invite-tags" id="inviteTags"></div>
+          <textarea id="inviteText" rows="9" maxlength="4000" spellcheck="false"></textarea>
+          <details class="invite-preview" open>
+            <summary data-i18n="ppl.invite_preview"></summary>
+            <pre id="invitePreview"></pre>
+          </details>
+          <p class="small form-error" id="inviteError" role="alert"></p>
+          <div class="row" style="gap: 6px">
+            <button type="button" class="primary" id="inviteSave" data-i18n="ppl.invite_save"></button>
+            <button type="button" id="inviteReset" data-i18n="ppl.invite_reset"></button>
+          </div>
+        </section>
+
         <section class="card" id="peopleCard" hidden>
           <h2 data-i18n="ppl.participants"></h2>
           <form id="addForm">

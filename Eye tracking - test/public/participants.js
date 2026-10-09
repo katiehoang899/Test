@@ -34,14 +34,20 @@ const current = () => scenarios.find((sc) => sc.id === currentId) || null;
 const guestsOf = (id) => users.filter((u) => u.role === 'guest' && u.scenarioIds.includes(id));
 const loginLink = (username) => `${location.origin}/__et/login.html?u=${encodeURIComponent(username)}`;
 
+// Các thẻ chèn được vào thư mời; {password} chỉ có khi vừa tạo / cấp lại mật khẩu.
+const INVITE_TAGS = ['name', 'scenario', 'link', 'username', 'password', 'instructions'];
+const fillInvite = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => (INVITE_TAGS.includes(k) ? String(vars[k] ?? '') : m));
+const defaultInvite = () => t('ppl.invite'); // mẫu mặc định (chưa điền), theo ngôn ngữ giao diện
+
 function inviteText(user, password) {
   const sc = current();
-  return t('ppl.invite', {
+  return fillInvite((sc && sc.inviteTemplate) || defaultInvite(), {
     name: user.name,
     scenario: sc ? sc.name : '',
     link: loginLink(user.username),
     username: user.username,
     password: password || t('ppl.invite_password_hidden'),
+    instructions: sc ? sc.instructions || '' : '',
   });
 }
 
@@ -140,6 +146,73 @@ $('#configForm').addEventListener('submit', async (e) => {
   } catch (err) {
     $('#cfgError').textContent = err.message;
   }
+});
+
+// ---------- nội dung thư mời ----------
+
+let inviteLoaded = { id: null, text: '' }; // nội dung đang hiện trong ô sửa, để biết có thay đổi chưa lưu
+
+const inviteDirty = () => inviteLoaded.id === currentId && $('#inviteText').value !== inviteLoaded.text;
+
+function fillInviteEditor(force) {
+  const sc = current();
+  $('#inviteCard').hidden = !sc;
+  if (!sc) return;
+  // đang sửa dở thì không ghi đè (tự cập nhật 5 giây / lưu cấu hình)
+  if (!force && inviteDirty()) return renderInvite();
+  const text = sc.inviteTemplate || defaultInvite();
+  $('#inviteText').value = text;
+  inviteLoaded = { id: sc.id, text };
+  $('#inviteError').textContent = '';
+  renderInvite();
+}
+
+function renderInvite() {
+  const sc = current();
+  if (!sc) return;
+  $('#inviteTags').innerHTML = INVITE_TAGS.map((k) => `<button type="button" data-tag="${k}">${esc(t('ppl.tag_' + k))}<code>{${k}}</code></button>`).join('');
+  $('#inviteState').textContent = inviteDirty() ? t('ppl.invite_unsaved') : sc.inviteTemplate ? t('ppl.invite_custom') : t('ppl.invite_default_note');
+  $('#inviteReset').disabled = !sc.inviteTemplate && !inviteDirty();
+  // xem trước với người vừa tạo (nếu có) hoặc người mẫu
+  const sample = lastCreds[0] || { user: guestsOf(sc.id)[0] || { name: t('ppl.sample_name'), username: 'user12345' }, password: 'aB3dE7gH9k' };
+  $('#invitePreview').textContent = fillInvite($('#inviteText').value || defaultInvite(), {
+    name: sample.user.name,
+    scenario: sc.name,
+    link: loginLink(sample.user.username),
+    username: sample.user.username,
+    password: sample.password,
+    instructions: sc.instructions || '',
+  });
+}
+
+async function saveInvite(text) {
+  $('#inviteError').textContent = '';
+  // giữ nguyên mẫu mặc định thì không lưu bản riêng, để thư mời vẫn đổi theo ngôn ngữ
+  const value = text.trim() === defaultInvite().trim() ? '' : text;
+  try {
+    const sc = await api('PATCH', '/scenarios/' + currentId, { inviteTemplate: value });
+    const local = current();
+    if (local) {
+      if (sc.inviteTemplate) local.inviteTemplate = sc.inviteTemplate;
+      else delete local.inviteTemplate;
+    }
+    fillInviteEditor(true);
+    toast(value ? t('ppl.invite_saved') : t('ppl.invite_reset_done'));
+  } catch (err) {
+    $('#inviteError').textContent = err.message;
+  }
+}
+
+$('#inviteText').addEventListener('input', renderInvite);
+$('#inviteSave').addEventListener('click', () => saveInvite($('#inviteText').value));
+$('#inviteReset').addEventListener('click', () => saveInvite(''));
+$('#inviteTags').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tag]');
+  if (!b) return;
+  const ta = $('#inviteText');
+  ta.focus();
+  ta.setRangeText(`{${b.dataset.tag}}`, ta.selectionStart, ta.selectionEnd, 'end');
+  renderInvite();
 });
 
 // ---------- người tham gia ----------
@@ -260,6 +333,8 @@ function renderAll(refill) {
   });
   renderList();
   if (refill) fillConfig();
+  if (refill || inviteLoaded.id !== currentId) fillInviteEditor(inviteLoaded.id !== currentId);
+  else renderInvite();
   renderPeople();
   renderCreds();
 }
@@ -279,6 +354,9 @@ setInterval(() => {
 document.querySelectorAll('.lang-switch button').forEach((b) => b.addEventListener('click', () => I18N.setLanguage(b.dataset.lang)));
 document.addEventListener('i18n:change', (e) => {
   document.querySelectorAll('.lang-switch button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.lang === e.detail.language)));
+  // đang dùng mẫu mặc định và chưa sửa → đổi theo ngôn ngữ mới
+  const sc = current();
+  if (sc && !sc.inviteTemplate && !inviteDirty()) inviteLoaded.id = null;
   if (scenarios.length) renderAll(false);
 });
 

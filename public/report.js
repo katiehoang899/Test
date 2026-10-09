@@ -876,6 +876,7 @@ async function init() {
   const p = state.primary;
   renderHeader();
   renderMedia();
+  SessionNote.mount($('#noteCard'), p);
   if (!p.eyeTracking) document.body.classList.add('no-eye');
   // mở từ "Báo cáo tất cả phiên" → xem heatmap gộp các phiên cùng link
   if (params.get('merge') === '1') $('#merge').checked = true;
