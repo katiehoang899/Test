@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Heatmap</title>
+  <link rel="icon" href="/__et/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/__et/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/__et/"><img src="/__et/logo.svg" alt="" width="32" height="32"><span>Heatmap</span></a>
+    <div class="header-actions">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1 data-i18n="team.title"></h1>
+    <p class="muted" data-i18n="team.intro"></p>
+
+    <div class="team-roles">
+      <div class="card">
+        <h2 data-i18n="acct.role_mod"></h2>
+        <ul class="perm-list">
+          <li class="yes" data-i18n="team.mod_can_1"></li>
+          <li class="yes" data-i18n="team.mod_can_2"></li>
+          <li class="yes" data-i18n="team.mod_can_3"></li>
+          <li class="yes" data-i18n="team.mod_can_4"></li>
+          <li class="no" data-i18n="team.mod_cannot_1"></li>
+          <li class="no" data-i18n="team.mod_cannot_2"></li>
+          <li class="no" data-i18n="team.mod_cannot_3"></li>
+        </ul>
+      </div>
+      <form class="card" id="addForm">
+        <h2 data-i18n="team.add"></h2>
+        <label for="modName" data-i18n="ppl.name"></label>
+        <input type="text" id="modName" maxlength="100" required>
+        <label for="modUsername" style="margin-top: 10px" data-i18n="team.username_optional"></label>
+        <input type="text" id="modUsername" maxlength="32" autocapitalize="none" spellcheck="false" placeholder="vd: lan.nguyen">
+        <p class="small form-error" id="addError" role="alert"></p>
+        <button type="submit" class="primary" data-i18n="team.create"></button>
+      </form>
+    </div>
+
+    <div class="creds" id="creds" hidden>
+      <div class="sessions-head">
+        <b data-i18n="ppl.creds_title"></b>
+        <span class="row" style="gap: 6px">
+          <button type="button" id="copyCreds" data-i18n="ppl.copy_invite"></button>
+          <button type="button" id="closeCreds" data-i18n="common.close"></button>
+        </span>
+      </div>
+      <p class="small" style="color: var(--warn)" data-i18n="ppl.creds_once"></p>
+      <table class="sessions-table creds-table"><tbody id="credsBody"></tbody></table>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+      <h2 data-i18n="team.accounts"></h2>
+      <div style="overflow-x: auto">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th data-i18n="ppl.name"></th>
+              <th data-i18n="acct.username"></th>
+              <th data-i18n="team.col_role"></th>
+              <th data-i18n="ppl.col_login"></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/__et/i18n.js"></script>
+  <script src="/__et/account.js"></script>
+  <script src="/__et/nav.js"></script>
+  <script src="/__et/team.js"></script>
+</body>
+</html>

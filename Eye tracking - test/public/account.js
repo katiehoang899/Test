@@ -35,24 +35,24 @@
       box.className = 'account-box';
       host.prepend(box);
     }
-    const onPeople = location.pathname.endsWith('/participants.html');
-    const left = me.recoveryCodesLeft || 0;
-    // nhắc admin tạo (hoặc tạo lại) mã khôi phục
-    const warn = me.role === 'admin' && left <= 2
-      ? `<button type="button" class="recovery-warn" id="recoveryWarn">⚠ ${esc(left ? t('rc.few', { n: left }) : t('rc.none'))}</button>`
-      : '';
-    box.innerHTML = `${warn}${me.role === 'admin' && !onPeople ? `<a class="btn" href="/__et/participants.html">${esc(t('acct.participants'))}</a>` : ''}
+    // liên kết nhanh: Kịch bản (admin + mod), Nhóm quản lý (chỉ admin)
+    const here = (page) => location.pathname.endsWith('/' + page);
+    const links = [
+      staff() && !here('scenarios.html') ? `<a class="btn" href="/__et/scenarios.html">${esc(t('nav.scenarios'))}</a>` : '',
+      me.role === 'admin' && !here('team.html') ? `<a class="btn" href="/__et/team.html">${esc(t('nav.team'))}</a>` : '',
+    ].join('');
+    box.innerHTML = `${links}
       <button type="button" class="account-btn" id="accountBtn" aria-haspopup="dialog">
         <span class="avatar" aria-hidden="true">${esc((me.name || me.username).trim().charAt(0).toUpperCase())}</span>
-        <span class="who"><b>${esc(me.name || me.username)}</b><span class="small muted">${esc(me.role === 'admin' ? t('acct.role_admin') : t('acct.role_guest'))}</span></span>
+        <span class="who"><b>${esc(me.name || me.username)}</b><span class="small muted">${esc(t('acct.role_' + me.role))}</span></span>
       </button>`;
     document.getElementById('accountBtn').addEventListener('click', () => openDialog());
-    const w = document.getElementById('recoveryWarn');
-    if (w) w.addEventListener('click', () => openDialog(true));
   }
 
+  const staff = () => me && (me.role === 'admin' || me.role === 'mod');
+
   function recoverySection() {
-    if (me.role !== 'admin') return '';
+    if (!staff()) return '';
     const left = me.recoveryCodesLeft || 0;
     return `<section class="recovery-section" id="recoverySection">
         <h3 class="small" style="margin: 18px 0 4px">${esc(t('rc.title'))}</h3>
@@ -186,6 +186,8 @@
     }
     me = (await res.json()).user;
     window.HeatmapAccount = { me, logout };
+    // ẩn nút chỉ dành cho admin (xoá dữ liệu, cài đặt chung) với mod: .admin-only trong style.css
+    document.body.classList.add('role-' + me.role);
     document.dispatchEvent(new CustomEvent('account:ready', { detail: me }));
     render();
     // vừa đặt lại mật khẩu bằng mã khôi phục → báo số mã còn lại

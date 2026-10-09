@@ -577,6 +577,9 @@ const SERVER_TEXT = {
     consent_required: 'Please agree to the recording first.',
     outside_scenario: 'This page is outside the scenario you are taking part in.',
     bad_recovery: 'Wrong username or recovery code (each code works only once).',
+    mod_name: 'Enter the moderator’s name.',
+    bad_username: 'Username: 3–32 characters, only a–z, 0–9, dot, dash or underscore.',
+    username_taken: 'This username is already used.',
     no_transcript: 'Transcribe the audio first.',
     ai_no_key: 'Add your Anthropic API key in Settings to use AI summaries.',
     ai_auth: 'The Anthropic API key was rejected. Check it in Settings.',
@@ -610,6 +613,9 @@ const SERVER_TEXT = {
     consent_required: 'Vui lòng đồng ý cho ghi lại trước.',
     outside_scenario: 'Trang này nằm ngoài phạm vi kịch bản bạn đang tham gia.',
     bad_recovery: 'Sai tên đăng nhập hoặc mã khôi phục (mỗi mã chỉ dùng được một lần).',
+    mod_name: 'Nhập tên của Mod.',
+    bad_username: 'Tên đăng nhập: 3–32 ký tự, chỉ gồm a–z, 0–9, dấu chấm, gạch ngang hoặc gạch dưới.',
+    username_taken: 'Tên đăng nhập này đã có người dùng.',
     no_transcript: 'Hãy chuyển âm thanh thành chữ trước.',
     ai_no_key: 'Nhập Anthropic API key trong Cài đặt để dùng tóm tắt AI.',
     ai_auth: 'Anthropic API key không hợp lệ. Kiểm tra lại trong Cài đặt.',
@@ -1414,6 +1420,29 @@ function sessionFilePaths(id) {
 
 // ---------- API ----------
 
+// Vai trò: admin (toàn quyền), mod (quản lý người tham gia, không xoá dữ liệu, không sửa cài đặt chung),
+// guest (người tham gia, chỉ làm kịch bản được giao).
+const isStaff = (user) => !!user && (user.role === 'admin' || user.role === 'mod');
+
+/**
+ * Mod được làm gì: xem báo cáo / transcript, tải dữ liệu, tạo / đổi tên / cấu hình kịch bản, chuyển phiên
+ * giữa các kịch bản, quản lý guest. Không được: xoá phiên, xoá video / ghi âm, xoá kịch bản, sửa cài đặt chung.
+ */
+function modAllowed(req, parts) {
+  const m = req.method;
+  switch (parts[1]) {
+    case 'settings': return m === 'GET';
+    case 'scenarios': return m !== 'DELETE';
+    case 'summary':
+    case 'users': return true; // giới hạn chi tiết trong handleUsers
+    case 'sessions':
+      if (m === 'DELETE' && parts.length === 3) return false; // xoá phiên
+      if (m === 'DELETE' && parts[3] === 'media') return false; // xoá video / ghi âm
+      return true;
+    default: return false;
+  }
+}
+
 function clientIp(req) {
   if (process.env.TRUST_PROXY === '1') {
     const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -1425,7 +1454,7 @@ function clientIp(req) {
 /** Domain website mà người dùng được mở qua proxy: admin mọi nơi, guest chỉ domain trong kịch bản được giao. */
 async function allowedHost(user, hostname) {
   if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (isStaff(user)) return true;
   const host = String(hostname || '').toLowerCase();
   const scenarios = (await loadScenarios()).filter((sc) => (user.scenarioIds || []).includes(sc.id) && sc.url && sc.kind !== 'figma');
   return scenarios.some((sc) => {
@@ -1475,10 +1504,12 @@ async function handleGuest(req, res, parts) {
 /** Admin quản lý tài khoản guest (người tham gia). */
 async function handleUsers(req, res, parts) {
   const id = parts[2];
+  const admin = req.user.role === 'admin';
   if (!id) {
     if (req.method === 'GET') {
       const sessions = await listSessions();
-      return sendJson(res, 200, auth.listUsers().map((u) => {
+      // mod chỉ thấy tài khoản guest; admin thấy cả admin / mod
+      return sendJson(res, 200, auth.listUsers().filter((u) => admin || u.role === 'guest').map((u) => {
         const mine = sessions.filter((m) => m.guestId === u.id);
         return {
           ...u,
@@ -1492,6 +1523,11 @@ async function handleUsers(req, res, parts) {
     }
     if (req.method === 'POST') {
       const body = await readJson(req);
+      if (body.role === 'mod') {
+        if (!admin) return apiError(res, 403, 'forbidden');
+        const out = auth.createMod({ name: body.name, username: body.username });
+        return out.error ? apiError(res, 400, out.error) : sendJson(res, 201, out);
+      }
       const names = (Array.isArray(body.names) ? body.names : [body.name])
         .map((n) => String(n || '').trim()).filter(Boolean).slice(0, 200);
       if (!names.length) return apiError(res, 400, 'guest_name');
@@ -1501,6 +1537,10 @@ async function handleUsers(req, res, parts) {
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
   }
+  // mod chỉ thao tác trên guest; không ai đổi được tài khoản admin qua đây (admin dùng Đổi mật khẩu / mã khôi phục)
+  const target = auth.getUser(id);
+  if (!target) return apiError(res, 404, 'not_found');
+  if (target.role === 'admin' || (!admin && target.role !== 'guest')) return apiError(res, 403, 'forbidden');
   if (parts[3] === 'reset-password' && req.method === 'POST') {
     const out = auth.resetPassword(id);
     return out ? sendJson(res, 200, out) : apiError(res, 404, 'not_found');
@@ -1545,7 +1585,7 @@ async function handleApi(req, res, url) {
     return user ? sendJson(res, 200, { user: auth.publicUser(user) }) : apiError(res, 401, 'login_required');
   }
   // ngôn ngữ cho trang đăng nhập / trang guest: chỉ phần cài đặt không nhạy cảm
-  if (parts[1] === 'settings' && parts.length === 2 && req.method === 'GET' && (!user || user.role !== 'admin')) {
+  if (parts[1] === 'settings' && parts.length === 2 && req.method === 'GET' && (!user || user.role === 'guest')) {
     const st0 = getSettings();
     return sendJson(res, 200, { language: st0.language, eyeTrackingEnabled: st0.eyeTrackingEnabled, showCamera: st0.showCamera });
   }
@@ -1561,14 +1601,20 @@ async function handleApi(req, res, url) {
     if (out.error) return apiError(res, out.error === 'forbidden' ? 403 : 400, out.error);
     return sendJson(res, 200, out);
   }
-  if (user.role !== 'admin') {
+  if (user.role === 'guest') {
     if (parts[1] === 'guest') return handleGuest(req, res, parts);
     if (parts[1] === 'sessions' && parts[2]) return handleSessionItem(req, res, url, parts);
     return apiError(res, 403, 'forbidden');
   }
+  if (user.role !== 'admin' && !modAllowed(req, parts)) return apiError(res, 403, 'forbidden');
   if (parts[1] === 'users') return handleUsers(req, res, parts);
 
   if (parts[1] === 'settings' && parts.length === 2) {
+    if (req.method === 'GET' && user.role === 'mod') {
+      // mod không cần (và không nên thấy) đường dẫn lưu trữ trên máy chủ, gợi ý API key
+      const { storagePath, defaultStoragePath, aiKeyHint, ...rest } = publicSettings();
+      return sendJson(res, 200, rest);
+    }
     if (req.method === 'GET') return sendJson(res, 200, publicSettings());
     if (req.method === 'PUT') {
       try {
@@ -1646,7 +1692,7 @@ async function handleSessionItem(req, res, url, parts) {
   const sub = parts[3];
 
   // guest chỉ được ghi vào phiên của chính mình: xem phiên, gửi sự kiện, kết thúc / hiệu chỉnh, gửi video/ghi âm
-  if (req.user.role !== 'admin') {
+  if (req.user.role === 'guest') {
     const own = meta.guestId === req.user.id;
     const allowed = own && (
       (!sub && (req.method === 'GET' || req.method === 'PATCH'))
@@ -1964,6 +2010,7 @@ async function serveStatic(res, root, rel, extraHeaders) {
 
 // Trang không cần đăng nhập, và trang người tham gia (guest) được mở.
 const PUBLIC_FILES = new Set(['/login.html', '/login.js', '/i18n.js', '/style.css', '/logo.svg']);
+const ADMIN_ONLY_FILES = new Set(['/team.html', '/team.js']);
 const GUEST_FILES = new Set([...PUBLIC_FILES, '/guest.html', '/guest.js', '/account.js', '/track.html', '/track.js', '/recorder.js', '/media.js']);
 
 function redirect(res, location) {
@@ -2000,12 +2047,14 @@ async function handleRequest(req, res) {
     const isPage = rel === '/' || rel.endsWith('.html');
     if (!PUBLIC_FILES.has(rel)) {
       if (!user) return isPage ? loginRedirect(req, res, url) : sendText(res, 401, 'Sign in required');
-      if (user.role !== 'admin') {
+      if (user.role === 'guest') {
         const ok = GUEST_FILES.has(rel) || rel === '/go' || rel.startsWith('/vendor/webgazer/');
         if (!ok) return isPage ? redirect(res, `${TOOL_PREFIX}/guest.html`) : sendText(res, 403, 'Forbidden');
       }
+      // trang quản lý tài khoản admin / mod: chỉ admin
+      if (user.role === 'mod' && ADMIN_ONLY_FILES.has(rel)) return isPage ? redirect(res, `${TOOL_PREFIX}/`) : sendText(res, 403, 'Forbidden');
     }
-    if (rel === '/login.html' && user) return redirect(res, user.role === 'admin' ? `${TOOL_PREFIX}/` : `${TOOL_PREFIX}/guest.html`);
+    if (rel === '/login.html' && user) return redirect(res, isStaff(user) ? `${TOOL_PREFIX}/` : `${TOOL_PREFIX}/guest.html`);
     if (rel === '/go') return await handleGo(req, res, url);
     if (rel.startsWith('/vendor/webgazer/')) {
       return await serveStatic(res, WEBGAZER_DIR, decodeURIComponent(rel.slice('/vendor/webgazer/'.length)));

@@ -822,7 +822,7 @@ function renderMedia() {
       <b>${esc(title)}</b>
       <span class="small muted">${esc(metaLine)}</span>
       ${player}
-      <div class="row">${dl}<button type="button" class="danger" data-del-media="${esc(m.id)}">${esc(t('report.delete_rec'))}</button></div>
+      <div class="row">${dl}<button type="button" class="danger admin-only" data-del-media="${esc(m.id)}">${esc(t('report.delete_rec'))}</button></div>
     </div>`;
   }).join('');
 }
@@ -879,6 +879,7 @@ async function init() {
   // Trang chủ › Kịch bản › Người tham gia › Báo cáo, và nút sang phiên trước / sau cùng kịch bản
   Nav.scenarios().then((list) => Nav.breadcrumb(() => [
     Nav.home(),
+    Nav.scenariosRoot(),
     Nav.scenarioCrumb(p, list),
     { label: p.participant || t('common.anonymous') },
     { label: t('report.title') },

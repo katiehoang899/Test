@@ -44,7 +44,7 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 }
 
 label { display: block; font-weight: 500; margin-bottom: 4px; }
-input[type=text], input[type=url], input[type=password], select {
+input[type=text], input[type=url], input[type=password], input[type=search], select {
   width: 100%;
   padding: 9px 11px;
   border: 1px solid var(--border);
@@ -461,7 +461,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .people-layout td.actions .btn, .people-layout td.actions button { margin: 2px 0 2px 2px; }
 
 /* mã khôi phục */
-.recovery-warn { border-color: var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); font-size: 12px; padding: 6px 10px; }
 .recovery-section { border-top: 1px solid var(--border); margin-top: 18px; }
 .recovery-codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; padding: 12px; border-radius: 8px; background: var(--bg); border: 1px dashed var(--border); }
 .recovery-codes code { font-size: 15px; letter-spacing: .06em; text-align: center; }
@@ -482,3 +481,23 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .pager-btn[aria-disabled="true"] { opacity: .4; cursor: default; }
 .pager-pos { white-space: nowrap; }
 .recovery-codes[data-shown="false"] code { color: var(--muted); letter-spacing: .12em; }
+
+/* Mod: ẩn các nút xoá dữ liệu / cài đặt chung (server cũng chặn) */
+.role-mod .admin-only { display: none !important; }
+
+/* quản lý kịch bản + nhóm quản lý */
+.scn-search { width: auto; min-width: 220px; flex: 0 1 280px; }
+.scn-table .scn-name { font-weight: 600; color: var(--text); text-decoration: none; }
+.scn-table .scn-name:hover { color: var(--accent); text-decoration: underline; }
+.scn-url { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scn-table td.actions { white-space: normal; text-align: right; }
+.scn-table td.actions .btn, .scn-table td.actions button { margin: 2px 0 2px 2px; }
+.progress-mini { width: 120px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 3px; }
+.progress-mini span { display: block; height: 100%; background: var(--ok); }
+.team-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.team-roles .card { margin: 0; }
+.perm-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.perm-list li::before { display: inline-block; width: 1.4em; font-weight: 700; }
+.perm-list li.yes::before { content: '✓'; color: var(--ok); }
+.perm-list li.no::before { content: '✕'; color: var(--danger); }
+#creds { margin-top: 16px; }

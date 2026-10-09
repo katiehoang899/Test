@@ -25,7 +25,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     // chỉ quay lại đường dẫn nội bộ của công cụ
     const next = params.get('next') || '';
     const safeNext = /^\/__et\/[^/]/.test(next) || next === '/__et/' ? next : '';
-    location.href = data.user.role === 'admin' ? safeNext || '/__et/' : '/__et/guest.html';
+    location.href = data.user.role !== 'guest' ? safeNext || '/__et/' : '/__et/guest.html';
   } catch (err) {
     $('#loginError').textContent = err.message;
     $('#password').select();
@@ -63,7 +63,7 @@ $('#recoverForm').addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
     // báo số mã còn lại ở trang sau
     try { sessionStorage.setItem('heatmap.recovered', String(data.remaining)); } catch { /* bỏ qua */ }
-    location.href = data.user.role === 'admin' ? '/__et/' : '/__et/guest.html';
+    location.href = data.user.role !== 'guest' ? '/__et/' : '/__et/guest.html';
   } catch (err) {
     $('#recError').textContent = err.message;
   } finally {

@@ -249,7 +249,7 @@ $('#people').addEventListener('click', async (e) => {
 function renderAll(refill) {
   Nav.breadcrumb(() => {
     const sc = current();
-    return [Nav.home(), { label: t('ppl.title') }, ...(sc ? [{ label: sc.name }] : [])];
+    return [Nav.home(), Nav.scenariosRoot(), ...(sc ? [{ label: sc.name }] : [])];
   });
   renderList();
   if (refill) fillConfig();

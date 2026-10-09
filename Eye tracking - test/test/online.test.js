@@ -261,3 +261,75 @@ test('lệnh reset-admin: mật khẩu mới ngẫu nhiên, server đang chạy 
   assert.equal(res.body.user.recoveryCodesLeft, 9); // mã khôi phục còn nguyên
   assert.throws(() => execFileSync(process.execPath, [path.join(__dirname, '..', 'reset-admin.js'), 'nobody'], { env: { ...process.env }, stdio: 'pipe' }));
 });
+
+test('Mod: quản lý guest, xem báo cáo, tạo / đổi tên kịch bản, chuyển phiên; không xoá dữ liệu, không sửa cài đặt', async () => {
+  const { getAuth } = require('../server');
+  const adminPw = getAuth().resetAdmin('admin').password;
+  const ac = (await login('admin', adminPw)).cookie;
+
+  // admin tạo mod
+  assert.equal((await call('POST', '/__et/api/users', ac, { role: 'mod', name: '' })).body.code, 'mod_name');
+  assert.equal((await call('POST', '/__et/api/users', ac, { role: 'mod', name: 'Lan', username: 'a b' })).body.code, 'bad_username');
+  const mod = (await call('POST', '/__et/api/users', ac, { role: 'mod', name: 'Lan', username: 'lan.mod' })).body;
+  assert.equal(mod.user.role, 'mod');
+  assert.equal(mod.user.username, 'lan.mod');
+  assert.equal(mod.password.length, 14);
+  assert.equal((await call('POST', '/__et/api/users', ac, { role: 'mod', name: 'Lan 2', username: 'lan.mod' })).body.code, 'username_taken');
+  const mc = (await login('lan.mod', mod.password)).cookie;
+  assert.equal((await call('GET', '/__et/api/me', mc)).body.user.role, 'mod');
+
+  // trang: dùng được trang quản trị, trừ trang Nhóm quản lý
+  for (const page of ['/__et/', '/__et/scenarios.html', '/__et/participants.html', '/__et/report.html', '/__et/overview.html']) {
+    assert.equal((await fetch(base + page, { redirect: 'manual', headers: { cookie: mc } })).status, 200, page);
+  }
+  const team = await fetch(base + '/__et/team.html', { redirect: 'manual', headers: { cookie: mc } });
+  assert.equal(team.status, 302);
+  assert.equal((await fetch(base + '/__et/team.html', { headers: { cookie: ac } })).status, 200);
+
+  // cài đặt: chỉ đọc, không thấy đường dẫn lưu trữ
+  const st = (await call('GET', '/__et/api/settings', mc)).body;
+  assert.equal(st.storagePath, undefined);
+  assert.equal(st.language !== undefined, true);
+  assert.equal((await call('PUT', '/__et/api/settings', mc, { language: 'vi' })).status, 403);
+
+  // kịch bản: tạo, đổi tên, cấu hình; không xoá
+  const sc = (await call('POST', '/__et/api/scenarios', mc, { name: 'Mod scenario', url: siteBase + '/' })).body;
+  assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, mc, { name: 'Mod scenario v2', instructions: 'Làm thử' })).body.name, 'Mod scenario v2');
+  const sc2 = (await call('POST', '/__et/api/scenarios', mc, { name: 'Khác của mod' })).body;
+  assert.equal((await call('DELETE', `/__et/api/scenarios/${sc.id}`, mc)).status, 403);
+
+  // guest: tạo, cấp mật khẩu mới, khoá, xoá; chỉ thấy guest
+  const g = (await call('POST', '/__et/api/users', mc, { names: ['Khách A'], scenarioId: sc.id })).body[0];
+  assert.equal(g.user.role, 'guest');
+  const seen = (await call('GET', '/__et/api/users', mc)).body;
+  assert.ok(seen.every((u) => u.role === 'guest'));
+  assert.equal((await call('POST', `/__et/api/users/${g.user.id}/reset-password`, mc)).status, 200);
+  assert.equal((await call('PATCH', `/__et/api/users/${g.user.id}`, mc, { disabled: true })).body.disabled, true);
+  // không đụng được admin / mod, không tạo được mod
+  const adminId = (await call('GET', '/__et/api/me', ac)).body.user.id;
+  assert.equal((await call('POST', `/__et/api/users/${adminId}/reset-password`, mc)).status, 403);
+  assert.equal((await call('POST', `/__et/api/users/${mod.user.id}/reset-password`, mc)).status, 403);
+  assert.equal((await call('POST', '/__et/api/users', mc, { role: 'mod', name: 'X' })).status, 403);
+  // admin cũng không reset admin qua API người dùng
+  assert.equal((await call('POST', `/__et/api/users/${adminId}/reset-password`, ac)).status, 403);
+
+  // phiên: xem, tải, chuyển kịch bản, sửa transcript; không xoá phiên / bản ghi
+  const s = (await call('POST', '/__et/api/sessions', mc, { url: siteBase + '/', participant: 'Khách A', scenarioId: sc.id })).body;
+  await fetch(`${base}/__et/api/sessions/${s.id}/media/audio-1?kind=audio&mime=audio%2Fmp4&t=0`, { method: 'POST', body: 'a', headers: { cookie: mc } });
+  assert.equal((await call('GET', `/__et/api/sessions/${s.id}`, mc)).status, 200);
+  assert.equal((await call('GET', `/__et/api/sessions/${s.id}/export?format=csv`, mc)).status, 200);
+  assert.equal((await call('GET', `/__et/api/sessions/${s.id}/media/audio-1`, mc)).status, 200);
+  assert.equal((await call('PATCH', `/__et/api/sessions/${s.id}`, mc, { scenarioId: sc2.id })).body.scenarioId, sc2.id);
+  assert.equal((await call('PUT', `/__et/api/sessions/${s.id}/transcript`, mc, { language: 'vietnamese', segments: [{ start: 0, text: 'Chào' }] })).status, 200);
+  assert.equal((await call('DELETE', `/__et/api/sessions/${s.id}/media/audio-1`, mc)).status, 403);
+  assert.equal((await call('DELETE', `/__et/api/sessions/${s.id}`, mc)).status, 403);
+  assert.equal((await call('GET', `/__et/api/sessions/${s.id}`, ac)).status, 200); // vẫn còn
+  // mod có mã khôi phục như admin
+  assert.equal((await call('POST', '/__et/api/account/recovery-codes', mc, { password: mod.password })).body.codes.length, 10);
+
+  // admin khoá mod → mod bị đăng xuất; xoá mod
+  await call('PATCH', `/__et/api/users/${mod.user.id}`, ac, { disabled: true });
+  assert.equal((await call('GET', '/__et/api/me', mc)).status, 401);
+  assert.equal((await call('DELETE', `/__et/api/users/${mod.user.id}`, ac)).status, 200);
+  assert.equal((await call('DELETE', `/__et/api/sessions/${s.id}`, ac)).status, 200);
+});

@@ -4,20 +4,30 @@ Bản online của **Heatmap 4.1.0**: chạy trên một máy chủ có HTTPS, n
 
 Thư mục này độc lập với app desktop ở thư mục gốc: có `package.json`, server và giao diện riêng.
 
-## Hai loại tài khoản
+## Ba loại tài khoản
 
-| | Admin | Guest (người tham gia) |
-|---|---|---|
-| Tạo bởi | Lần chạy đầu (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) | Admin, trên trang **Người tham gia** |
-| Thấy gì | Toàn bộ Heatmap: phiên, báo cáo, biểu đồ, kịch bản, transcript, tóm tắt AI, cài đặt | Chỉ các kịch bản được giao |
-| Làm gì | Cấu hình kịch bản, cấp / khoá / xoá tài khoản guest, xem trạng thái trực tiếp | Đồng ý ghi, làm kịch bản, bấm **Hoàn thành** |
-| Website được mở | Mọi website | Chỉ domain của link trong kịch bản (kể cả subdomain) |
+| | Admin | Mod | Guest (người tham gia) |
+|---|---|---|---|
+| Tạo bởi | Lần chạy đầu (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) | Admin, trang **Nhóm quản lý** | Admin hoặc Mod, trang **Người tham gia** của kịch bản |
+| Xem báo cáo, transcript, tóm tắt AI, tải JSON/CSV | ✓ | ✓ | – |
+| Tạo, đổi tên, cấu hình kịch bản | ✓ | ✓ | – |
+| Chuyển phiên giữa kịch bản (kéo-thả) | ✓ | ✓ | – |
+| Quản lý tài khoản guest | ✓ | ✓ | – |
+| Xoá phiên, video / ghi âm, kịch bản | ✓ | – | – |
+| Sửa cài đặt chung (nơi lưu, API key, eye tracking) | ✓ | – | – |
+| Quản lý tài khoản Mod | ✓ | – | – |
+| Làm kịch bản được giao | – | – | ✓ |
+| Website được mở qua proxy | Mọi website | Mọi website | Chỉ domain của link trong kịch bản |
+
+Các trang quản lý:
+- **Kịch bản** (`/__et/scenarios.html`): danh sách mọi kịch bản với số phiên, tiến độ người tham gia (bao nhiêu người đã xong, ai đang ghi), tìm kiếm, tạo mới, đổi tên ngay trên dòng, đi tới cấu hình & người tham gia, danh sách phiên hoặc báo cáo tổng hợp. Admin có thêm nút xoá.
+- **Nhóm quản lý** (`/__et/team.html`, chỉ admin): tạo tài khoản Mod (tên đăng nhập tự chọn hoặc tự tạo), cấp mật khẩu mới, khoá / mở khoá, xoá.
 
 Guest không xem được báo cáo, phiên của người khác, danh sách kịch bản hay cài đặt. Với phiên của chính mình, guest chỉ gửi được dữ liệu ghi (sự kiện, video, ghi âm) và kết thúc phiên; không xoá, không đổi kịch bản, không tải dữ liệu về.
 
 ## Quy trình
 
-1. **Admin** đăng nhập → **Người tham gia** → tạo kịch bản (ví dụ "Droppii Mall"):
+1. **Admin / Mod** đăng nhập → **Kịch bản** → tạo kịch bản (ví dụ "Droppii Mall"):
    - **Link cần test**: website (`https://…`) hoặc prototype Figma.
    - **Nhiệm vụ** cho người tham gia.
    - Bật / tắt eye tracking bằng webcam, ghi âm micro.
@@ -30,8 +40,9 @@ Dữ liệu lưu giống app desktop: `Droppii Mall/User 1/` chứa `session.jso
 
 ## Quên mật khẩu
 
-- **Người tham gia (guest):** liên hệ người tổ chức. Admin bấm **Cấp mật khẩu mới** ở trang **Người tham gia** rồi gửi lại cho họ.
-- **Admin: mã khôi phục.** Bấm vào tên mình ở góc phải trên → **Mã khôi phục** → nhập mật khẩu hiện tại → **Tạo mã khôi phục**.
+- **Mod:** nhờ admin bấm **Cấp mật khẩu mới** ở trang **Nhóm quản lý**, hoặc dùng mã khôi phục của mình.
+- **Người tham gia (guest):** liên hệ người tổ chức. Admin / Mod bấm **Cấp mật khẩu mới** ở trang **Người tham gia** rồi gửi lại cho họ.
+- **Admin / Mod: mã khôi phục.** Bấm vào tên mình ở góc phải trên → **Mã khôi phục** → nhập mật khẩu hiện tại → **Tạo mã khôi phục**.
   - App tạo 10 mã dạng `ABCD-EFGH`, chỉ hiện một lần. Mã được che (`••••-••••`) cho tới khi bấm **Hiện mã**. Bấm **Sao chép mã** hoặc **Tải file .txt** (luôn lấy mã thật) rồi cất ở nơi an toàn.
   - Khi quên mật khẩu: trang đăng nhập → **Quên mật khẩu?** → nhập tên đăng nhập, một mã và mật khẩu mới.
   - Mỗi mã dùng được một lần. Khi còn từ 2 mã trở xuống, header hiện cảnh báo để tạo bộ mới; tạo bộ mới thì bộ cũ hết hiệu lực.

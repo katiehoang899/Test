@@ -433,7 +433,7 @@ function renderSessions() {
         <a class="btn" href="/__et/report.html?id=${s.id}">${esc(t('home.report'))}</a>
         <button type="button" data-act="save" data-id="${s.id}">${esc(t('home.save_as'))}</button>
         ${fileBtn}
-        <button type="button" class="danger" data-act="delete" data-id="${s.id}" title="${esc(t('home.delete'))}" aria-label="${esc(t('home.delete'))}">✕</button>
+        <button type="button" class="danger admin-only" data-act="delete" data-id="${s.id}" title="${esc(t('home.delete'))}" aria-label="${esc(t('home.delete'))}">✕</button>
       </td>
     </tr>`;
   }).join('');
@@ -564,8 +564,20 @@ async function moveSessions(ids, scenarioId) {
   });
 }
 
+// mở từ trang Quản lý kịch bản: /__et/?scenario=<id> (hoặc none) → lọc sẵn theo kịch bản đó
+let initialScenario = new URLSearchParams(location.search).get('scenario');
+
 async function loadAll() {
   await loadScenarios();
+  if (initialScenario) {
+    const filter = $('#scenarioFilter');
+    if ([...filter.options].some((o) => o.value === initialScenario)) {
+      filter.value = initialScenario;
+      renderScenarioSelects();
+      followFilter();
+    }
+    initialScenario = null;
+  }
   await loadSessions();
 }
 

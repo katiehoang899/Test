@@ -448,6 +448,7 @@ async function init() {
   const m = state.meta;
   Nav.scenarios().then((list) => Nav.breadcrumb(() => [
     Nav.home(),
+    Nav.scenariosRoot(),
     Nav.scenarioCrumb(m, list),
     { label: m.participant || t('common.anonymous'), href: '/__et/report.html?id=' + m.id },
     { label: t('tr.title') },

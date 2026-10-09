@@ -10,7 +10,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const COOKIE = 'hm_auth';
-const TTL_MS = { admin: 7 * 24 * 3600e3, guest: 3 * 24 * 3600e3 };
+const TTL_MS = { admin: 7 * 24 * 3600e3, mod: 7 * 24 * 3600e3, guest: 3 * 24 * 3600e3 };
+const STAFF = new Set(['admin', 'mod']); // admin + mod (người quản lý): có mã khôi phục, mật khẩu dài hơn
 const LOGIN_WINDOW_MS = 15 * 60e3;
 const LOGIN_MAX_FAILS = 8;
 const PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // bỏ ký tự dễ nhầm (0/O, 1/l/I)
@@ -183,6 +184,34 @@ function createAuth({ dataDir, log = console.log }) {
     return { user: publicUser(user), password };
   }
 
+  /**
+   * Tài khoản Mod (người quản lý người tham gia), do admin tạo. Tên đăng nhập tự chọn (a-z, 0-9, . _ -)
+   * hoặc để trống để tự sinh. Trả về { user, password } hoặc { error }.
+   */
+  function createMod({ name, username }) {
+    const display = String(name || '').trim().slice(0, 100);
+    if (!display) return { error: 'mod_name' };
+    let login = String(username || '').trim().toLowerCase();
+    if (login) {
+      if (!/^[a-z0-9._-]{3,32}$/.test(login)) return { error: 'bad_username' };
+      if (users.some((u) => u.username === login)) return { error: 'username_taken' };
+    } else {
+      login = uniqueUsername(display);
+    }
+    const password = randomPassword(14);
+    const user = {
+      id: crypto.randomBytes(8).toString('hex'),
+      role: 'mod',
+      username: login,
+      name: display,
+      passwordHash: hashPassword(password),
+      createdAt: new Date().toISOString(),
+    };
+    users.push(user);
+    saveUsers();
+    return { user: publicUser(user), password };
+  }
+
   function revokeSessions(userId) {
     for (const [k, s] of sessions) if (s.userId === userId) sessions.delete(k);
     saveSessionsSoon();
@@ -191,7 +220,7 @@ function createAuth({ dataDir, log = console.log }) {
   function resetPassword(id) {
     const user = users.find((u) => u.id === id);
     if (!user) return null;
-    const password = randomPassword(user.role === 'admin' ? 14 : 10);
+    const password = randomPassword(STAFF.has(user.role) ? 14 : 10);
     user.passwordHash = hashPassword(password);
     saveUsers();
     revokeSessions(id);
@@ -213,7 +242,7 @@ function createAuth({ dataDir, log = console.log }) {
    */
   function generateRecoveryCodes(id, password) {
     const user = users.find((u) => u.id === id);
-    if (!user || user.role !== 'admin') return { error: 'forbidden' };
+    if (!user || !STAFF.has(user.role)) return { error: 'forbidden' };
     if (!verifyPassword(password, user.passwordHash)) return { error: 'wrong_password' };
     const codes = Array.from({ length: RECOVERY_COUNT }, randomRecoveryCode);
     user.recoveryCodes = codes.map((c) => hashPassword(normalizeRecoveryCode(c)));
@@ -275,7 +304,7 @@ function createAuth({ dataDir, log = console.log }) {
     if (!user) return null;
     if (typeof patch.name === 'string' && patch.name.trim()) user.name = patch.name.trim().slice(0, 100);
     if (Array.isArray(patch.scenarioIds) && user.role === 'guest') user.scenarioIds = [...new Set(patch.scenarioIds.filter((x) => typeof x === 'string'))];
-    if (typeof patch.disabled === 'boolean' && user.role === 'guest') {
+    if (typeof patch.disabled === 'boolean' && user.role !== 'admin') {
       user.disabled = patch.disabled;
       if (patch.disabled) revokeSessions(id);
     }
@@ -284,7 +313,7 @@ function createAuth({ dataDir, log = console.log }) {
   }
 
   function deleteUser(id) {
-    const i = users.findIndex((u) => u.id === id && u.role === 'guest');
+    const i = users.findIndex((u) => u.id === id && u.role !== 'admin'); // không xoá được admin
     if (i < 0) return false;
     users.splice(i, 1);
     saveUsers();
@@ -358,6 +387,7 @@ function createAuth({ dataDir, log = console.log }) {
   return {
     ensureAdmin,
     createGuest,
+    createMod,
     resetPassword,
     changePassword,
     generateRecoveryCodes,

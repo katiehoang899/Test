@@ -55,7 +55,7 @@
     const sc = meta && meta.scenarioId && list.find((x) => x.id === meta.scenarioId);
     return sc
       ? { label: sc.name, href: '/__et/participants.html?scenario=' + encodeURIComponent(sc.id) }
-      : { label: t('home.unassigned'), href: '/__et/' };
+      : { label: t('home.unassigned'), href: '/__et/?scenario=none' };
   }
 
   /**
@@ -95,5 +95,6 @@
     scenarioCrumb,
     setupPager,
     home: () => ({ label: t('nav.home'), href: '/__et/' }),
+    scenariosRoot: () => ({ label: t('nav.scenarios'), href: '/__et/scenarios.html' }),
   };
 })();
