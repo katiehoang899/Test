@@ -445,6 +445,14 @@ async function init() {
   $('#exportDocx').href = `${api}/transcript?format=docx`;
   $('#exportTxt').href = `${api}/transcript?format=txt`;
   renderAll();
+  const m = state.meta;
+  Nav.scenarios().then((list) => Nav.breadcrumb(() => [
+    Nav.home(),
+    Nav.scenarioCrumb(m, list),
+    { label: m.participant || t('common.anonymous'), href: '/__et/report.html?id=' + m.id },
+    { label: t('tr.title') },
+  ]));
+  Nav.setupPager(m, (s) => '/__et/transcript.html?id=' + s.id);
 }
 
 init();

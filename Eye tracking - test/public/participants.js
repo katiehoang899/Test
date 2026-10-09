@@ -247,6 +247,10 @@ $('#people').addEventListener('click', async (e) => {
 // ---------- tải dữ liệu ----------
 
 function renderAll(refill) {
+  Nav.breadcrumb(() => {
+    const sc = current();
+    return [Nav.home(), { label: t('ppl.title') }, ...(sc ? [{ label: sc.name }] : [])];
+  });
   renderList();
   if (refill) fillConfig();
   renderPeople();

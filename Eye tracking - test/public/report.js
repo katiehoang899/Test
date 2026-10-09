@@ -876,6 +876,14 @@ async function init() {
   const p = state.primary;
   renderHeader();
   renderMedia();
+  // Trang chủ › Kịch bản › Người tham gia › Báo cáo, và nút sang phiên trước / sau cùng kịch bản
+  Nav.scenarios().then((list) => Nav.breadcrumb(() => [
+    Nav.home(),
+    Nav.scenarioCrumb(p, list),
+    { label: p.participant || t('common.anonymous') },
+    { label: t('report.title') },
+  ]));
+  Nav.setupPager(p, (s) => '/__et/report.html?id=' + s.id);
   if (!p.eyeTracking) document.body.classList.add('no-eye');
   // mở từ "Báo cáo tất cả phiên" → xem heatmap gộp các phiên cùng link
   if (params.get('merge') === '1') $('#merge').checked = true;

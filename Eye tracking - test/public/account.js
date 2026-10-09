@@ -70,12 +70,23 @@
   function showCodes(dlg, codes) {
     const box = dlg.querySelector('#rcCodes');
     box.hidden = false;
-    box.innerHTML = `<div class="recovery-codes">${codes.map((c) => `<code>${esc(c)}</code>`).join('')}</div>
+    // mặc định che mã (tránh bị nhìn trộm / chụp màn hình); bấm Hiện mã mới thấy
+    const masked = (c) => c.replace(/[A-Z0-9]/g, '•');
+    box.innerHTML = `<div class="recovery-codes" id="rcList" data-shown="false">${codes.map((c) => `<code>${esc(masked(c))}</code>`).join('')}</div>
       <p class="small" style="color: var(--warn); margin: 8px 0">${esc(t('rc.once'))}</p>
       <div class="row" style="gap: 6px">
+        <button type="button" id="rcToggle" aria-pressed="false" aria-controls="rcList">👁 ${esc(t('rc.show'))}</button>
         <button type="button" id="rcCopy">${esc(t('rc.copy'))}</button>
         <button type="button" id="rcDownload">${esc(t('rc.download'))}</button>
       </div>`;
+    box.querySelector('#rcToggle').addEventListener('click', (e) => {
+      const list = box.querySelector('#rcList');
+      const shown = list.dataset.shown !== 'true';
+      list.dataset.shown = String(shown);
+      list.querySelectorAll('code').forEach((el, i) => { el.textContent = shown ? codes[i] : masked(codes[i]); });
+      e.currentTarget.setAttribute('aria-pressed', String(shown));
+      e.currentTarget.textContent = `👁 ${shown ? t('rc.hide') : t('rc.show')}`;
+    });
     const text = `${t('rc.file_title', { user: me.username, host: location.host })}\n${new Date().toLocaleString(I18N.locale())}\n\n${codes.join('\n')}\n\n${t('rc.file_note')}\n`;
     box.querySelector('#rcCopy').addEventListener('click', async () => {
       try {

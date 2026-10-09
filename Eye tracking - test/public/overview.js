@@ -107,6 +107,13 @@ async function load() {
   history.replaceState(null, '', location.pathname + qs);
   summary = await (await fetch('/__et/api/summary' + qs)).json();
   render();
+  Nav.breadcrumb(() => {
+    const sc = scenarios.find((x) => x.id === $('#scope').value);
+    const crumbs = [Nav.home(), { label: t('overview.title'), href: sc ? '/__et/overview.html' : null }];
+    if (sc) crumbs.push({ label: sc.name });
+    else if ($('#scope').value === 'none') crumbs.push({ label: t('home.unassigned') });
+    return crumbs;
+  });
 }
 
 document.querySelectorAll('.lang-switch button').forEach((b) => b.addEventListener('click', () => I18N.setLanguage(b.dataset.lang)));

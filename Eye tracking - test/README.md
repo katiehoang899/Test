@@ -23,7 +23,8 @@ Guest không xem được báo cáo, phiên của người khác, danh sách k�
    - Bật / tắt eye tracking bằng webcam, ghi âm micro.
 2. Nhập tên người tham gia (mỗi dòng một người) → **Tạo tài khoản**. Mỗi người có tên đăng nhập (ví dụ `user12995`) và mật khẩu ngẫu nhiên. Mật khẩu **chỉ hiện một lần**: bấm **Sao chép thư mời** (có sẵn link, tên đăng nhập, mật khẩu) hoặc **Tải CSV**. Quên thì bấm **Cấp mật khẩu mới**.
 3. **Người tham gia** mở link mời → đăng nhập → đọc nhiệm vụ → **Bắt đầu** → đồng ý ghi (màn hình đồng ý liệt kê rõ dữ liệu nào được ghi) → hiệu chỉnh webcam (nếu bật) → làm nhiệm vụ → **Hoàn thành**.
-4. **Admin** thấy trạng thái tự cập nhật (Đã mời → Đã đăng nhập → Đang ghi → Đã xong), mở **Báo cáo** của từng người hoặc **Báo cáo tất cả phiên** của kịch bản.
+4. **Admin** xem kết quả. Thanh dưới header có breadcrumb (`Trang chủ › Droppii Mall › User 1 › Báo cáo`) và nút **‹ Trước / Sau ›** (hoặc phím Alt+← / Alt+→) để chuyển giữa các phiên cùng kịch bản trên trang Báo cáo và Transcript.
+5. **Admin** thấy trạng thái tự cập nhật (Đã mời → Đã đăng nhập → Đang ghi → Đã xong), mở **Báo cáo** của từng người hoặc **Báo cáo tất cả phiên** của kịch bản.
 
 Dữ liệu lưu giống app desktop: `Droppii Mall/User 1/` chứa `session.json`, `events.csv`, video ghi màn hình, ghi âm, transcript. Mỗi phiên còn ghi lại `guestId` và thời điểm đồng ý (`consentAt`).
 
@@ -31,7 +32,7 @@ Dữ liệu lưu giống app desktop: `Droppii Mall/User 1/` chứa `session.jso
 
 - **Người tham gia (guest):** liên hệ người tổ chức. Admin bấm **Cấp mật khẩu mới** ở trang **Người tham gia** rồi gửi lại cho họ.
 - **Admin: mã khôi phục.** Bấm vào tên mình ở góc phải trên → **Mã khôi phục** → nhập mật khẩu hiện tại → **Tạo mã khôi phục**.
-  - App tạo 10 mã dạng `ABCD-EFGH`, chỉ hiện một lần. Hãy sao chép hoặc tải file `.txt` và cất ở nơi an toàn.
+  - App tạo 10 mã dạng `ABCD-EFGH`, chỉ hiện một lần. Mã được che (`••••-••••`) cho tới khi bấm **Hiện mã**. Bấm **Sao chép mã** hoặc **Tải file .txt** (luôn lấy mã thật) rồi cất ở nơi an toàn.
   - Khi quên mật khẩu: trang đăng nhập → **Quên mật khẩu?** → nhập tên đăng nhập, một mã và mật khẩu mới.
   - Mỗi mã dùng được một lần. Khi còn từ 2 mã trở xuống, header hiện cảnh báo để tạo bộ mới; tạo bộ mới thì bộ cũ hết hiệu lực.
   - Mã được lưu dạng băm. Nhập sai nhiều lần thì bị chặn tạm như khi đăng nhập sai.
