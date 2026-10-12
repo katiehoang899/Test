@@ -277,14 +277,11 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .ul-toggle { display: flex; align-items: center; gap: 6px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .ul-toggle b { background: #1f6fb2; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; }
 .ul-toggle b:empty { display: none; }
-.ul-body { margin-top: 8px; border-top: 1px solid #e1e5e8; padding-top: 6px; }
-.ul-title { font-weight: 700; margin-bottom: 2px; }
-.ul-level { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
-.ul-level input { margin: 0; }
-.ul-level i, .up-title i {
+.ul-body { margin-top: 8px; border-top: 1px solid #e1e5e8; padding-top: 8px; }
+.up-title i {
   display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #9aa3ad;
 }
-.ul-actions { display: flex; gap: 4px; margin-top: 6px; }
+.ul-actions { display: flex; gap: 4px; }
 .ul-actions button {
   flex: 1; border: 1px solid #d0d7dc; background: #fff; border-radius: 6px; padding: 4px 6px; font-size: 12px; cursor: pointer; white-space: nowrap;
 }
@@ -318,7 +315,6 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .ul-pop .up-actions button { border: 1px solid #e3a3a3; color: #b03a2e; background: #fff; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
 @media (max-width: 800px) {
   .ul-ctl { min-width: 0; padding: 6px 8px; }
-  .ul-body .ul-title, .ul-level { font-size: 12px; }
 }
 
 .empty { color: var(--muted); text-align: center; padding: 40px 0; }

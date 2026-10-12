@@ -37,14 +37,12 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Tin yêu thích và tin đã ẩn được lưu trên máy, trong file `saved.json` ở thư mục dữ liệu (bản web: `phong-tro-map/data/`, app: `~/Library/Application Support/Phong Tro Map/`). Tắt / mở lại tool vẫn còn, và dùng chung giữa các trình duyệt trên cùng máy.
 - **📞 Số điện thoại / Zalo**: nếu nội dung tin có số điện thoại (`0909 123 456`, `0909.123.456`, `+84 909…`) thì số hiện luôn trên tin, kèm nút **Zalo** (mở `zalo.me/<số>` để nhắn tin) và bấm vào số để gọi. Tin không ghi số trong nội dung thì bấm **Hiện SĐT / Zalo**: tool hỏi API của Nhà Tốt, không có thì tìm trong nội dung đầy đủ của tin, vẫn không có thì hiện link sang tin trên Nhà Tốt.
 - **🌊 Lớp điểm ngập tự thêm** (bảng *Điểm ngập* ở góc phải bản đồ):
-  - Chọn **mức độ ngập**: 🔴 Thường xuyên, 🟠 Vừa, 🟡 Nhẹ, ⚪ Chưa phân loại.
   - **📍 Đặt điểm**: bấm một chỗ trên bản đồ. **〰 Nối A–B**: bấm điểm A rồi điểm B, tool vẽ đoạn ngập bám theo đường phố (dịch vụ chỉ đường miễn phí [OSRM](https://project-osrm.org/), không tìm được đường thì nối thẳng). Esc để huỷ.
-  - Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
+  - Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **mức độ ngập** (🔴 Thường xuyên, 🟠 Vừa, 🟡 Nhẹ, ⚪ Chưa phân loại). Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
   - Ô **🌊 Điểm ngập** bật / tắt hiển thị cả lớp. Dữ liệu lưu trên máy (`floods.json` trong thư mục dữ liệu).
 - **🚗 Lớp đỗ xe hơi** (bảng *Đỗ xe hơi* ở góc phải bản đồ, dưới bảng điểm ngập): dùng giống hệt lớp điểm ngập.
-  - Chọn **loại chỗ đỗ**: 🟢 Miễn phí, 🟠 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại.
   - **📍 Đặt điểm**: hiện biển **P** xanh dương, chấm màu ở góc biển là loại chỗ đỗ. **〰 Nối A–B**: vẽ đoạn đường đỗ được xe (nét đứt, bám theo đường phố).
-  - Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
+  - Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **loại chỗ đỗ** (🟢 Miễn phí, 🟠 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại). Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):

@@ -11,7 +11,7 @@ const USER_LAYERS = [
     key: 'floods',
     icon: 'drop',
     title: 'Điểm ngập',
-    legend: 'Mức độ ngập:',
+    legend: 'Mức độ ngập',
     what: 'điểm ngập',
     pointTitle: 'Điểm ngập',
     lineTitle: 'Đoạn ngập',
@@ -28,7 +28,7 @@ const USER_LAYERS = [
     key: 'parking',
     icon: 'car',
     title: 'Đỗ xe hơi',
-    legend: 'Loại chỗ đỗ:',
+    legend: 'Loại chỗ đỗ',
     what: 'điểm đỗ xe hơi',
     pointTitle: 'Điểm đỗ xe hơi',
     lineTitle: 'Đoạn đỗ xe hơi',
@@ -52,7 +52,8 @@ function createUserLayer(cfg) {
   map.createPane(cfg.key).style.zIndex = cfg.zIndex; // dưới ghim tin đăng (markerPane = 600)
   const group = L.layerGroup();
   const draft = L.layerGroup().addTo(map); // điểm A đang chọn khi nối A–B
-  const st = { items: [], mode: null, a: null, level: cfg.levels[0].id, busy: false };
+  // Điểm / đoạn mới là "Chưa phân loại"; popup mở ngay sau khi đặt để chọn mức độ / loại.
+  const st = { items: [], mode: null, a: null, level: cfg.levels[cfg.levels.length - 1].id, busy: false };
 
   // ---------- bảng điều khiển ----------
 
@@ -66,9 +67,6 @@ function createUserLayer(cfg) {
           <input type="checkbox" data-ul-show> ${icon(cfg.icon)} <span class="tx">${esc(cfg.title)}</span> <b data-ul-count></b>
         </label>
         <div class="ul-body" data-ul-body>
-          <div class="ul-title">${esc(cfg.legend)}</div>
-          ${cfg.levels.map((l) => `<label class="ul-level"><input type="radio" name="ul-${cfg.key}" value="${l.id}"${l.id === st.level ? ' checked' : ''}>
-            <i style="background:${l.color}"></i> <span class="tx">${esc(l.label)}</span></label>`).join('')}
           <div class="ul-actions">
             <button type="button" data-ul-mode="point" title="Bấm 1 chỗ trên bản đồ để đặt ${esc(cfg.what)}">${icon('pinPlus')} Đặt điểm</button>
             <button type="button" data-ul-mode="line" title="Bấm điểm A rồi điểm B để vẽ một đoạn đường">${icon('route')} Nối A–B</button>
@@ -122,9 +120,6 @@ function createUserLayer(cfg) {
   }
 
   ui.show.addEventListener('change', () => setVisible(ui.show.checked));
-  ui.body.addEventListener('change', (e) => {
-    if (e.target.type === 'radio') st.level = e.target.value;
-  });
   ui.body.addEventListener('click', (e) => {
     const b = e.target.closest('[data-ul-mode]');
     if (b) setMode(st.mode === b.dataset.ulMode ? null : b.dataset.ulMode);
@@ -202,7 +197,7 @@ function createUserLayer(cfg) {
     const title = isLine ? `${cfg.lineTitle} · ${Filters.formatDistance(Filters.pathLength(f.path))}` : cfg.pointTitle;
     return `<div class="popup ul-pop" data-ul-item="${esc(f.id)}" data-ul-layer="${cfg.key}">
       <div class="up-title"><i style="background:${levelOf(f.level).color}"></i> ${icon(cfg.icon)} ${esc(title)}</div>
-      <label>${esc(cfg.legend.replace(/:$/, ''))}
+      <label>${esc(cfg.legend)}
         <select data-ul-level>${cfg.levels.map((l) => `<option value="${l.id}"${l.id === f.level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select>
       </label>
       <label>Ghi chú
