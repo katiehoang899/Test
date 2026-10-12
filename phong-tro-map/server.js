@@ -13,10 +13,6 @@ const PORT = Number(process.env.PORT) || 3100;
 const GATEWAY = (process.env.CHOTOT_GATEWAY || 'https://gateway.chotot.com').replace(/\/+$/, '');
 const NOMINATIM = (process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/+$/, '');
 const GOOGLE_MAPS = (process.env.GOOGLE_MAPS_URL || 'https://maps.googleapis.com').replace(/\/+$/, '');
-// Trang tra cứu điểm ngập của VnExpress (dữ liệu Sở Xây dựng TP HCM), mở trong popup.
-const FLOOD_LOOKUP_URL = process.env.FLOOD_LOOKUP_URL || 'https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html';
-// Đoạn chữ để cuộn tới mục tra cứu theo tên đường trong bài.
-const FLOOD_LOOKUP_TEXT = 'Đường nơi bạn ở có nằm trong điểm ngập không';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UA = 'Mozilla/5.0 (PhongTroMap; +https://github.com/katiehoang899/test)';
@@ -507,31 +503,6 @@ async function adPhone(id) {
   });
 }
 
-// ---------- tra cứu điểm ngập (nhúng trang VnExpress) ----------
-
-// Nhiều trang báo cấm nhúng vào trang khác (X-Frame-Options / CSP frame-ancestors).
-// Kiểm tra trước để trang web biết nên hiện khung nhúng hay nút mở tab mới.
-// App desktop tự gỡ lệnh cấm này cho riêng trang tra cứu (xem electron/main.js).
-function frameBlocked(xfo, csp) {
-  if (/deny|sameorigin/i.test(xfo || '')) return true;
-  const ancestors = /frame-ancestors([^;]*)/i.exec(csp || '');
-  return Boolean(ancestors && !/(^|\s)\*(\s|$)/.test(ancestors[1]));
-}
-
-async function floodLookup() {
-  const base = { url: FLOOD_LOOKUP_URL, text: FLOOD_LOOKUP_TEXT };
-  if (process.env.PTM_DESKTOP === '1') return { ...base, embeddable: true };
-  return cached('flood-lookup', 3600 * 1000, async () => {
-    try {
-      const res = await fetch(FLOOD_LOOKUP_URL, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
-      res.body?.cancel().catch(() => {});
-      return { ...base, embeddable: !frameBlocked(res.headers.get('x-frame-options'), res.headers.get('content-security-policy')) };
-    } catch {
-      return { ...base, embeddable: null }; // không kiểm tra được (mất mạng…): cứ thử nhúng
-    }
-  });
-}
-
 // ---------- HTTP ----------
 
 const MIME = {
@@ -578,7 +549,6 @@ function createServer() {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
-      if (u.pathname === '/api/flood-lookup') return sendJson(res, 200, await floodLookup());
       if (u.pathname === '/api/config') return sendJson(res, 200, { streetView: Boolean(googleKey()), fromEnv: Boolean(process.env.GOOGLE_MAPS_API_KEY) });
       if (u.pathname === '/api/streetview/meta') return sendJson(res, 200, await streetViewMeta(u.searchParams.get('lat'), u.searchParams.get('lng')));
       if (u.pathname === '/api/streetview/image') return await streetViewImage(u.searchParams, res);
@@ -612,4 +582,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { FLOOD_LOOKUP_URL, FLOOD_LOOKUP_TEXT, frameBlocked, createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, bearing, distance };
+module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, bearing, distance };

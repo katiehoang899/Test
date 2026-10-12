@@ -33,11 +33,6 @@ const upstream = http.createServer((req, res) => {
   }
   if (u.pathname === '/v1/public/ad-listing/222') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Liên hệ chị Lan 0912.345.678 (zalo)' } }));
   if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Nhắn tin qua Nhà Tốt' } }));
-  if (u.pathname === '/flood') {
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-    return res.end('<h2>Đường nơi bạn ở có nằm trong điểm ngập không?</h2>');
-  }
   if (u.pathname === '/v2/public/chapy-pro/regions') {
     return res.end(JSON.stringify({
       regionFollowId: { entities: { regions: {
@@ -72,7 +67,6 @@ before(async () => {
   process.env.CHOTOT_GATEWAY = up;
   process.env.NOMINATIM_URL = up;
   process.env.GOOGLE_MAPS_URL = up;
-  process.env.FLOOD_LOOKUP_URL = up + '/flood';
   delete process.env.GOOGLE_MAPS_API_KEY;
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'phongtro-test-'));
   const { createServer } = require('../server');
@@ -242,18 +236,4 @@ test('/api/saved: favorites and hidden ads with sanitized snapshots', async () =
   data = await (await post({ kind: 'hidden', op: 'clear' })).json();
   assert.deepEqual(data.hidden, {});
   assert.deepEqual(Object.keys(data.fav), ['111'], 'xoá tin đã ẩn không đụng tới yêu thích');
-});
-
-test('/api/flood-lookup reports whether the page can be embedded', async () => {
-  const data = await (await fetch(`${base}/api/flood-lookup`)).json();
-  assert.match(data.url, /\/flood$/);
-  assert.equal(data.text, 'Đường nơi bạn ở có nằm trong điểm ngập không');
-  assert.equal(data.embeddable, false, 'X-Frame-Options: SAMEORIGIN');
-
-  const { frameBlocked } = require('../server');
-  assert.equal(frameBlocked('DENY', ''), true);
-  assert.equal(frameBlocked('', "default-src 'self'; frame-ancestors 'self' https://vnexpress.net"), true);
-  assert.equal(frameBlocked('', 'frame-ancestors *'), false);
-  assert.equal(frameBlocked(null, "default-src 'self'"), false);
-  assert.equal(frameBlocked(null, null), false);
 });
