@@ -4,8 +4,9 @@
   --text: #1d2327;
   --muted: #61707a;
   --line: #e1e5e8;
-  --accent: #0f8f7e;
-  --accent-soft: #e2f4f1;
+  --accent: #1d6fdc;
+  --accent-fill: #1d6fdc; /* nền nút có chữ trắng */
+  --accent-soft: #e7f0fd;
   --price: #c0392b;
   --approx: #8a96a0;
   --shadow: 0 1px 3px rgba(0, 0, 0, .08);
@@ -19,8 +20,9 @@
     --text: #e6eaed;
     --muted: #9aa7b0;
     --line: #2f373d;
-    --accent: #3cc2ad;
-    --accent-soft: #173733;
+    --accent: #5c9cff;
+    --accent-fill: #2a6ad2; /* đậm hơn để chữ trắng vẫn dễ đọc */
+    --accent-soft: #172a4a;
     --price: #ff7b6b;
     --approx: #7d8a94;
     --shadow: none;
@@ -53,10 +55,10 @@ button, input, select { font: inherit; color: inherit; }
   flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-right: 0;
   border-radius: 8px 0 0 8px; background: var(--bg);
 }
-.search button { padding: 8px 16px; border: 0; border-radius: 0 8px 8px 0; background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; }
+.search button { padding: 8px 16px; border: 0; border-radius: 0 8px 8px 0; background: var(--accent-fill); color: #fff; cursor: pointer; font-weight: 600; }
 .views { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-left: auto; }
 .views button { border: 0; background: transparent; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
-.views button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.views button[aria-selected="true"] { background: var(--accent-fill); color: #fff; }
 
 /* ---------- bộ lọc ---------- */
 .filters {
@@ -88,7 +90,7 @@ button, input, select { font: inherit; color: inherit; }
 .range label { flex: 1; display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
 .range input { width: 100%; min-width: 0; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
 .pop-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.pop-actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pop-actions .primary { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 .checks label { display: flex; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
 .pop.disabled summary { opacity: .5; pointer-events: none; }
 .multi .pop-body { width: 320px; padding: 10px; }
@@ -106,7 +108,7 @@ button, input, select { font: inherit; color: inherit; }
 .chips button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
 .nq-add { display: flex; gap: 6px; }
 .nq-add input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
-.nq-add .primary { border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; padding: 0 12px; cursor: pointer; }
+.nq-add .primary { border: 1px solid var(--accent-fill); background: var(--accent-fill); color: #fff; border-radius: 6px; padding: 0 12px; cursor: pointer; }
 .suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .suggest button { border: 1px dashed var(--line); background: none; border-radius: 999px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
 .suggest button:disabled { opacity: .4; cursor: default; }
@@ -225,7 +227,7 @@ body[data-view="map"] .list { display: none; }
 .saved-bar .back { border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 600; padding: 0; }
 .saved-tabs { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .saved-tabs button { border: 0; background: var(--panel); padding: 6px 12px; cursor: pointer; }
-.saved-tabs button[aria-selected="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+.saved-tabs button[aria-selected="true"] { background: var(--accent-fill); color: #fff; font-weight: 600; }
 .saved-tabs b { font-weight: 600; opacity: .8; }
 body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .45; pointer-events: none; }
 
@@ -234,7 +236,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .phone a.zalo { color: #fff; }
 .popup .acts { margin-top: 6px; }
 .popup .act { background: #fff; color: #61707a; border-color: #d0d7dc; }
-.popup .link-btn { color: #0f8f7e; font-size: 12px; }
+.popup .link-btn { color: #1d6fdc; font-size: 12px; }
 
 /* Địa chỉ + copy + Google Maps */
 .addr { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); min-width: 0; }
@@ -318,7 +320,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
   flex: 1; text-align: center; padding: 5px 6px; border: 1px solid #d0d7dc; border-radius: 6px;
   color: #1d2327; text-decoration: none; font-size: 12px; font-weight: 600; white-space: nowrap;
 }
-.popup .gmaps a:hover { border-color: #0f8f7e; color: #0f8f7e; }
+.popup .gmaps a:hover { border-color: #1d6fdc; color: #1d6fdc; }
 .popup .coords { color: #61707a; font-size: 12px; font-variant-numeric: tabular-nums; }
 .popup .sv { margin-top: 8px; }
 .popup .sv-skel {
@@ -339,7 +341,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .sv-msg { font-size: 12px; color: #61707a; background: #f4f6f7; border-radius: 6px; padding: 8px; }
 .popup .sv-key { display: flex; gap: 4px; margin: 6px 0 4px; }
 .popup .sv-key input { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid #d0d7dc; border-radius: 5px; font-size: 12px; color: #1d2327; background: #fff; }
-.popup .sv-key button { border: 0; background: #0f8f7e; color: #fff; border-radius: 5px; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.popup .sv-key button { border: 0; background: #1d6fdc; color: #fff; border-radius: 5px; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .popup .sv-help { display: block; font-size: 11px; }
 .popup .go { display: inline-block; margin-top: 6px; font-weight: 600; }
 .leaflet-container { background: #e8e6e1; font: inherit; } /* màu đất của bản đồ, kể cả chế độ tối: ô chưa tải không bị đen */
