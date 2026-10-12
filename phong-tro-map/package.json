@@ -3,14 +3,55 @@
   "version": "1.0.0",
   "private": true,
   "description": "Xem tất cả tin cho thuê phòng trọ của Nhà Tốt (nhatot.com) dạng danh sách và bản đồ, giữ đủ bộ lọc.",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "app": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:mac": "electron-builder --mac dmg --arm64 --x64 --publish never"
   },
   "engines": {
     "node": ">=18"
   },
   "license": "GPL-3.0-or-later",
-  "author": "Katie Design"
+  "author": "Katie Design",
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "Phong Tro Map",
+  "build": {
+    "appId": "com.phongtromap.desktop",
+    "productName": "Phong Tro Map",
+    "copyright": "Copyright © 2026 Katie Design",
+    "files": [
+      "server.js",
+      "public/**",
+      "electron/**",
+      "package.json",
+      "!node_modules{,/**/*}"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.lifestyle",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "icon": "build/icon.png"
+    },
+    "dmg": {
+      "title": "Phong Tro Map ${version}",
+      "artifactName": "PhongTroMap-${version}-${arch}.dmg"
+    }
+  }
 }
