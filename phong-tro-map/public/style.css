@@ -226,6 +226,49 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .act { background: #fff; color: #61707a; border-color: #d0d7dc; }
 .popup .link-btn { color: #0f8f7e; font-size: 12px; }
 
+/* Địa chỉ + copy + Google Maps */
+.addr { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); min-width: 0; }
+.addr-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.addr-text b { font-weight: 600; color: var(--muted); }
+.icon-btn {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; padding: 0;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.icon-btn.copied { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Lớp điểm ngập */
+.flood-ctl {
+  background: #fff; color: #1d2327; border-radius: 10px; box-shadow: 0 1px 6px rgba(0, 0, 0, .25);
+  padding: 8px 10px; font-size: 13px; min-width: 170px;
+}
+.fc-toggle { display: flex; align-items: center; gap: 6px; font-weight: 700; cursor: pointer; }
+.fc-toggle b { background: #1f6fb2; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; }
+.fc-toggle b:empty { display: none; }
+.fc-body { margin-top: 8px; border-top: 1px solid #e1e5e8; padding-top: 6px; }
+.fc-title { font-weight: 700; margin-bottom: 2px; }
+.fc-level { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+.fc-level input { margin: 0; }
+.fc-level i, .fp-title i {
+  display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #9aa3ad;
+}
+.fc-actions { display: flex; gap: 4px; margin-top: 6px; }
+.fc-actions button {
+  flex: 1; border: 1px solid #d0d7dc; background: #fff; border-radius: 6px; padding: 4px 6px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.fc-actions button:hover { border-color: #1f6fb2; color: #1f6fb2; }
+.fc-actions button.on { background: #1f6fb2; border-color: #1f6fb2; color: #fff; font-weight: 600; }
+.fc-hint { margin-top: 6px; font-size: 12px; color: #1f6fb2; max-width: 190px; }
+.fc-ab { font-weight: 700; }
+#map.drawing, #map.drawing .leaflet-interactive { cursor: crosshair; }
+.flood-pop .fp-title { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
+.flood-pop label { display: block; font-size: 12px; color: #61707a; margin-bottom: 6px; }
+.flood-pop select, .flood-pop input {
+  display: block; width: 100%; margin-top: 2px; padding: 4px 6px; border: 1px solid #d0d7dc; border-radius: 5px; font-size: 13px; color: #1d2327; background: #fff;
+}
+.flood-pop .fp-actions { display: flex; justify-content: space-between; align-items: center; }
+.flood-pop .fp-actions button { border: 1px solid #e3a3a3; color: #b03a2e; background: #fff; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
+
 .empty { color: var(--muted); text-align: center; padding: 40px 0; }
 .sentinel { text-align: center; padding: 8px; grid-column: 1 / -1; }
 .sentinel button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 16px; cursor: pointer; }

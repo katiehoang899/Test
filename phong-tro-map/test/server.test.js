@@ -33,6 +33,12 @@ const upstream = http.createServer((req, res) => {
   }
   if (u.pathname === '/v1/public/ad-listing/222') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Liên hệ chị Lan 0912.345.678 (zalo)' } }));
   if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Nhắn tin qua Nhà Tốt' } }));
+  if (u.pathname.startsWith('/route/v1/driving/')) {
+    // "lng,lat;lng,lat": ví dụ 106.7,10.70;106.71,10.71 → đường gấp khúc qua một góc phố.
+    const [[lng1, lat1], [lng2, lat2]] = u.pathname.split('/').pop().split(';').map((p) => p.split(',').map(Number));
+    if (lat1 > 11) return res.end(JSON.stringify({ code: 'NoRoute', routes: [] }));
+    return res.end(JSON.stringify({ code: 'Ok', routes: [{ geometry: { coordinates: [[lng1, lat1], [lng1, lat2], [lng2, lat2]] } }] }));
+  }
   if (u.pathname === '/v2/public/chapy-pro/regions') {
     return res.end(JSON.stringify({
       regionFollowId: { entities: { regions: {
@@ -67,6 +73,7 @@ before(async () => {
   process.env.CHOTOT_GATEWAY = up;
   process.env.NOMINATIM_URL = up;
   process.env.GOOGLE_MAPS_URL = up;
+  process.env.OSRM_URL = up;
   delete process.env.GOOGLE_MAPS_API_KEY;
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'phongtro-test-'));
   const { createServer } = require('../server');
@@ -236,4 +243,45 @@ test('/api/saved: favorites and hidden ads with sanitized snapshots', async () =
   data = await (await post({ kind: 'hidden', op: 'clear' })).json();
   assert.deepEqual(data.hidden, {});
   assert.deepEqual(Object.keys(data.fav), ['111'], 'xoá tin đã ẩn không đụng tới yêu thích');
+});
+
+test('/api/route follows streets, falls back to a straight line', async () => {
+  const get = async (q) => { const r = await fetch(`${base}/api/route?${q}`); return [r.status, await r.json()]; };
+  const [st, r] = await get('from=10.7,106.7&to=10.71,106.71');
+  assert.equal(st, 200);
+  assert.equal(r.routed, true);
+  assert.deepEqual(r.path, [[10.7, 106.7], [10.7, 106.7], [10.71, 106.7], [10.71, 106.71], [10.71, 106.71]]);
+  const [, flat] = await get('from=11.5,106.7&to=11.51,106.7');
+  assert.deepEqual(flat, { path: [[11.5, 106.7], [11.51, 106.7]], routed: false });
+  assert.equal((await get('from=1,2&to=10.7,106.7'))[0], 400);
+  assert.equal((await get('from=10.7,106.7&to=21.0,105.8'))[0], 400, 'quá xa');
+});
+
+test('/api/floods: add points and A–B segments, update, remove', async () => {
+  const post = (body, type = 'application/json') => fetch(`${base}/api/floods`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
+  assert.deepEqual(await (await fetch(`${base}/api/floods`)).json(), { floods: [] });
+  assert.equal((await post({ op: 'add', type: 'point', coords: [10.7, 106.7] }, 'text/plain')).status, 415);
+  assert.equal((await post({ op: 'add', type: 'point', coords: [1, 2] })).status, 400);
+  assert.equal((await post({ op: 'add', type: 'line', path: [[10.7, 106.7]] })).status, 400);
+  assert.equal((await post({ op: 'nuke' })).status, 400);
+
+  let { floods } = await (await post({ op: 'add', type: 'point', coords: [10.7123456789, 106.7], level: 'frequent', note: 'Ngập 30 cm' })).json();
+  assert.equal(floods.length, 1);
+  assert.deepEqual(floods[0].coords, [10.712346, 106.7]);
+  assert.equal(floods[0].level, 'frequent');
+  assert.equal(floods[0].note, 'Ngập 30 cm');
+  ({ floods } = await (await post({ op: 'add', type: 'line', path: [[10.7, 106.7], [10.71, 106.7], [10.71, 106.71]], routed: true, level: 'weird' })).json());
+  const line = floods[1];
+  assert.equal(line.type, 'line');
+  assert.equal(line.level, 'unknown', 'mức độ lạ → chưa phân loại');
+  assert.equal(line.path.length, 3);
+
+  ({ floods } = await (await post({ op: 'update', id: line.id, level: 'light', note: 'Nhẹ thôi' })).json());
+  assert.equal(floods[1].level, 'light');
+  assert.equal(floods[1].note, 'Nhẹ thôi');
+  assert.equal((await post({ op: 'update', id: 'nope', level: 'light' })).status, 404);
+  ({ floods } = await (await post({ op: 'remove', id: floods[0].id })).json());
+  assert.deepEqual(floods.map((f) => f.id), [line.id]);
+  const file = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, 'floods.json'), 'utf8'));
+  assert.equal(file.length, 1, 'lưu ra file');
 });

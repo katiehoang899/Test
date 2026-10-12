@@ -5,6 +5,7 @@
 // (gateway.chotot.com) để trình duyệt không bị chặn CORS, kèm cache và geocode.
 
 const http = require('node:http');
+const crypto = require('node:crypto');
 const Filters = require('./public/filters.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -13,6 +14,8 @@ const PORT = Number(process.env.PORT) || 3100;
 const GATEWAY = (process.env.CHOTOT_GATEWAY || 'https://gateway.chotot.com').replace(/\/+$/, '');
 const NOMINATIM = (process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/+$/, '');
 const GOOGLE_MAPS = (process.env.GOOGLE_MAPS_URL || 'https://maps.googleapis.com').replace(/\/+$/, '');
+// Dịch vụ chỉ đường OSRM (miễn phí) để vẽ đoạn ngập A–B bám theo đường phố.
+const OSRM = (process.env.OSRM_URL || 'https://router.project-osrm.org').replace(/\/+$/, '');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UA = 'Mozilla/5.0 (PhongTroMap; +https://github.com/katiehoang899/test)';
@@ -503,6 +506,93 @@ async function adPhone(id) {
   });
 }
 
+// ---------- điểm ngập do người dùng thêm ----------
+
+// DATA_DIR/floods.json: [{ id, type: 'point' | 'line', level, coords: [lat, lng] (điểm)
+// hoặc path: [[lat, lng], …] (đoạn A–B), note, at }].
+const floodsFile = path.join(DATA_DIR, 'floods.json');
+const FLOOD_LEVELS = ['frequent', 'medium', 'light', 'unknown'];
+const FLOODS_MAX = 2000;
+let floodsCache = null;
+
+function loadFloods() {
+  if (floodsCache) return floodsCache;
+  try { floodsCache = JSON.parse(fs.readFileSync(floodsFile, 'utf8')); } catch { floodsCache = []; }
+  if (!Array.isArray(floodsCache)) floodsCache = [];
+  return floodsCache;
+}
+
+function cleanLatLng(p) {
+  if (!Array.isArray(p) || p.length < 2) return null;
+  const lat = finite(p[0]);
+  const lng = finite(p[1]);
+  return validLatLng(lat, lng) ? [Math.round(lat * 1e6) / 1e6, Math.round(lng * 1e6) / 1e6] : null;
+}
+
+function badRequest(msg) {
+  return Object.assign(new Error(msg), { status: 400 });
+}
+
+async function updateFloods(req) {
+  if (!String(req.headers['content-type']).startsWith('application/json')) {
+    throw Object.assign(new Error('Cần Content-Type: application/json'), { status: 415 });
+  }
+  let body;
+  try { body = JSON.parse(await readBody(req, 512 * 1024)); } catch { throw badRequest('JSON không hợp lệ'); }
+  const floods = loadFloods();
+  const level = FLOOD_LEVELS.includes(body.level) ? body.level : 'unknown';
+  const note = str(body.note, 300).trim();
+  if (body.op === 'add') {
+    if (floods.length >= FLOODS_MAX) throw badRequest('Đã đủ số điểm ngập tối đa');
+    const item = { id: crypto.randomUUID(), type: body.type === 'line' ? 'line' : 'point', level, note, at: Date.now() };
+    if (item.type === 'point') {
+      item.coords = cleanLatLng(body.coords);
+      if (!item.coords) throw badRequest('Toạ độ không hợp lệ');
+    } else {
+      const pts = Array.isArray(body.path) ? body.path.slice(0, 5000).map(cleanLatLng) : [];
+      if (pts.length < 2 || pts.some((p) => !p)) throw badRequest('Đoạn A–B không hợp lệ');
+      item.path = pts;
+      item.routed = Boolean(body.routed);
+    }
+    floods.push(item);
+  } else if (body.op === 'update' || body.op === 'remove') {
+    const i = floods.findIndex((f) => f.id === body.id);
+    if (i < 0) throw Object.assign(new Error('Không tìm thấy điểm ngập'), { status: 404 });
+    if (body.op === 'remove') floods.splice(i, 1);
+    else {
+      if (FLOOD_LEVELS.includes(body.level)) floods[i].level = body.level;
+      if (typeof body.note === 'string') floods[i].note = note;
+    }
+  } else {
+    throw badRequest('Thao tác không hợp lệ');
+  }
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(floodsFile, JSON.stringify(floods));
+  return floods;
+}
+
+// Đường đi A–B theo đường phố (OSRM). Không tìm được thì nối thẳng (routed: false).
+async function route(fromStr, toStr) {
+  const a = cleanLatLng(String(fromStr || '').split(',').map(Number));
+  const b = cleanLatLng(String(toStr || '').split(',').map(Number));
+  if (!a || !b) throw badRequest('Toạ độ không hợp lệ');
+  if (distance({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) > 30000) throw badRequest('Hai điểm cách nhau quá xa (tối đa 30 km)');
+  const straight = { path: [a, b], routed: false };
+  return cached(`route:${a}:${b}`, 24 * 3600 * 1000, async () => {
+    try {
+      const url = `${OSRM}/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`;
+      const data = await getJson(url);
+      const coords = data.routes?.[0]?.geometry?.coordinates;
+      if (data.code !== 'Ok' || !Array.isArray(coords) || coords.length < 2) return straight;
+      const path = coords.map(([lng, lat]) => cleanLatLng([lat, lng])).filter(Boolean);
+      // Nối đúng vào hai điểm người dùng bấm (OSRM bắt điểm vào đường gần nhất).
+      return path.length >= 2 ? { path: [a, ...path, b], routed: true } : straight;
+    } catch {
+      return straight;
+    }
+  });
+}
+
 // ---------- HTTP ----------
 
 const MIME = {
@@ -546,8 +636,11 @@ function createServer() {
         return sendJson(res, 200, { streetView: Boolean(googleKey()) });
       }
       if (u.pathname === '/api/saved' && req.method === 'POST') return sendJson(res, 200, await updateSaved(req));
+      if (u.pathname === '/api/floods' && req.method === 'POST') return sendJson(res, 200, { floods: await updateFloods(req) });
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
+      if (u.pathname === '/api/floods') return sendJson(res, 200, { floods: loadFloods() });
+      if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
       if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
       if (u.pathname === '/api/config') return sendJson(res, 200, { streetView: Boolean(googleKey()), fromEnv: Boolean(process.env.GOOGLE_MAPS_API_KEY) });
       if (u.pathname === '/api/streetview/meta') return sendJson(res, 200, await streetViewMeta(u.searchParams.get('lat'), u.searchParams.get('lng')));

@@ -35,6 +35,12 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
 - **✓ Không phù hợp**: tin đã xem mà không ưng thì bấm *✓ Không phù hợp*, tin sẽ bị ẩn khỏi kết quả từ đó về sau. Tắt ô **Ẩn tin đã đánh dấu** trên thanh lọc để hiện lại các tin này (làm mờ, có nhãn *Đã đánh dấu không phù hợp*). Tab *Đã ẩn* trong **♥ Đã lưu** liệt kê các tin đã ẩn, với nút *↺ Bỏ ẩn* cho từng tin và *Bỏ ẩn tất cả*.
   - Tin yêu thích và tin đã ẩn được lưu trên máy, trong file `saved.json` ở thư mục dữ liệu (bản web: `phong-tro-map/data/`, app: `~/Library/Application Support/Phong Tro Map/`). Tắt / mở lại tool vẫn còn, và dùng chung giữa các trình duyệt trên cùng máy.
 - **📞 Số điện thoại / Zalo**: nếu nội dung tin có số điện thoại (`0909 123 456`, `0909.123.456`, `+84 909…`) thì số hiện luôn trên tin, kèm nút **Zalo** (mở `zalo.me/<số>` để nhắn tin) và bấm vào số để gọi. Tin không ghi số trong nội dung thì bấm **Hiện SĐT / Zalo**: tool hỏi API của Nhà Tốt, không có thì tìm trong nội dung đầy đủ của tin, vẫn không có thì hiện link sang tin trên Nhà Tốt.
+- **🌊 Lớp điểm ngập tự thêm** (bảng *Điểm ngập* ở góc phải bản đồ):
+  - Chọn **mức độ ngập**: 🔴 Thường xuyên, 🟠 Vừa, 🟡 Nhẹ, ⚪ Chưa phân loại.
+  - **📍 Đặt điểm**: bấm một chỗ trên bản đồ. **〰 Nối A–B**: bấm điểm A rồi điểm B, tool vẽ đoạn ngập bám theo đường phố (dịch vụ chỉ đường miễn phí [OSRM](https://project-osrm.org/), không tìm được đường thì nối thẳng). Esc để huỷ.
+  - Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
+  - Ô **🌊 Điểm ngập** bật / tắt hiển thị cả lớp. Dữ liệu lưu trên máy (`floods.json` trong thư mục dữ liệu).
+- **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **🌊 Tra cứu điểm ngập**: nút trên header mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) của VnExpress (theo danh sách của Sở Xây dựng TP HCM) trong tab mới (app Mac: trình duyệt mặc định), trình duyệt cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
 - **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.
 - **Tải tất cả**: tự lấy hết các trang kết quả (tối đa 5.000 tin mỗi lần lọc), bấm lần nữa để dừng. Cuộn xuống cuối danh sách cũng tự tải thêm.
@@ -111,6 +117,7 @@ Biến môi trường (không bắt buộc):
 | `DATA_DIR` | `./data` | Nơi lưu cache geocode (`geocode-cache.json`) |
 
 | `GOOGLE_MAPS_API_KEY` | (trống) | Key cho ô xem trước Street View. Cũng có thể dán key ngay trong popup trên bản đồ, key được lưu ở `DATA_DIR/config.json` |
+| `OSRM_URL` | `https://router.project-osrm.org` | Dịch vụ chỉ đường để vẽ đoạn ngập A–B theo đường phố |
 
 Chạy test: `npm test`.
 

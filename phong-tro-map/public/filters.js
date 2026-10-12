@@ -350,6 +350,24 @@
     return 'https://zalo.me/' + encodeURIComponent(p);
   }
 
+  // Khoảng cách (m) giữa hai điểm [lat, lng], và độ dài một đường gấp khúc.
+  function meters(a, b) {
+    const r = Math.PI / 180;
+    const h = Math.sin(((b[0] - a[0]) * r) / 2) ** 2
+      + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(((b[1] - a[1]) * r) / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.sqrt(h));
+  }
+
+  function pathLength(path) {
+    let m = 0;
+    for (let i = 1; i < path.length; i++) m += meters(path[i - 1], path[i]);
+    return m;
+  }
+
+  function formatDistance(m) {
+    return m >= 1000 ? `${String(Math.round(m / 100) / 10).replace('.', ',')} km` : `${Math.round(m)} m`;
+  }
+
   // Các câu truy vấn geocode cho tin không có toạ độ, từ chi tiết (phường) tới thô (quận).
   function geoQueries(ad) {
     const out = [];
@@ -363,6 +381,7 @@
     FIELDS, DEFAULTS, SORT_TO_SP, emptyState, parseRange, formatRange, formatMoney, rangeLabel, fold,
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
     wardsOfArea, locationSources, googleMapsUrl, streetViewUrl, panoUrl,
+    meters, pathLength, formatDistance,
     normalizePhone, extractPhones, formatPhone, zaloUrl,
     splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };

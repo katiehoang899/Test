@@ -299,7 +299,11 @@ function highlightCard(id) {
 // Bấm ra ngoài khi đang mở popup chỉ để đóng popup, không mở popup điểm mới.
 let lastPopupClose = 0;
 map.on('popupclose', () => { lastPopupClose = Date.now(); });
+// Các chức năng khác (vd. thêm điểm ngập, floods.js) xử lý cú bấm trước; trả về true là đã dùng.
+const mapClickHooks = [];
+
 map.on('click', (e) => {
+  if (mapClickHooks.some((hook) => hook(e))) return;
   if (Date.now() - lastPopupClose < 400) return;
   L.popup({ maxWidth: 260, minWidth: 200 })
     .setLatLng(e.latlng)
@@ -489,6 +493,56 @@ document.addEventListener('click', (e) => {
   } else if (b.dataset.act === 'phone') showPhone(id, b);
 }, true);
 
+const ICON_COPY = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>';
+const ICON_CHECK = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
+const ICON_MAP = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="#ea4335" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.6" fill="#fff"/></svg>';
+
+// Địa chỉ bất động sản + nút copy + nút mở vị trí trên Google Maps.
+function addressHtml(ad, fallback) {
+  const addr = ad.address || fallback;
+  if (!addr) return '';
+  const gmaps = ad.lat != null ? Filters.googleMapsUrl(ad.lat, ad.lng) : Filters.googleMapsUrl(null, null, addr);
+  return `<div class="addr">
+    <span class="addr-text" title="${esc(addr)}"><b>Địa chỉ:</b> ${esc(addr)}</span>
+    <button type="button" class="icon-btn" data-copy="${esc(addr)}" title="Copy địa chỉ" aria-label="Copy địa chỉ">${ICON_COPY}</button>
+    <a class="icon-btn" href="${esc(gmaps)}" target="_blank" rel="noopener" title="Mở vị trí trên Google Maps" aria-label="Mở vị trí trên Google Maps">${ICON_MAP}</a>
+  </div>`;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Trình duyệt cũ / không cho dùng clipboard API: dùng ô chữ tạm.
+    const t = document.createElement('textarea');
+    t.value = text;
+    t.style.position = 'fixed';
+    t.style.opacity = '0';
+    document.body.append(t);
+    t.select();
+    const ok = document.execCommand('copy');
+    t.remove();
+    return ok;
+  }
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-copy]');
+  if (!b) return;
+  e.stopPropagation();
+  const ok = await copyText(b.dataset.copy);
+  b.innerHTML = ok ? ICON_CHECK : ICON_COPY;
+  b.classList.toggle('copied', ok);
+  b.title = ok ? 'Đã copy' : 'Không copy được';
+  clearTimeout(b.copyTimer);
+  b.copyTimer = setTimeout(() => {
+    b.innerHTML = ICON_COPY;
+    b.classList.remove('copied');
+    b.title = 'Copy địa chỉ';
+  }, 1500);
+}, true);
+
 function cardHtml(ad) {
   const where = [ad.ward, ad.area, ad.region].filter(Boolean).join(', ');
   const tags = [
@@ -507,7 +561,7 @@ function cardHtml(ad) {
       <a class="title" href="${esc(ad.url)}" target="_blank" rel="noopener">${esc(ad.title)}</a>
       <div class="price">${esc(priceText(ad))}</div>
       <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
-      <div class="where">${esc(where)}</div>
+      ${addressHtml(ad, where)}
       <div class="meta">
         <span>${esc(ad.date)}</span>
         <span class="badge ${ad.isCompany ? 'pro' : ''}">${ad.isCompany ? 'Môi giới' : 'Cá nhân'}</span>

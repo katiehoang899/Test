@@ -179,3 +179,11 @@ test('hide ads marked "không phù hợp" unless turned off', () => {
   assert.equal(F.stateFromSearch('?hidemarked=x').hidemarked, '1');
   assert.equal(F.stateToSearch(F.emptyState()), '', 'mặc định không ghi lên URL');
 });
+
+test('distance helpers', () => {
+  assert.ok(Math.abs(F.meters([10.7, 106.7], [10.71, 106.7]) - 1112) < 5);
+  assert.equal(F.pathLength([[10.7, 106.7]]), 0);
+  assert.ok(Math.abs(F.pathLength([[10.7, 106.7], [10.71, 106.7], [10.72, 106.7]]) - 2224) < 10);
+  assert.equal(F.formatDistance(345.6), '346 m');
+  assert.equal(F.formatDistance(2224), '2,2 km');
+});
