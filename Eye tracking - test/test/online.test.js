@@ -375,3 +375,24 @@ test('ghi chú phiên: admin / mod viết, guest không thấy và không sửa 
   assert.equal((await call('GET', '/__et/api/guest/scenarios', gc)).body[0].inviteTemplate, undefined);
   assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, ac, { inviteTemplate: '  ' })).body.inviteTemplate, undefined);
 });
+
+test('hướng dẫn nhiệm vụ: có định dạng, được làm sạch, guest đọc được trong lúc làm', async () => {
+  const { getAuth } = require('../server');
+  const ac = (await login('admin', getAuth().resetAdmin('admin').password)).cookie;
+  const sc = (await call('POST', '/__et/api/scenarios', ac, { name: 'Guide scenario', url: siteBase + '/', instructions: 'Mua 1 sản phẩm' })).body;
+  const guide = '<h3>Các bước</h3><ol><li>Mở <b>trang sản phẩm</b></li><li>Thêm vào giỏ</li></ol><img src=x onerror=alert(1)><a href="javascript:x">j</a>';
+  const saved = (await call('PATCH', `/__et/api/scenarios/${sc.id}`, ac, { guide })).body;
+  assert.equal(saved.guide, '<h3>Các bước</h3><ol><li>Mở <b>trang sản phẩm</b></li><li>Thêm vào giỏ</li></ol><a>j</a>');
+  assert.equal(saved.instructions, 'Mua 1 sản phẩm'); // nhiệm vụ ngắn vẫn giữ riêng
+
+  const [g] = (await call('POST', '/__et/api/users', ac, { names: ['Lan'], scenarioId: sc.id })).body;
+  const gc = (await login(g.user.username, g.password)).cookie;
+  const mine = (await call('GET', '/__et/api/guest/scenarios', gc)).body;
+  assert.equal(mine[0].guide, saved.guide);
+  assert.equal((await fetch(base + '/__et/rte.js', { headers: { cookie: gc } })).status, 200);
+  // mod sửa được; chỉ còn thẻ rỗng = xoá
+  const mod = (await call('POST', '/__et/api/users', ac, { role: 'mod', name: 'Phúc', username: 'phuc.mod' })).body;
+  const mc = (await login('phuc.mod', mod.password)).cookie;
+  assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, mc, { guide: '<p><br></p><ul><li></li></ul>' })).body.guide, undefined);
+  assert.equal((await call('GET', '/__et/api/guest/scenarios', gc)).body[0].guide, '');
+});

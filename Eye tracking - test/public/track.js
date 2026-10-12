@@ -546,6 +546,93 @@ function startClock() {
   }, 1000);
 }
 
+// ---------- hướng dẫn nhiệm vụ (của kịch bản): người làm mở / ẩn, kéo đi chỗ khác được ----------
+
+const guideKey = () => 'heatmap.guide.' + sessionId;
+function guidePref() {
+  try { return JSON.parse(sessionStorage.getItem(guideKey())) || {}; } catch { return {}; }
+}
+function saveGuidePref(patch) {
+  try { sessionStorage.setItem(guideKey(), JSON.stringify({ ...guidePref(), ...patch })); } catch { /* bỏ qua */ }
+}
+
+function showGuide(open) {
+  $('#guidePanel').hidden = !open;
+  $('#guideToggle').setAttribute('aria-pressed', String(open));
+  saveGuidePref({ open });
+}
+
+let guideScenario = null;
+function renderGuide() {
+  const sc = guideScenario;
+  if (!sc) return;
+  $('#guideBody').innerHTML = [
+    sc.instructions ? `<p class="guide-task"><b>${esc(t('guest.task'))}</b><br>${esc(sc.instructions)}</p>` : '',
+    sc.guide ? RichEditor.sanitize(sc.guide) : '',
+  ].join('');
+}
+document.addEventListener('i18n:change', renderGuide);
+
+async function loadGuide(s) {
+  if (!s.scenarioId) return;
+  // guest đọc qua /api/guest/scenarios; admin / mod tự chạy phiên đọc danh sách kịch bản đầy đủ
+  const get = (url) => fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const urls = s.guestId ? ['/__et/api/guest/scenarios', '/__et/api/scenarios'] : ['/__et/api/scenarios', '/__et/api/guest/scenarios'];
+  let list = null;
+  for (const url of urls) if (!list) list = await get(url);
+  const sc = (list || []).find((x) => x.id === s.scenarioId);
+  if (!sc || (!sc.guide && !sc.instructions)) return;
+  guideScenario = sc;
+  renderGuide();
+  $('#guideToggle').hidden = false;
+  const pref = guidePref();
+  showGuide(pref.open !== false); // lần đầu: mở sẵn
+  if (pref.x != null) placeGuide(pref.x, pref.y); // sau khi hiện mới đo được kích thước
+}
+
+// đặt khung hướng dẫn trong vùng trình duyệt (toạ độ góc trên trái, tính từ vùng trình duyệt)
+function placeGuide(x, y) {
+  const panel = $('#guidePanel');
+  const view = $('#browserView');
+  if (!panel.style.width) panel.style.width = panel.offsetWidth + 'px'; // giữ bề rộng khi bỏ neo phải / dưới
+  panel.style.right = 'auto';
+  panel.style.bottom = 'auto';
+  const maxX = Math.max(0, view.clientWidth - panel.offsetWidth);
+  const maxY = Math.max(0, view.clientHeight - Math.min(panel.offsetHeight, view.clientHeight));
+  const nx = Math.min(Math.max(0, x), maxX);
+  const ny = Math.min(Math.max(0, y), maxY);
+  panel.style.left = nx + 'px';
+  panel.style.top = ny + 'px';
+  return { x: nx, y: ny };
+}
+
+$('#guideToggle').addEventListener('click', () => showGuide($('#guidePanel').hidden));
+$('#guideHide').addEventListener('click', () => showGuide(false));
+// kéo bằng thanh tiêu đề; giữ con trỏ (pointer capture) để không bị khung web bên dưới "nuốt" mất
+$('#guideHead').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || e.target.closest('button')) return;
+  const panel = $('#guidePanel');
+  const start = { px: e.clientX, py: e.clientY, x: panel.offsetLeft, y: panel.offsetTop };
+  let last = { x: start.x, y: start.y };
+  const head = e.currentTarget;
+  head.setPointerCapture(e.pointerId);
+  panel.classList.add('dragging');
+  const move = (ev) => { last = placeGuide(start.x + ev.clientX - start.px, start.y + ev.clientY - start.py); };
+  const up = () => {
+    head.removeEventListener('pointermove', move);
+    panel.classList.remove('dragging');
+    saveGuidePref(last);
+  };
+  head.addEventListener('pointermove', move);
+  head.addEventListener('pointerup', up, { once: true });
+  head.addEventListener('pointercancel', up, { once: true });
+});
+// thu nhỏ cửa sổ → kéo khung về lại trong vùng nhìn thấy
+window.addEventListener('resize', () => {
+  const panel = $('#guidePanel');
+  if (!panel.hidden && panel.style.left) placeGuide(panel.offsetLeft, panel.offsetTop);
+});
+
 async function init() {
   await I18N.load();
   cameraPref = !!I18N.settings.showCamera;
@@ -567,6 +654,7 @@ async function init() {
   }
   $('#statParticipant').textContent = session.participant || t('common.anonymous');
   setAddress(session.url);
+  loadGuide(session); // không chờ: hướng dẫn hiện khi tải xong
 
   if (!isDesktop && /^file:/i.test(session.url)) {
     showOverlay(`<h2>${esc(t('track.need_desktop_title'))}</h2>

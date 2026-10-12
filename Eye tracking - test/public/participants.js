@@ -10,6 +10,7 @@ let scenarios = [];
 let users = [];
 let currentId = new URLSearchParams(location.search).get('scenario') || '';
 let lastCreds = []; // [{ user, password }] vừa tạo — chỉ hiện một lần
+let guideEditor = null; // ô soạn Hướng dẫn nhiệm vụ (rte.js), tạo khi mở kịch bản đầu tiên
 
 function toast(msg, ms = 2500) {
   const el = document.createElement('div');
@@ -117,6 +118,10 @@ function fillConfig() {
   $('#cfgName').value = sc.name;
   $('#cfgUrl').value = sc.url || '';
   $('#cfgInstructions').value = sc.instructions || '';
+  if (!guideEditor) {
+    guideEditor = RichEditor.create($('#cfgGuide'), { id: 'cfgGuideEditor', labelledBy: 'cfgGuideLabel', placeholderKey: 'ppl.guide_placeholder' });
+  }
+  guideEditor.setHtml(sc.guide || '');
   $('#cfgEye').checked = sc.eyeTracking !== false;
   $('#cfgAudio').checked = !!sc.recordAudio;
   $('#cfgAudio').disabled = !$('#cfgEye').checked;
@@ -138,6 +143,7 @@ $('#configForm').addEventListener('submit', async (e) => {
       url: $('#cfgUrl').value.trim(),
       kind: /figma\.com\//i.test($('#cfgUrl').value) ? 'figma' : 'web',
       instructions: $('#cfgInstructions').value,
+      guide: guideEditor.getHtml(),
       eyeTracking: $('#cfgEye').checked,
       recordAudio: $('#cfgEye').checked && $('#cfgAudio').checked,
     });

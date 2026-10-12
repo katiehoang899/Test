@@ -32,6 +32,7 @@ Guest không xem được báo cáo, phiên của người khác, danh sách k�
 1. **Admin / Mod** đăng nhập → **Kịch bản** → tạo kịch bản (ví dụ "Droppii Mall"):
    - **Link cần test**: website (`https://…`) hoặc prototype Figma.
    - **Nhiệm vụ** cho người tham gia.
+   - **Hướng dẫn nhiệm vụ** (tuỳ chọn): soạn có định dạng giống Ghi chú (tiêu đề, danh sách, đậm, link…). Trong lúc làm, người tham gia mở / ẩn hướng dẫn bằng nút **📋 Hướng dẫn** trên thanh trình duyệt; khung hướng dẫn mở sẵn lần đầu, kéo đi chỗ khác được bằng thanh tiêu đề và nhớ vị trí trong phiên. Trên trang chọn kịch bản, người tham gia cũng xem trước được hướng dẫn.
    - Bật / tắt eye tracking bằng webcam, ghi âm micro.
 2. Nhập tên người tham gia (mỗi dòng một người) → **Tạo tài khoản**. Mỗi người có tên đăng nhập (ví dụ `user12995`) và mật khẩu ngẫu nhiên. Mật khẩu **chỉ hiện một lần**: bấm **Sao chép thư mời** (có sẵn link, tên đăng nhập, mật khẩu) hoặc **Tải CSV**. Quên thì bấm **Cấp mật khẩu mới**.
    - **Thư mời** (cùng trang): sửa nội dung thư mời riêng cho kịch bản. Bấm các thẻ để chèn `{name}`, `{scenario}`, `{link}`, `{username}`, `{password}`, `{instructions}`; khung **Xem trước** hiện thư mời đã điền. **Dùng mẫu mặc định** quay về mẫu chuẩn (đổi theo ngôn ngữ giao diện).

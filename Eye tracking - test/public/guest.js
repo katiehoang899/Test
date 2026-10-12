@@ -44,6 +44,7 @@ function render() {
     return `<article class="card scenario-card">
       <div class="sessions-head"><h2 style="margin: 0">${esc(sc.name)}</h2>${status}</div>
       ${sc.instructions ? `<div class="instructions"><b>${esc(t('guest.task'))}</b><p>${esc(sc.instructions)}</p></div>` : ''}
+      ${sc.guide ? `<details class="guide-preview"><summary>${esc(t('guide.preview'))}</summary><div class="rich-text">${RichEditor.sanitize(sc.guide)}</div></details>` : ''}
       <p class="small muted" style="margin-bottom: 4px">${esc(t('guest.will_record'))}</p>
       <ul class="needs">${needs}</ul>
       ${warn}

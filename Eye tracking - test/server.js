@@ -875,6 +875,12 @@ function applyScenarioConfig(sc, body) {
     }
   }
   if (typeof body.instructions === 'string') sc.instructions = body.instructions.slice(0, 4000);
+  // hướng dẫn nhiệm vụ (có định dạng, như ghi chú): người tham gia mở / ẩn được trong lúc làm
+  if (typeof body.guide === 'string') {
+    const html = sanitizeNoteHtml(body.guide.slice(0, NOTE_MAX));
+    if (html.replace(/<[^>]*>|&nbsp;/g, '').trim()) sc.guide = html;
+    else delete sc.guide;
+  }
   // nội dung thư mời riêng của kịch bản; để trống = dùng mẫu mặc định (theo ngôn ngữ giao diện)
   if (typeof body.inviteTemplate === 'string') {
     if (body.inviteTemplate.trim()) sc.inviteTemplate = body.inviteTemplate.slice(0, 4000);
@@ -913,7 +919,7 @@ async function handleScenarios(req, res, parts) {
   if (!/^[a-f0-9]{12}$/.test(id)) return apiError(res, 404, 'scenario_not_found');
   if (req.method === 'PATCH') {
     const body = await readJson(req);
-    // đổi tên (name) và/hoặc cấu hình (url, instructions, inviteTemplate, eyeTracking, recordAudio)
+    // đổi tên (name) và/hoặc cấu hình (url, instructions, guide, inviteTemplate, eyeTracking, recordAudio)
     const name = 'name' in body ? str(body.name, 120)?.trim() : null;
     if ('name' in body && !name) return apiError(res, 400, 'scenario_name');
     let bad = null;
@@ -1524,6 +1530,7 @@ async function handleGuest(req, res, parts) {
       kind: sc.kind || 'web',
       url: sc.url || '',
       instructions: sc.instructions || '',
+      guide: sc.guide || '',
       eyeTracking: sc.eyeTracking !== false && getSettings().eyeTrackingEnabled,
       recordAudio: !!sc.recordAudio && sc.eyeTracking !== false && getSettings().eyeTrackingEnabled,
       sessions: mine.filter((m) => m.scenarioId === sc.id).map((m) => ({ id: m.id, createdAt: m.createdAt, endedAt: m.endedAt, durationMs: m.durationMs })),
@@ -2085,7 +2092,7 @@ async function serveStatic(res, root, rel, extraHeaders) {
 // Trang không cần đăng nhập, và trang người tham gia (guest) được mở.
 const PUBLIC_FILES = new Set(['/login.html', '/login.js', '/i18n.js', '/style.css', '/logo.svg']);
 const ADMIN_ONLY_FILES = new Set(['/team.html', '/team.js']);
-const GUEST_FILES = new Set([...PUBLIC_FILES, '/guest.html', '/guest.js', '/account.js', '/track.html', '/track.js', '/recorder.js', '/media.js']);
+const GUEST_FILES = new Set([...PUBLIC_FILES, '/guest.html', '/guest.js', '/account.js', '/rte.js', '/track.html', '/track.js', '/recorder.js', '/media.js']);
 
 function redirect(res, location) {
   res.writeHead(302, { Location: location, 'Cache-Control': 'no-store' });

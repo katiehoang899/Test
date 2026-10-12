@@ -53,6 +53,7 @@
         <button type="button" id="navReload" data-i18n-title="track.reload" data-i18n-aria="track.reload">⟳</button>
         <input type="text" id="address" autocomplete="off" spellcheck="false" data-i18n-aria="track.address">
         <span class="small muted" id="browserMode"></span>
+        <button type="button" id="guideToggle" class="guide-toggle" aria-pressed="false" aria-controls="guidePanel" hidden><span aria-hidden="true">📋</span> <span data-i18n="guide.button"></span></button>
         <span class="bar-sep"></span>
         <span class="rec-group" role="group" data-i18n-aria="rec.group">
           <button type="button" id="recStart" class="rec-btn"><span class="rec-icon">⏺</span> <span data-i18n="rec.start"></span></button>
@@ -70,6 +71,14 @@
         <button type="button" class="primary" id="finish" data-i18n="track.finish"></button>
       </form>
       <div class="browser-view" id="browserView">
+        <aside class="guide-panel" id="guidePanel" aria-labelledby="guideTitle" hidden>
+          <div class="guide-head" id="guideHead">
+            <span class="guide-grip" aria-hidden="true">⋮⋮</span>
+            <b id="guideTitle" data-i18n="guide.title"></b>
+            <button type="button" class="guide-hide" id="guideHide" data-i18n-title="guide.hide" data-i18n-aria="guide.hide">✕</button>
+          </div>
+          <div class="guide-body rich-text" id="guideBody"></div>
+        </aside>
         <div class="overlay" id="overlay" hidden>
           <div class="center-msg" id="overlayMsg"></div>
         </div>
@@ -81,6 +90,7 @@
   <script src="/__et/i18n.js"></script>
   <script src="/__et/recorder.js"></script>
   <script src="/__et/media.js"></script>
+  <script src="/__et/rte.js"></script>
   <script src="/__et/track.js"></script>
 </body>
 </html>
