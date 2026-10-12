@@ -39,10 +39,12 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
 - **🌊 Lớp điểm ngập tự thêm** (bảng *Điểm ngập* ở góc phải bản đồ):
   - **📍 Đặt điểm**: bấm một chỗ trên bản đồ. **〰 Nối A–B**: bấm điểm A rồi điểm B, tool vẽ đoạn ngập bám theo đường phố (dịch vụ chỉ đường miễn phí [OSRM](https://project-osrm.org/), không tìm được đường thì nối thẳng). Esc để huỷ.
   - Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **mức độ ngập** (🔴 Thường xuyên, 🟠 Vừa, 🟡 Nhẹ, ⚪ Chưa phân loại). Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
+  - Nút **danh sách** (icon danh sách + số lượng) cạnh tiêu đề bảng mở popup liệt kê mọi điểm / đoạn A–B đã tạo, mới nhất trước: đổi mức độ, sửa ghi chú (lưu ngay), **Xem** (bay tới điểm đó trên bản đồ và mở chi tiết) hoặc **Xoá**.
   - Ô **🌊 Điểm ngập** bật / tắt hiển thị cả lớp. Dữ liệu lưu trên máy (`floods.json` trong thư mục dữ liệu).
 - **🚗 Lớp đỗ xe hơi** (bảng *Đỗ xe hơi* ở góc phải bản đồ, dưới bảng điểm ngập): dùng giống hệt lớp điểm ngập.
   - **📍 Đặt điểm**: hiện biển **P** xanh dương, chấm màu ở góc biển là loại chỗ đỗ. **〰 Nối A–B**: vẽ đoạn đường đỗ được xe (nét đứt, bám theo đường phố).
   - Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **loại chỗ đỗ** (🟢 Miễn phí, 🟠 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại). Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
+  - Nút **danh sách** cạnh tiêu đề bảng: xem, sửa loại / ghi chú, tới điểm trên bản đồ hoặc xoá các điểm / đoạn đỗ xe đã tạo.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):

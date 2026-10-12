@@ -63,9 +63,13 @@ function createUserLayer(cfg) {
       const div = L.DomUtil.create('div', 'ul-ctl');
       div.dataset.layer = cfg.key;
       div.innerHTML = `
-        <label class="ul-toggle" title="Bật / tắt hiển thị ${esc(cfg.what)} trên bản đồ">
-          <input type="checkbox" data-ul-show> ${icon(cfg.icon)} <span class="tx">${esc(cfg.title)}</span> <b data-ul-count></b>
-        </label>
+        <div class="ul-head">
+          <label class="ul-toggle" title="Bật / tắt hiển thị ${esc(cfg.what)} trên bản đồ">
+            <input type="checkbox" data-ul-show> ${icon(cfg.icon)} <span class="tx">${esc(cfg.title)}</span>
+          </label>
+          <button type="button" class="ul-list-btn" data-ul-list title="Danh sách ${esc(cfg.what)} đã tạo: xem, sửa, xoá"
+            aria-label="Danh sách ${esc(cfg.what)} đã tạo">${icon('list')} <b data-ul-count>0</b></button>
+        </div>
         <div class="ul-body" data-ul-body>
           <div class="ul-actions">
             <button type="button" data-ul-mode="point" title="Bấm 1 chỗ trên bản đồ để đặt ${esc(cfg.what)}">${icon('pinPlus')} Đặt điểm</button>
@@ -85,6 +89,7 @@ function createUserLayer(cfg) {
     show: root.querySelector('[data-ul-show]'),
     body: root.querySelector('[data-ul-body]'),
     count: root.querySelector('[data-ul-count]'),
+    listBtn: root.querySelector('[data-ul-list]'),
     hint: root.querySelector('[data-ul-hint]'),
   };
   const storeKey = `phongtro.layer.${cfg.key}`;
@@ -120,6 +125,7 @@ function createUserLayer(cfg) {
   }
 
   ui.show.addEventListener('change', () => setVisible(ui.show.checked));
+  ui.listBtn.addEventListener('click', () => openList(api_));
   ui.body.addEventListener('click', (e) => {
     const b = e.target.closest('[data-ul-mode]');
     if (b) setMode(st.mode === b.dataset.ulMode ? null : b.dataset.ulMode);
@@ -137,6 +143,7 @@ function createUserLayer(cfg) {
     if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
     st.items = data[cfg.key] || [];
     render();
+    if (listDlg.open && listLayer === api_) renderLayerList();
     return st.items;
   }
 
@@ -183,6 +190,16 @@ function createUserLayer(cfg) {
     setMode(null);
     await add({ type: 'line', path: r.path, routed: r.routed });
     if (!r.routed) hint('Không tìm được đường đi theo đường phố, đã nối thẳng A–B.');
+  }
+
+  // Tới điểm / đoạn trên bản đồ (bật lớp nếu đang tắt) rồi mở popup của nó.
+  function focus(id) {
+    const f = st.items.find((x) => x.id === id);
+    if (!f) return;
+    if (!ui.show.checked) setVisible(true);
+    if (f.type === 'line') map.fitBounds(L.latLngBounds(f.path).pad(0.25), { animate: false, maxZoom: 17 });
+    else map.setView(f.coords, Math.max(map.getZoom(), 17), { animate: false });
+    open(id);
   }
 
   function open(id) {
@@ -237,10 +254,10 @@ function createUserLayer(cfg) {
       layer.bindTooltip(`${icon(cfg.icon)} ${esc(levelOf(f.level).label)}${f.note ? ' · ' + esc(f.note) : ''}`, { sticky: true });
       group.addLayer(layer);
     }
-    ui.count.textContent = st.items.length ? String(st.items.length) : '';
+    ui.count.textContent = String(st.items.length);
   }
 
-  const api_ = { key: cfg.key, cfg, setMode, save, open, onMapClick, mode: () => st.mode };
+  const api_ = { key: cfg.key, cfg, levelOf, setMode, save, open, focus, onMapClick, mode: () => st.mode, items: () => st.items };
 
   let visible = true;
   try { visible = localStorage.getItem(storeKey) !== '0'; } catch { /* bỏ qua */ }
@@ -251,6 +268,67 @@ function createUserLayer(cfg) {
   }).catch(() => { /* chưa có dữ liệu */ });
   return api_;
 }
+
+// ---------- danh sách điểm / đoạn đã tạo (popup) ----------
+
+const listDlg = document.createElement('dialog');
+listDlg.className = 'ul-dlg';
+document.body.append(listDlg);
+let listLayer = null;
+
+function openList(layer) {
+  listLayer = layer;
+  renderLayerList();
+  if (!listDlg.open) listDlg.showModal();
+}
+
+function shortTime(ms) {
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getDate()}/${d.getMonth() + 1} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderLayerList() {
+  const layer = listLayer;
+  const { cfg } = layer;
+  const items = layer.items().slice().sort((a, b) => b.at - a.at);
+  const rows = items.map((f) => {
+    const isLine = f.type === 'line';
+    const kind = isLine ? `Đoạn A–B · ${Filters.formatDistance(Filters.pathLength(f.path))}` : 'Điểm';
+    return `<li class="ul-row" data-ul-item="${esc(f.id)}" data-ul-layer="${cfg.key}">
+      <i class="ul-dot" style="background:${layer.levelOf(f.level).color}"></i>
+      <div class="ul-row-main">
+        <div class="ul-row-title">${icon(isLine ? 'route' : 'pin')} <span>${esc(kind)}</span>${f.at ? `<span class="ul-row-time">${esc(shortTime(f.at))}</span>` : ''}</div>
+        <div class="ul-row-fields">
+          <select data-ul-level aria-label="${esc(cfg.legend)}">${cfg.levels.map((l) => `<option value="${l.id}"${l.id === f.level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select>
+          <input data-ul-note maxlength="300" value="${esc(f.note || '')}" placeholder="Ghi chú: ${esc(cfg.notePlaceholder)}" aria-label="Ghi chú">
+        </div>
+      </div>
+      <div class="ul-row-acts">
+        <button type="button" data-ul-goto title="Xem trên bản đồ">${icon('pin')} Xem</button>
+        <button type="button" data-ul-del class="danger" title="Xoá">${icon('trash')} Xoá</button>
+      </div>
+    </li>`;
+  }).join('');
+  listDlg.innerHTML = `<div class="ul-dlg-head">
+      <h2>${icon(cfg.icon)} ${esc(cfg.title)} <b>${items.length}</b></h2>
+      <button type="button" class="ul-dlg-close" data-ul-close aria-label="Đóng">${icon('close')}</button>
+    </div>
+    ${items.length
+    ? `<ul class="ul-rows">${rows}</ul>`
+    : `<p class="ul-empty">Chưa có ${esc(cfg.what)} nào. Bấm <b>Đặt điểm</b> hoặc <b>Nối A–B</b> trong bảng ${esc(cfg.title)} trên bản đồ để thêm.</p>`}`;
+}
+
+listDlg.addEventListener('click', (e) => {
+  // Bấm nút × hoặc ra ngoài khung (vùng nền mờ) thì đóng.
+  if (e.target === listDlg || e.target.closest('[data-ul-close]')) return listDlg.close();
+  const go = e.target.closest('[data-ul-goto]');
+  if (go) {
+    const t = popupTarget(go);
+    listDlg.close();
+    t.layer.focus(t.id);
+  }
+});
 
 const userLayers = Object.fromEntries(USER_LAYERS.map((cfg) => [cfg.key, createUserLayer(cfg)]));
 
@@ -272,7 +350,10 @@ document.addEventListener('change', (e) => {
   const t = popupTarget(e.target);
   if (!t) return;
   if (e.target.matches('[data-ul-level]')) {
-    t.layer.save({ op: 'update', id: t.id, level: e.target.value }).then(() => t.layer.open(t.id)).catch((err) => alert(err.message));
+    const inList = Boolean(e.target.closest('.ul-dlg')); // sửa trong danh sách: không mở popup trên bản đồ
+    t.layer.save({ op: 'update', id: t.id, level: e.target.value })
+      .then(() => { if (!inList) t.layer.open(t.id); })
+      .catch((err) => alert(err.message));
   } else if (e.target.matches('[data-ul-note]')) {
     t.layer.save({ op: 'update', id: t.id, note: e.target.value }).catch((err) => alert(err.message));
   }
