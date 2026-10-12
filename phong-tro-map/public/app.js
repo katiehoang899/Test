@@ -940,7 +940,7 @@ async function fillPlaces() {
     : '<p class="none">Chọn quận / huyện trước.</p>';
   applyFilterBox(el.wardPop);
   el.wardLabel.textContent = multiLabel(state.ward, (w) => names.get(w) || `Mã ${w.split(':')[1]}`);
-  document.querySelectorAll('.pop').forEach((p) => p.classList.toggle('set', Boolean(p.querySelector('b').textContent)));
+  markSetPops();
 }
 
 // Popup chọn nhiều: tick xong, bấm "Áp dụng" hoặc bấm ra ngoài thì mới lọc (một lần).
@@ -962,6 +962,15 @@ for (const pop of [el.areaPop, el.wardPop]) {
     if (same) return;
     if (key === 'area_v2') update({ area_v2: picked, ward: state.ward.filter((w) => picked.includes(w.split(':')[0])) });
     else update({ ward: picked });
+  });
+}
+
+// Ô lọc có giá trị thì tô màu; nhãn đầy đủ hiện khi rê chuột (nhãn dài bị cắt "…").
+function markSetPops() {
+  document.querySelectorAll('.pop').forEach((p) => {
+    const b = p.querySelector('b');
+    p.classList.toggle('set', Boolean(b.textContent));
+    b.title = b.textContent;
   });
 }
 
@@ -1003,7 +1012,7 @@ function syncForm() {
   }));
   const folded = Filters.splitKeywords(state.nq);
   el.nqSuggest.querySelectorAll('button').forEach((b) => { b.disabled = folded.includes(Filters.splitKeywords(b.dataset.k)[0]); });
-  document.querySelectorAll('.pop').forEach((p) => p.classList.toggle('set', Boolean(p.querySelector('b').textContent)));
+  markSetPops();
 }
 
 // Từ khoá loại trừ như người dùng gõ (bỏ trùng không phân biệt dấu).

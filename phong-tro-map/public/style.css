@@ -75,10 +75,11 @@ button, input, select { font: inherit; color: inherit; }
 }
 .filters select:disabled { opacity: .5; cursor: default; }
 .pop { position: relative; }
-.pop summary { list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pop summary { list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; max-width: 320px; overflow: hidden; }
+.pop summary span { flex: none; }
 .pop summary::-webkit-details-marker { display: none; }
 .pop.set summary, .filters select:has(option:checked:not([value=""])) { border-color: var(--accent); background-color: var(--accent-soft); }
-.pop summary b { font-weight: 600; color: var(--accent); }
+.pop summary b { font-weight: 600; color: var(--accent); min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* nhãn dài: cắt "…" trước mũi tên */
 .pop-body {
   position: absolute; z-index: 1000; top: 40px; left: 0; width: 300px; max-width: calc(100vw - 32px);
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
