@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phòng trọ Map</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-view="split">
+  <header class="top">
+    <a class="brand" href="./"><img src="logo.svg" alt="" width="28" height="28"> Phòng trọ Map</a>
+    <form id="searchForm" class="search" role="search">
+      <input id="q" name="q" type="search" placeholder="Tìm phòng trọ: tên đường, khu vực, tiện ích…" autocomplete="off">
+      <button type="submit">Tìm</button>
+    </form>
+    <div class="views" role="tablist" aria-label="Chế độ xem">
+      <button type="button" data-view="list" role="tab">☰ Danh sách</button>
+      <button type="button" data-view="split" role="tab">◧ Chia đôi</button>
+      <button type="button" data-view="map" role="tab">🗺 Bản đồ</button>
+    </div>
+  </header>
+
+  <form id="filters" class="filters" autocomplete="off">
+    <select id="st" name="st" aria-label="Loại tin">
+      <option value="u">Cho thuê</option>
+      <option value="h">Cần thuê</option>
+      <option value="u,h">Tất cả loại tin</option>
+    </select>
+
+    <select id="region" name="region_v2" aria-label="Tỉnh / thành phố">
+      <option value="">Toàn quốc</option>
+    </select>
+    <select id="area" name="area_v2" aria-label="Quận / huyện" disabled>
+      <option value="">Tất cả quận / huyện</option>
+    </select>
+    <select id="ward" name="ward" aria-label="Phường / xã" disabled>
+      <option value="">Tất cả phường / xã</option>
+    </select>
+
+    <details class="pop" id="pricePop">
+      <summary><span>Giá thuê</span> <b id="priceLabel"></b></summary>
+      <div class="pop-body">
+        <div class="presets" data-target="price">
+          <button type="button" data-v="-1000000">Dưới 1 triệu</button>
+          <button type="button" data-v="1000000-2000000">1 – 2 triệu</button>
+          <button type="button" data-v="2000000-3000000">2 – 3 triệu</button>
+          <button type="button" data-v="3000000-5000000">3 – 5 triệu</button>
+          <button type="button" data-v="5000000-7000000">5 – 7 triệu</button>
+          <button type="button" data-v="7000000-10000000">7 – 10 triệu</button>
+          <button type="button" data-v="10000000-">Trên 10 triệu</button>
+        </div>
+        <div class="range">
+          <label>Từ <input type="number" id="priceMin" min="0" step="0.1" inputmode="decimal"> triệu</label>
+          <label>Đến <input type="number" id="priceMax" min="0" step="0.1" inputmode="decimal"> triệu</label>
+        </div>
+        <div class="pop-actions"><button type="button" data-clear="price">Xoá</button><button type="button" data-apply="price" class="primary">Áp dụng</button></div>
+      </div>
+    </details>
+
+    <details class="pop" id="sizePop">
+      <summary><span>Diện tích</span> <b id="sizeLabel"></b></summary>
+      <div class="pop-body">
+        <div class="presets" data-target="size">
+          <button type="button" data-v="-15">Dưới 15 m²</button>
+          <button type="button" data-v="15-20">15 – 20 m²</button>
+          <button type="button" data-v="20-30">20 – 30 m²</button>
+          <button type="button" data-v="30-50">30 – 50 m²</button>
+          <button type="button" data-v="50-">Trên 50 m²</button>
+        </div>
+        <div class="range">
+          <label>Từ <input type="number" id="sizeMin" min="0" step="1" inputmode="numeric"> m²</label>
+          <label>Đến <input type="number" id="sizeMax" min="0" step="1" inputmode="numeric"> m²</label>
+        </div>
+        <div class="pop-actions"><button type="button" data-clear="size">Xoá</button><button type="button" data-apply="size" class="primary">Áp dụng</button></div>
+      </div>
+    </details>
+
+    <details class="pop" id="furnPop">
+      <summary><span>Nội thất</span> <b id="furnLabel"></b></summary>
+      <div class="pop-body checks">
+        <label><input type="checkbox" name="furnishing_rent" value="1"> Nội thất cao cấp</label>
+        <label><input type="checkbox" name="furnishing_rent" value="2"> Nội thất đầy đủ</label>
+        <label><input type="checkbox" name="furnishing_rent" value="4"> Nội thất cơ bản</label>
+        <label><input type="checkbox" name="furnishing_rent" value="3"> Nhà trống</label>
+      </div>
+    </details>
+
+    <select id="f" name="f" aria-label="Đăng bởi">
+      <option value="">Cá nhân & môi giới</option>
+      <option value="p">Cá nhân</option>
+      <option value="c">Môi giới</option>
+    </select>
+
+    <select id="sort" name="sort" aria-label="Sắp xếp">
+      <option value="">Tin mới nhất</option>
+      <option value="price_asc">Giá thấp → cao</option>
+      <option value="price_desc">Giá cao → thấp</option>
+      <option value="size_desc">Diện tích lớn → nhỏ</option>
+      <option value="ppm_asc">Giá / m² thấp → cao</option>
+    </select>
+
+    <button type="button" id="reset" class="link">Xoá bộ lọc</button>
+  </form>
+
+  <div class="status" id="statusBar">
+    <span id="count">Đang tải…</span>
+    <span class="status-actions">
+      <label class="toggle" title="Chỉ liệt kê các tin nằm trong khung bản đồ đang xem"><input type="checkbox" id="inBounds"> Chỉ tin trong khung bản đồ</label>
+      <label class="toggle" title="Tin không có toạ độ sẽ được đặt gần đúng theo phường / quận"><input type="checkbox" id="approx" checked> Định vị gần đúng tin thiếu toạ độ</label>
+      <button type="button" id="loadAll">Tải tất cả</button>
+    </span>
+  </div>
+
+  <main class="main">
+    <section class="list" id="list" aria-live="polite"></section>
+    <section class="map-wrap">
+      <div id="map" aria-label="Bản đồ phòng trọ"></div>
+      <div class="legend">
+        <span><i class="dot exact"></i> Vị trí chính xác</span>
+        <span><i class="dot approx"></i> Gần đúng (theo phường / quận)</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Dữ liệu tin đăng từ <a href="https://www.nhatot.com/thue-phong-tro" target="_blank" rel="noopener">nhatot.com</a> · Bản đồ © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+  <script src="filters.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

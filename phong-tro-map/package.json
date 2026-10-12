@@ -1,0 +1,16 @@
+{
+  "name": "phong-tro-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Xem tất cả tin cho thuê phòng trọ của Nhà Tốt (nhatot.com) dạng danh sách và bản đồ, giữ đủ bộ lọc.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "GPL-3.0-or-later",
+  "author": "Katie Design"
+}

@@ -48,6 +48,10 @@ Heatmap 4.0 là bản nâng cấp của Heatmap 3.0 (cùng app, cài đè và gi
 
 Thư mục [`Eye tracking - test/`](Eye%20tracking%20-%20test/) là bản online chạy trên máy chủ: admin đăng nhập để quản lý, mỗi người tham gia được cấp một tài khoản guest để vào làm kịch bản từ xa. Cách cài đặt và triển khai xem README trong thư mục đó.
 
+## Phòng trọ Map
+
+Thư mục [`phong-tro-map/`](phong-tro-map/) là công cụ riêng (không liên quan tới Heatmap): xem tất cả tin cho thuê phòng trọ của Nhà Tốt (nhatot.com) dạng danh sách và bản đồ, giữ đủ bộ lọc của trang. Cách chạy xem README trong thư mục đó.
+
 ## Chạy
 
 Yêu cầu Node.js ≥ 18.
