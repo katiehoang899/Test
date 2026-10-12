@@ -46,7 +46,10 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
-- **🌊 Tra cứu điểm ngập**: nút trên header mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) của VnExpress (theo danh sách của Sở Xây dựng TP HCM) trong tab mới (app Mac: trình duyệt mặc định), trình duyệt cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
+- **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):
+  - **🌊** *Tra cứu điểm ngập qua VnExpress*: mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) (theo danh sách của Sở Xây dựng TP HCM) trong tab mới, cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
+  - **✓** *Kiểm tra phòng trọ minh bạch nhaminhbach.com*: mở [nhaminhbach.com](https://nhaminhbach.com/) trong tab mới.
+  - App Mac mở các trang này bằng trình duyệt mặc định.
 - **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.
 - **Tải tất cả**: tự lấy hết các trang kết quả (tối đa 5.000 tin mỗi lần lọc), bấm lần nữa để dừng. Cuộn xuống cuối danh sách cũng tự tải thêm.
 - **Chỉ tin trong khung bản đồ**: kéo / phóng bản đồ tới khu vực muốn ở, danh sách chỉ còn các tin trong khung đó.
