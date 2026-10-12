@@ -327,6 +327,12 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showMainWindow);
 
   app.whenReady().then(async () => {
+    // hộp About: năm bản quyền lấy theo năm hiện tại mỗi lần mở app
+    app.setAboutPanelOptions({
+      applicationName: 'Heatmap',
+      applicationVersion: app.getVersion(),
+      copyright: `Copyright © ${new Date().getFullYear()} Katie Design`,
+    });
     const port = await startServer();
     baseUrl = `http://127.0.0.1:${port}`;
     console.log('Heatmap server:', baseUrl);

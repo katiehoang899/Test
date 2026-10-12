@@ -28,7 +28,6 @@
   "build": {
     "appId": "com.heatmap.desktop",
     "productName": "Heatmap",
-    "copyright": "Copyright © 2026 Katie Design",
     "files": [
       "server.js",
       "public/**",

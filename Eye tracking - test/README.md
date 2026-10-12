@@ -121,4 +121,4 @@ Giao diện tự co giãn theo màn hình: trên điện thoại, header xuống
 
 ---
 
-© 2026 Katie Design. Bảo lưu mọi quyền.
+© Katie Design. Bảo lưu mọi quyền.
