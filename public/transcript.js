@@ -361,16 +361,26 @@ function getWorker() {
   return state.worker;
 }
 
-function runWorker(audio, model, language) {
+function runWorker(audio, model, language, device) {
   return new Promise((resolve, reject) => {
     const worker = getWorker();
+    // worker bị dừng đột ngột (thường do thiếu bộ nhớ): bỏ worker này, lần sau tạo worker mới
+    const crashed = (msg) => {
+      worker.terminate();
+      state.worker = null;
+      const err = new Error(msg || 'worker error');
+      err.crash = true;
+      reject(err);
+    };
     worker.onmessage = (e) => {
       const m = e.data;
+      if (m.device) state.asrDevice = m.device;
+      const dev = m.device === 'webgpu' ? 'GPU' : 'CPU';
       if (m.type === 'download') {
         setProgress(m.total ? m.loaded / m.total : -1, t('tr.downloading', { loaded: fmtMb(m.loaded), total: fmtMb(m.total) }));
       } else if (m.type === 'status') {
-        const device = m.device === 'webgpu' ? 'GPU' : 'CPU';
-        setProgress(-1, m.status === 'loading' ? t('tr.loading_model', { device }) : t('tr.transcribing', { device }));
+        const label = m.status === 'retry_cpu' ? 'tr.retry_cpu' : m.status === 'loading' ? 'tr.loading_model' : 'tr.transcribing';
+        setProgress(-1, t(label, { device: dev }));
       } else if (m.type === 'result') {
         resolve(m.segments);
       } else if (m.type === 'error') {
@@ -379,11 +389,33 @@ function runWorker(audio, model, language) {
     };
     worker.onerror = (e) => {
       e.preventDefault();
-      state.worker = null;
-      reject(new Error(e.message || 'worker error'));
+      crashed(e.message);
     };
-    worker.postMessage({ type: 'transcribe', audio, model, language }, [audio.buffer]);
+    worker.onmessageerror = () => crashed();
+    // gửi bản sao (không chuyển quyền sở hữu bộ đệm) để còn chạy lại được nếu worker hỏng
+    worker.postMessage({ type: 'transcribe', audio, model, language, device });
   });
+}
+
+/** Chạy nhận dạng; worker chết khi đang dùng GPU → thử lại một lần bằng CPU trong worker mới. */
+async function transcribeAudio(audio, model, language) {
+  state.asrDevice = null;
+  try {
+    return await runWorker(audio, model, language, 'auto');
+  } catch (err) {
+    if (!err.crash || state.asrDevice !== 'webgpu') throw friendly(err);
+    setProgress(-1, t('tr.retry_cpu'));
+    try {
+      return await runWorker(audio, model, language, 'wasm');
+    } catch (err2) {
+      throw friendly(err2);
+    }
+  }
+}
+
+// "worker error" không nói được gì → giải thích nguyên nhân thường gặp và cách xử lý
+function friendly(err) {
+  return err.crash ? new Error(t('tr.crashed')) : err;
 }
 
 $('#transcribe').addEventListener('click', async () => {
@@ -398,7 +430,7 @@ $('#transcribe').addEventListener('click', async () => {
   try {
     setProgress(-1, t('tr.decoding'));
     const audio = await EtMedia.decodeAudio(`${api}/media/${encodeURIComponent(state.audioId)}`);
-    const segments = await runWorker(audio, model, language);
+    const segments = await transcribeAudio(audio, model, language);
     state.segments = segments;
     state.transcript = { ...(state.transcript || {}), model, language };
     await save();

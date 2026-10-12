@@ -13,19 +13,35 @@ env.backends.onnx.wasm.wasmPaths = {
 };
 
 let current = null; // { model, device, asr }
+let attempted = null; // thiết bị của lần nạp gần nhất (kể cả khi nạp lỗi)
 
-async function hasWebGPU() {
+// Lỗi xảy ra ngoài try/catch (bên trong ONNX Runtime / WebGPU) vẫn báo về trang kèm nội dung,
+// thay vì worker chết im lặng ("worker error").
+self.addEventListener('unhandledrejection', (e) => {
+  e.preventDefault();
+  postMessage({ type: 'error', message: String((e.reason && e.reason.message) || e.reason || 'unknown error') });
+});
+
+/** GPU nếu có (kèm việc card có hỗ trợ số thực 16-bit không), không thì CPU (WASM). */
+async function pickDevice(force) {
+  if (force === 'wasm') return { device: 'wasm' };
   try {
-    return !!(navigator.gpu && (await navigator.gpu.requestAdapter()));
+    const adapter = navigator.gpu && (await navigator.gpu.requestAdapter());
+    if (!adapter) return { device: 'wasm' };
+    return { device: 'webgpu', fp16: adapter.features.has('shader-f16') };
   } catch {
-    return false;
+    return { device: 'wasm' };
   }
 }
 
-async function load(model) {
-  if (current && current.model === model) return current;
-  if (current) await current.asr.dispose?.();
-  const device = (await hasWebGPU()) ? 'webgpu' : 'wasm';
+async function load(model, force) {
+  if (current && current.model === model && (!force || current.device === force)) return current;
+  if (current) {
+    await current.asr.dispose?.();
+    current = null;
+  }
+  const { device, fp16 } = await pickDevice(force);
+  attempted = device;
   // tiến độ tải: gộp theo từng file để hiện một thanh % chung
   const files = new Map();
   const progress_callback = (p) => {
@@ -38,36 +54,48 @@ async function load(model) {
     }
   };
   postMessage({ type: 'status', status: 'loading', device });
-  const asr = await pipeline('automatic-speech-recognition', model, {
-    device,
-    dtype: device === 'webgpu' ? { encoder_model: 'fp32', decoder_model_merged: 'q4' } : 'q8',
-    progress_callback,
-  });
+  // GPU: encoder fp16 khi card hỗ trợ (bằng nửa bộ nhớ của fp32 — mô hình Large fp32 ~2,5 GB dễ làm
+  // tràn bộ nhớ GPU và worker bị dừng đột ngột); CPU: lượng tử hoá 8-bit cho cả mô hình.
+  const dtype = device === 'webgpu' ? { encoder_model: fp16 ? 'fp16' : 'fp32', decoder_model_merged: 'q4' } : 'q8';
+  const asr = await pipeline('automatic-speech-recognition', model, { device, dtype, progress_callback });
   current = { model, device, asr };
   return current;
 }
 
+async function transcribe(audio, model, language, force) {
+  const { asr, device } = await load(model, force);
+  postMessage({ type: 'status', status: 'transcribing', device });
+  const out = await asr(audio, {
+    language: language === 'auto' ? null : language,
+    task: 'transcribe',
+    chunk_length_s: 30,
+    stride_length_s: 5,
+    return_timestamps: true,
+  });
+  const segments = (out.chunks || []).map((c) => ({
+    start: c.timestamp[0] ?? 0,
+    end: c.timestamp[1] ?? null,
+    text: c.text,
+  })).filter((s) => s.text.trim());
+  if (!segments.length && out.text && out.text.trim()) segments.push({ start: 0, end: null, text: out.text });
+  return { segments, device };
+}
+
 self.onmessage = async (e) => {
-  const { type, audio, model, language } = e.data || {};
+  const { type, audio, model, language, device: force } = e.data || {};
   if (type !== 'transcribe') return;
   try {
-    const { asr, device } = await load(model);
-    postMessage({ type: 'status', status: 'transcribing', device });
-    const out = await asr(audio, {
-      language: language === 'auto' ? null : language,
-      task: 'transcribe',
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      return_timestamps: true,
-    });
-    const segments = (out.chunks || []).map((c) => ({
-      start: c.timestamp[0] ?? 0,
-      end: c.timestamp[1] ?? null,
-      text: c.text,
-    })).filter((s) => s.text.trim());
-    if (!segments.length && out.text && out.text.trim()) segments.push({ start: 0, end: null, text: out.text });
-    postMessage({ type: 'result', segments, device });
+    let result;
+    try {
+      result = await transcribe(audio, model, language, force);
+    } catch (err) {
+      // GPU lỗi (thiếu bộ nhớ, driver, thiếu file fp16…) → chạy lại bằng CPU
+      if (attempted !== 'webgpu') throw err;
+      postMessage({ type: 'status', status: 'retry_cpu', device: 'wasm', reason: String((err && err.message) || err) });
+      result = await transcribe(audio, model, language, 'wasm');
+    }
+    postMessage({ type: 'result', ...result });
   } catch (err) {
-    postMessage({ type: 'error', message: String(err && err.message || err) });
+    postMessage({ type: 'error', message: String((err && err.message) || err) });
   }
 };
