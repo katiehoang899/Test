@@ -155,3 +155,27 @@ test('Google Maps / Street View links', () => {
   assert.equal(F.panoUrl('PanoAbc', null), 'https://www.google.com/maps/@?api=1&map_action=pano&pano=PanoAbc');
   assert.equal(F.streetViewUrl(10.73, 106.7), 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=10.73,106.7');
 });
+
+test('phone numbers in ad text', () => {
+  assert.deepEqual(F.extractPhones('LH 0909 123 456 hoặc zalo 0912.345.678'), ['0909123456', '0912345678']);
+  assert.deepEqual(F.extractPhones('Gọi +84 909-123-456'), ['0909123456']);
+  assert.deepEqual(F.extractPhones('sđt: 0909123456 7tr/tháng'), ['0909123456']);
+  assert.deepEqual(F.extractPhones('028 3823 4567 (bàn)'), ['02838234567']);
+  assert.deepEqual(F.extractPhones('cọc 3.500.000, phòng 0,5 triệu, 20m2, 0909xxx456'), []);
+  assert.equal(F.normalizePhone('84 912 345 678'), '0912345678');
+  assert.equal(F.normalizePhone('0123456789'), null);
+  assert.equal(F.formatPhone('0909123456'), '0909 123 456');
+  assert.equal(F.formatPhone('02838234567'), '028 3823 4567');
+  assert.equal(F.zaloUrl('0909123456'), 'https://zalo.me/0909123456');
+});
+
+test('hide ads marked "không phù hợp" unless turned off', () => {
+  const ad = { title: 'Phòng', body: '' };
+  const s = (patch) => ({ ...F.emptyState(), ...patch });
+  assert.equal(F.hiddenReason(ad, s({}), [], true).kind, 'marked');
+  assert.equal(F.hiddenReason(ad, s({ hidemarked: '0' }), [], true), null);
+  assert.equal(F.hiddenReason(ad, s({}), [], false), null);
+  assert.equal(F.stateFromSearch('?hidemarked=0').hidemarked, '0');
+  assert.equal(F.stateFromSearch('?hidemarked=x').hidemarked, '1');
+  assert.equal(F.stateToSearch(F.emptyState()), '', 'mặc định không ghi lên URL');
+});

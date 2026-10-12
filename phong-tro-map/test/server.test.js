@@ -26,6 +26,13 @@ const upstream = http.createServer((req, res) => {
       ],
     }));
   }
+  if (u.pathname === '/v1/public/ad-listing/phone') {
+    if (u.searchParams.get('list_id') === '111') return res.end(JSON.stringify({ phone: '0909 123 456' }));
+    res.statusCode = 404;
+    return res.end('{}');
+  }
+  if (u.pathname === '/v1/public/ad-listing/222') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Liên hệ chị Lan 0912.345.678 (zalo)' } }));
+  if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Nhắn tin qua Nhà Tốt' } }));
   if (u.pathname === '/v2/public/chapy-pro/regions') {
     return res.end(JSON.stringify({
       regionFollowId: { entities: { regions: {
@@ -184,4 +191,49 @@ test('bearing / distance', () => {
   assert.equal(Math.round(bearing(a, { lat: 10.7, lng: 106.71 })), 90);
   assert.equal(Math.round(bearing(a, { lat: 10.69, lng: 106.7 })), 180);
   assert.ok(Math.abs(distance(a, { lat: 10.71, lng: 106.7 }) - 1112) < 5);
+});
+
+test('/api/phone: phone API, then full ad text', async () => {
+  const get = async (id) => { const r = await fetch(`${base}/api/phone?id=${id}`); return [r.status, await r.json()]; };
+  assert.deepEqual(await get('111'), [200, { phone: '0909123456' }]);
+  assert.deepEqual(await get('222'), [200, { phone: '0912345678', fromText: true }]);
+  assert.deepEqual(await get('444'), [200, { phone: null }]);
+  assert.equal((await get('333'))[0], 502, 'không kết nối được: báo lỗi, không cache');
+  assert.equal((await get('abc'))[0], 400);
+});
+
+test('/api/saved: favorites and hidden ads with sanitized snapshots', async () => {
+  const post = (body, type = 'application/json') => fetch(`${base}/api/saved`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
+  assert.deepEqual(await (await fetch(`${base}/api/saved`)).json(), { fav: {}, hidden: {} });
+  assert.equal((await post({ kind: 'fav', op: 'add', id: '111' }, 'text/plain')).status, 415);
+  assert.equal((await post({ kind: 'evil', op: 'add', id: '111' })).status, 400);
+  assert.equal((await post({ kind: 'fav', op: 'add', id: '../x' })).status, 400);
+
+  const ad = {
+    title: 'Phòng Q7', price: 3500000, lat: 10.73, lng: 106.7, url: 'javascript:alert(1)', thumb: 'http://x/a.jpg',
+    phones: ['0909 123 456', 'xx'], extra: 'bỏ đi', approxAt: { lat: 99, lng: 1 },
+  };
+  let data = await (await post({ kind: 'fav', op: 'add', id: '111', ad })).json();
+  const snap = data.fav['111'].ad;
+  assert.equal(snap.title, 'Phòng Q7');
+  assert.equal(snap.price, 3500000);
+  assert.equal(snap.url, 'https://www.nhatot.com/111.htm', 'link lạ bị thay bằng link Nhà Tốt');
+  assert.equal(snap.thumb, null, 'chỉ nhận ảnh https');
+  assert.deepEqual(snap.phones, ['0909123456']);
+  assert.equal(snap.approxAt, null);
+  assert.equal('extra' in snap, false);
+  assert.ok(data.fav['111'].at > 0);
+
+  await post({ kind: 'hidden', op: 'add', id: '222', ad: { title: 'Không ưng' } });
+  await post({ kind: 'hidden', op: 'add', id: '444' });
+  data = await (await fetch(`${base}/api/saved`)).json();
+  assert.deepEqual(Object.keys(data.hidden).sort(), ['222', '444']);
+  const file = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, 'saved.json'), 'utf8'));
+  assert.deepEqual(Object.keys(file.fav), ['111'], 'lưu ra file');
+
+  data = await (await post({ kind: 'hidden', op: 'remove', id: '222' })).json();
+  assert.deepEqual(Object.keys(data.hidden), ['444']);
+  data = await (await post({ kind: 'hidden', op: 'clear' })).json();
+  assert.deepEqual(data.hidden, {});
+  assert.deepEqual(Object.keys(data.fav), ['111'], 'xoá tin đã ẩn không đụng tới yêu thích');
 });

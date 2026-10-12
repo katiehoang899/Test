@@ -6,13 +6,14 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Filters = api;
 })(typeof self !== 'undefined' ? self : this, function () {
-  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale'];
+  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale', 'hidemarked'];
 
   // area_v2: danh sách mã quận / huyện (chọn nhiều).
   // ward: danh sách "mãQuận:mãPhường" (chọn nhiều, nhớ phường thuộc quận nào).
   // nq: từ khoá loại trừ (cách nhau bằng dấu phẩy), nosale = '1': ẩn tin sale trọ.
-  // Hai bộ lọc nq / nosale chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
-  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '' };
+  // hidemarked = '1': ẩn tin bạn đã đánh dấu "không phù hợp" ('0' để hiện lại).
+  // Các bộ lọc nq / nosale / hidemarked chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
+  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '', hidemarked: '1' };
   const LIST_FIELDS = ['area_v2', 'ward', 'furnishing_rent'];
   const LIST_RE = { area_v2: /^\d{1,10}$/, ward: /^\d{1,10}:\d{1,10}$/, furnishing_rent: /^\d+$/ };
 
@@ -88,6 +89,7 @@
     if (!['u', 'h', 'u,h'].includes(s.st)) s.st = DEFAULTS.st;
     if (!['', 'p', 'c'].includes(s.f)) s.f = '';
     s.nosale = s.nosale === '1' ? '1' : '';
+    s.hidemarked = s.hidemarked === '0' ? '0' : '1';
     return s;
   }
 
@@ -259,7 +261,9 @@
   }
 
   // Lý do tin bị ẩn bởi bộ lọc loại trừ, hoặc null nếu tin được hiện.
-  function hiddenReason(ad, state, sale) {
+  // marked: người dùng đã đánh dấu tin này "không phù hợp".
+  function hiddenReason(ad, state, sale, marked) {
+    if (marked && state.hidemarked !== '0') return { kind: 'marked', text: 'bạn đã đánh dấu tin này không phù hợp' };
     const kw = excludedKeyword(ad, state.nq);
     if (kw) return { kind: 'keyword', text: `có từ khoá loại trừ "${kw}"` };
     if (state.nosale === '1') {
@@ -311,6 +315,41 @@
     return Number(Number(v).toFixed(6));
   }
 
+  // ---------- số điện thoại ----------
+
+  // "+84 909.123.456" → "0909123456"; null nếu không phải số di động / cố định Việt Nam.
+  function normalizePhone(raw) {
+    let d = String(raw ?? '').replace(/\D/g, '');
+    if (d.startsWith('84') && (d.length === 11 || d.length === 12)) d = '0' + d.slice(2);
+    if (/^0[35789]\d{8}$/.test(d) || /^02\d{9}$/.test(d)) return d;
+    return null;
+  }
+
+  // Tìm số điện thoại trong nội dung tin: "0909 123 456", "0909.123.456", "+84 909-123-456"…
+  function extractPhones(text) {
+    const out = [];
+    const re = /(?<![\d+])(?:\+?84|0)(?:[ .\-]?\d){9,10}(?!\d)/g;
+    for (const m of String(text || '').matchAll(re)) {
+      const digits = m[0].replace(/\D/g, '');
+      // "0909123456 7tr": khớp dư một chữ số → thử bỏ chữ số cuối.
+      const p = normalizePhone(digits) || normalizePhone(digits.slice(0, -1));
+      if (p && !out.includes(p)) out.push(p);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
+  // "0909123456" → "0909 123 456", "02812345678" → "028 1234 5678"
+  function formatPhone(p) {
+    if (/^02\d{9}$/.test(p)) return `${p.slice(0, 3)} ${p.slice(3, 7)} ${p.slice(7)}`;
+    if (/^0\d{9}$/.test(p)) return `${p.slice(0, 4)} ${p.slice(4, 7)} ${p.slice(7)}`;
+    return p;
+  }
+
+  function zaloUrl(p) {
+    return 'https://zalo.me/' + encodeURIComponent(p);
+  }
+
   // Các câu truy vấn geocode cho tin không có toạ độ, từ chi tiết (phường) tới thô (quận).
   function geoQueries(ad) {
     const out = [];
@@ -324,6 +363,7 @@
     FIELDS, DEFAULTS, SORT_TO_SP, emptyState, parseRange, formatRange, formatMoney, rangeLabel, fold,
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
     wardsOfArea, locationSources, googleMapsUrl, streetViewUrl, panoUrl,
+    normalizePhone, extractPhones, formatPhone, zaloUrl,
     splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };
 });

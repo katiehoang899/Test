@@ -5,6 +5,7 @@
 // (gateway.chotot.com) để trình duyệt không bị chặn CORS, kèm cache và geocode.
 
 const http = require('node:http');
+const Filters = require('./public/filters.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -387,6 +388,121 @@ async function saveConfig(req) {
   for (const k of memo.keys()) if (k.startsWith('sv:')) memo.delete(k);
 }
 
+// ---------- tin yêu thích / tin đã ẩn ----------
+
+// Lưu trong DATA_DIR/saved.json, kèm bản chụp nội dung tin để vẫn xem được khi tin đã
+// bị gỡ khỏi Nhà Tốt: { fav: { id: { ad, at } }, hidden: { id: { ad, at } } }.
+const savedFile = path.join(DATA_DIR, 'saved.json');
+const SAVED_KINDS = ['fav', 'hidden'];
+const SAVED_MAX = 3000;
+let savedCache = null;
+
+function loadSaved() {
+  if (savedCache) return savedCache;
+  try { savedCache = JSON.parse(fs.readFileSync(savedFile, 'utf8')); } catch { savedCache = {}; }
+  for (const k of SAVED_KINDS) if (!savedCache[k] || typeof savedCache[k] !== 'object') savedCache[k] = {};
+  return savedCache;
+}
+
+function str(v, max = 300) {
+  return typeof v === 'string' ? v.slice(0, max) : '';
+}
+
+function finite(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+// Chỉ giữ các trường đã biết, đúng kiểu, độ dài có giới hạn.
+function snapshotAd(ad, id) {
+  const lat = finite(ad.lat);
+  const lng = finite(ad.lng);
+  const ax = ad.approxAt && finite(ad.approxAt.lat) != null && finite(ad.approxAt.lng) != null
+    && validLatLng(ad.approxAt.lat, ad.approxAt.lng) ? { lat: ad.approxAt.lat, lng: ad.approxAt.lng } : null;
+  const url = str(ad.url, 200);
+  const thumb = str(ad.thumb, 500);
+  return {
+    id,
+    title: str(ad.title, 300),
+    price: finite(ad.price),
+    priceText: str(ad.priceText, 60) || null,
+    size: finite(ad.size),
+    deposit: finite(ad.deposit),
+    furnishingText: str(ad.furnishingText, 60) || null,
+    region: str(ad.region, 100),
+    area: str(ad.area, 100),
+    ward: str(ad.ward, 100),
+    street: str(ad.street, 200),
+    address: str(ad.address, 400),
+    lat: validLatLng(lat, lng) ? lat : null,
+    lng: validLatLng(lat, lng) ? lng : null,
+    approxAt: ax,
+    approx: Boolean(ax) && !validLatLng(lat, lng),
+    thumb: /^https:\/\//.test(thumb) ? thumb : null,
+    imageCount: finite(ad.imageCount),
+    date: str(ad.date, 60),
+    time: finite(ad.time),
+    isCompany: Boolean(ad.isCompany),
+    type: ad.type === 'h' ? 'h' : 'u',
+    phones: Array.isArray(ad.phones) ? ad.phones.map(Filters.normalizePhone).filter(Boolean).slice(0, 3) : [],
+    url: url.startsWith('https://www.nhatot.com/') ? url : `https://www.nhatot.com/${encodeURIComponent(id)}.htm`,
+  };
+}
+
+async function updateSaved(req) {
+  if (!String(req.headers['content-type']).startsWith('application/json')) {
+    throw Object.assign(new Error('Cần Content-Type: application/json'), { status: 415 });
+  }
+  let body;
+  try { body = JSON.parse(await readBody(req, 64 * 1024)); } catch { throw Object.assign(new Error('JSON không hợp lệ'), { status: 400 }); }
+  const { kind, op } = body;
+  const id = String(body.id ?? '');
+  if (!SAVED_KINDS.includes(kind) || !['add', 'remove', 'clear'].includes(op)) {
+    throw Object.assign(new Error('Thao tác không hợp lệ'), { status: 400 });
+  }
+  if (op !== 'clear' && !/^\d{1,15}$/.test(id)) throw Object.assign(new Error('Mã tin không hợp lệ'), { status: 400 });
+  const saved = loadSaved();
+  const list = saved[kind];
+  if (op === 'clear') saved[kind] = {};
+  else if (op === 'remove') delete list[id];
+  else {
+    list[id] = { ad: snapshotAd(body.ad && typeof body.ad === 'object' ? body.ad : {}, id), at: Date.now() };
+    const ids = Object.keys(list);
+    if (ids.length > SAVED_MAX) {
+      ids.sort((a, b) => list[a].at - list[b].at).slice(0, ids.length - SAVED_MAX).forEach((x) => delete list[x]);
+    }
+  }
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(savedFile, JSON.stringify(saved));
+  return saved;
+}
+
+// ---------- số điện thoại của tin ----------
+
+// Danh sách tin không có số điện thoại, nên hỏi riêng API của Chợ Tốt (chỉ khi người dùng
+// bấm "Hiện SĐT"). Không có thì tìm số trong nội dung đầy đủ của tin.
+async function adPhone(id) {
+  if (!/^\d{1,15}$/.test(id || '')) throw Object.assign(new Error('Mã tin không hợp lệ'), { status: 400 });
+  return cached('phone:' + id, 24 * 3600 * 1000, async () => {
+    const urls = [
+      `${GATEWAY}/v1/public/ad-listing/phone?list_id=${id}`,
+      `${GATEWAY}/v1/public/ad-listing/${id}`,
+    ];
+    let reached = false;
+    for (const url of urls) {
+      let data;
+      try { data = await getJson(url); } catch { continue; }
+      reached = true;
+      const ad = data.ad || data.data || {};
+      const direct = Filters.normalizePhone(data.phone ?? ad.phone ?? ad.phone_number ?? ad.contact_phone);
+      if (direct) return { phone: direct };
+      const inText = Filters.extractPhones([ad.subject, ad.body].join('\n'));
+      if (inText.length) return { phone: inText[0], fromText: true };
+    }
+    if (!reached) throw Object.assign(new Error('Không kết nối được Chợ Tốt'), { status: 502 });
+    return { phone: null };
+  });
+}
+
 // ---------- HTTP ----------
 
 const MIME = {
@@ -429,7 +545,10 @@ function createServer() {
         await saveConfig(req);
         return sendJson(res, 200, { streetView: Boolean(googleKey()) });
       }
+      if (u.pathname === '/api/saved' && req.method === 'POST') return sendJson(res, 200, await updateSaved(req));
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+      if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
+      if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
       if (u.pathname === '/api/config') return sendJson(res, 200, { streetView: Boolean(googleKey()), fromEnv: Boolean(process.env.GOOGLE_MAPS_API_KEY) });
       if (u.pathname === '/api/streetview/meta') return sendJson(res, 200, await streetViewMeta(u.searchParams.get('lat'), u.searchParams.get('lng')));
       if (u.pathname === '/api/streetview/image') return await streetViewImage(u.searchParams, res);

@@ -7,7 +7,7 @@ const LOAD_ALL_CAP = 5000; // "Tải tất cả" dừng ở đây để không g
 const RENDER_STEP = 60; // số thẻ tin thêm vào danh sách mỗi lần cuộn
 const AUTO_FILL_MIN = 20; // bộ lọc loại trừ ẩn nhiều tin: tự tải thêm trang cho đủ số tin này…
 const AUTO_FILL_PAGES = 8; // …nhưng không quá số trang này mỗi lần, sau đó chờ người dùng bấm "Xem thêm"
-const LOCAL_ONLY = ['nq', 'nosale'];
+const LOCAL_ONLY = ['nq', 'nosale', 'hidemarked'];
 const MAX_PARALLEL = 4; // chọn nhiều quận / phường: số nguồn tải song song mỗi lượt // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
 
 const $ = (s) => document.querySelector(s);
@@ -22,6 +22,7 @@ const el = {
   count: $('#count'), list: $('#list'), loadAll: $('#loadAll'), inBounds: $('#inBounds'), approx: $('#approx'),
   nqLabel: $('#nqLabel'), nqChips: $('#nqChips'), nqInput: $('#nqInput'), nqAdd: $('#nqAdd'), nqSuggest: $('#nqSuggest'),
   nosale: $('#nosale'), showHidden: $('#showHidden'), showHiddenWrap: $('#showHiddenWrap'),
+  hidemarked: $('#hidemarked'), savedBtn: $('#savedBtn'), savedCount: $('#savedCount'),
 };
 
 let state = Filters.stateFromSearch(location.search);
@@ -36,7 +37,13 @@ let visible = []; // tin đang hiển thị (sau lọc + sắp xếp)
 let rendered = 0;
 let fitPending = true;
 let autoPages = 0;
-const hiddenCount = { sale: 0, keyword: 0 };
+const hiddenCount = { sale: 0, keyword: 0, marked: 0 };
+const hiddenTotal = () => hiddenCount.sale + hiddenCount.keyword + hiddenCount.marked;
+
+// Tin yêu thích / tin đã đánh dấu "không phù hợp" (lưu trên server, xem /api/saved):
+// mãTin → { ad: bản chụp nội dung tin, at: thời điểm lưu }.
+const myAds = { fav: new Map(), hidden: new Map() };
+let savedView = ''; // '' = kết quả tìm kiếm, 'fav' = tab Yêu thích, 'hidden' = tab Đã ẩn
 
 // ---------- tiện ích ----------
 
@@ -86,6 +93,8 @@ function popupHtml(ad) {
     <div class="p">${esc(priceText(ad))}</div>
     <div class="m">${meta}</div>
     <div class="a">${esc(ad.address)}${ad.approx ? ' <em>(vị trí gần đúng)</em>' : ''}</div>
+    ${phoneHtml(ad)}
+    ${actsHtml(ad)}
     ${ad.lat != null ? '<div class="sv"><div class="sv-skel">Đang tìm ảnh Street View…</div></div>' : ''}
     ${gmapsHtml(ad)}
     <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ↗</a>
@@ -233,7 +242,7 @@ function renderMap() {
   cluster.clearLayers();
   markers.clear();
   const layers = [];
-  for (const ad of filteredAds()) {
+  for (const ad of shownAds()) {
     const ll = adLatLng(ad);
     if (!ll) continue;
     const m = L.marker(ll, { icon: ad.lat != null ? icons.exact : icons.approx, title: ad.title });
@@ -248,6 +257,7 @@ function renderMap() {
       return content;
     }, { maxWidth: 260, minWidth: 240 });
     m.on('popupopen', (e) => {
+      syncActs(e.popup.getElement());
       openSv = { popup: e.popup, ad };
       loadStreetView(e.popup, ad);
     });
@@ -313,10 +323,11 @@ function saleOf(ad) {
 function filteredAds({ withHidden = false } = {}) {
   hiddenCount.sale = 0;
   hiddenCount.keyword = 0;
+  hiddenCount.marked = 0;
   const out = [];
   for (const ad of store.ads.values()) {
     if (!Filters.matches(ad, state)) continue;
-    ad.hidden = Filters.hiddenReason(ad, state, saleOf(ad));
+    ad.hidden = Filters.hiddenReason(ad, state, saleOf(ad), myAds.hidden.has(ad.id));
     if (ad.hidden) {
       hiddenCount[ad.hidden.kind]++;
       if (!withHidden) continue;
@@ -325,6 +336,158 @@ function filteredAds({ withHidden = false } = {}) {
   }
   return Filters.sortAds(out, state.sort);
 }
+
+// Tin trong tab Đã lưu (mới lưu trước). Tin đang có trong kết quả thì dùng bản mới nhất.
+function savedAds(kind) {
+  return [...myAds[kind].values()]
+    .sort((a, b) => b.at - a.at)
+    .map((e) => {
+      const ad = store.ads.get(e.ad.id) || e.ad;
+      ad.hidden = null;
+      return ad;
+    });
+}
+
+// Tin đang hiển thị trên danh sách / bản đồ theo chế độ xem.
+function shownAds({ withHidden = false } = {}) {
+  return savedView ? savedAds(savedView) : filteredAds({ withHidden });
+}
+
+function phonesOf(ad) {
+  if (!ad.phones) ad.phones = Filters.extractPhones([ad.title, ad.body].join('\n'));
+  return ad.phones;
+}
+
+function phoneLinks(p) {
+  return `<a href="tel:${esc(p)}">${esc(Filters.formatPhone(p))}</a> <a class="zalo" href="${esc(Filters.zaloUrl(p))}" target="_blank" rel="noopener" title="Nhắn Zalo số ${esc(p)}">Zalo</a>`;
+}
+
+// Số điện thoại: có trong nội dung tin thì hiện luôn, không thì nút "Hiện SĐT" hỏi API Nhà Tốt.
+function phoneHtml(ad) {
+  const phones = phonesOf(ad);
+  const inner = phones.length
+    ? phones.map(phoneLinks).join('<span class="sep">·</span>')
+    : `<button type="button" class="link-btn" data-act="phone" data-id="${esc(ad.id)}">Hiện SĐT / Zalo</button>`;
+  return `<div class="phone" data-phone="${esc(ad.id)}">📞 ${inner}</div>`;
+}
+
+// Nút ♥ Yêu thích / ✓ Không phù hợp (trạng thái gán bằng syncActs).
+function actsHtml(ad) {
+  return `<div class="acts">
+    <button type="button" class="act" data-act="fav" data-id="${esc(ad.id)}"></button>
+    <button type="button" class="act" data-act="hide" data-id="${esc(ad.id)}"></button>
+  </div>`;
+}
+
+function syncActs(root = document) {
+  root.querySelectorAll('[data-act="fav"]').forEach((b) => {
+    const on = myAds.fav.has(b.dataset.id);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? '♥ Đã thích' : '♡ Yêu thích';
+    b.title = on ? 'Bỏ khỏi danh sách yêu thích' : 'Lưu vào danh sách yêu thích';
+  });
+  root.querySelectorAll('[data-act="hide"]').forEach((b) => {
+    const on = myAds.hidden.has(b.dataset.id);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? '↺ Bỏ ẩn' : '✓ Không phù hợp';
+    b.title = on ? 'Bỏ đánh dấu, hiện lại tin này' : 'Đã xem nhưng không phù hợp: ẩn tin này';
+  });
+}
+
+const SNAP_KEYS = ['id', 'title', 'price', 'priceText', 'size', 'deposit', 'furnishingText', 'region', 'area', 'ward', 'street',
+  'address', 'lat', 'lng', 'approxAt', 'thumb', 'imageCount', 'date', 'time', 'isCompany', 'type', 'url'];
+
+function findAd(id) {
+  return store.ads.get(id) || myAds.fav.get(id)?.ad || myAds.hidden.get(id)?.ad || null;
+}
+
+async function toggleSaved(kind, id) {
+  const ad = findAd(id);
+  const on = !myAds[kind].has(id);
+  const snap = {};
+  if (ad) {
+    for (const k of SNAP_KEYS) snap[k] = ad[k];
+    snap.phones = phonesOf(ad);
+  }
+  // Cập nhật ngay trên màn hình, lỗi thì trả lại như cũ.
+  const before = myAds[kind].get(id);
+  if (on) myAds[kind].set(id, { ad: { ...snap, id }, at: Date.now() });
+  else myAds[kind].delete(id);
+  afterSavedChange(kind);
+  try {
+    const res = await fetch('/api/saved', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, op: on ? 'add' : 'remove', id, ad: snap }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+    loadMine(data);
+  } catch (err) {
+    if (before) myAds[kind].set(id, before);
+    else myAds[kind].delete(id);
+    afterSavedChange(kind);
+    alert('Không lưu được: ' + err.message);
+  }
+}
+
+function loadMine(data) {
+  for (const kind of ['fav', 'hidden']) {
+    myAds[kind] = new Map(Object.entries(data[kind] || {}));
+  }
+  updateSavedCount();
+}
+
+function updateSavedCount() {
+  el.savedCount.textContent = myAds.fav.size ? String(myAds.fav.size) : '';
+  document.querySelectorAll('.saved-tabs [data-tab]').forEach((t) => {
+    t.querySelector('b').textContent = String(myAds[t.dataset.tab].size);
+  });
+}
+
+function afterSavedChange(kind) {
+  updateSavedCount();
+  syncActs();
+  // Ẩn / bỏ ẩn, hoặc đang ở tab Đã lưu: danh sách và bản đồ thay đổi.
+  if (kind === 'hidden' || savedView) {
+    renderList(true);
+    renderMapSoon();
+  }
+}
+
+async function showPhone(id, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Đang lấy số…';
+  const ad = findAd(id);
+  let html;
+  try {
+    const { phone } = await api('/api/phone?id=' + encodeURIComponent(id));
+    if (phone) {
+      if (ad) ad.phones = [phone];
+      html = '📞 ' + phoneLinks(phone);
+    }
+  } catch { /* xử lý bên dưới */ }
+  if (!html) {
+    const url = ad?.url || `https://www.nhatot.com/${encodeURIComponent(id)}.htm`;
+    html = `📞 <span class="muted">Không lấy được số.</span> <a href="${esc(url)}" target="_blank" rel="noopener">Xem trên Nhà Tốt ↗</a>`;
+  }
+  document.querySelectorAll(`[data-phone="${CSS.escape(id)}"]`).forEach((x) => { x.innerHTML = html; });
+}
+
+// Nút trong thẻ tin và trong popup bản đồ (popup không nằm trong #list).
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  e.stopPropagation();
+  const id = b.dataset.id;
+  if (b.dataset.act === 'fav') toggleSaved('fav', id);
+  else if (b.dataset.act === 'hide') {
+    if (!myAds.hidden.has(id)) map.closePopup();
+    toggleSaved('hidden', id);
+  } else if (b.dataset.act === 'phone') showPhone(id, b);
+}, true);
 
 function cardHtml(ad) {
   const where = [ad.ward, ad.area, ad.region].filter(Boolean).join(', ');
@@ -335,8 +498,9 @@ function cardHtml(ad) {
   ].filter(Boolean);
   const loc = ad.lat != null ? '' : ad.approxAt ? '<span class="badge soft">Vị trí gần đúng</span>' : '<span class="badge soft">Chưa có vị trí</span>';
   const sale = saleOf(ad);
+  const marked = myAds.hidden.has(ad.id) && !ad.hidden;
   const saleBadge = !ad.hidden && sale.length ? `<span class="badge sale" title="${esc('Dấu hiệu: ' + sale.join(', '))}">Có thể là sale</span>` : '';
-  return `<article class="card${ad.hidden ? ' is-hidden' : ''}" data-id="${esc(ad.id)}" tabindex="0">
+  return `<article class="card${ad.hidden ? ' is-hidden' : ''}${marked && !savedView ? ' is-marked' : ''}" data-id="${esc(ad.id)}" tabindex="0">
     <div class="thumb">${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span>Không có ảnh</span>'}
       ${ad.imageCount > 1 ? `<span class="imgs">${ad.imageCount} ảnh</span>` : ''}</div>
     <div class="info">
@@ -350,7 +514,10 @@ function cardHtml(ad) {
         ${ad.type === 'h' ? '<span class="badge">Cần thuê</span>' : ''}
         ${loc}
         ${saleBadge}
+        ${marked && !savedView ? '<span class="badge marked">Đã đánh dấu không phù hợp</span>' : ''}
       </div>
+      ${phoneHtml(ad)}
+      ${actsHtml(ad)}
       ${ad.hidden ? `<div class="why">Bị ẩn: ${esc(ad.hidden.text)}</div>` : ''}
     </div>
   </article>`;
@@ -359,7 +526,7 @@ function cardHtml(ad) {
 // keep = true: giữ số thẻ đã hiện (khi chỉ có thêm tin mới) để danh sách không nhảy về đầu.
 function renderList(keep = false) {
   const count = keep ? Math.max(rendered, RENDER_STEP) : RENDER_STEP;
-  let list = filteredAds({ withHidden: el.showHidden.checked });
+  let list = shownAds({ withHidden: el.showHidden.checked });
   if (el.inBounds.checked) {
     const b = map.getBounds();
     list = list.filter((ad) => {
@@ -369,9 +536,13 @@ function renderList(keep = false) {
   }
   visible = list;
   rendered = 0;
-  el.list.innerHTML = '';
-  if (!list.length) {
-    const hidden = hiddenCount.sale + hiddenCount.keyword;
+  el.list.innerHTML = savedView ? savedTabsHtml() : '';
+  if (savedView && !list.length) {
+    el.list.insertAdjacentHTML('beforeend', `<p class="empty">${savedView === 'fav'
+      ? 'Chưa có tin yêu thích. Bấm ♡ Yêu thích trên một tin để lưu lại.'
+      : 'Chưa ẩn tin nào. Bấm ✓ Không phù hợp trên tin đã xem mà không ưng để ẩn đi.'}</p>`);
+  } else if (!list.length) {
+    const hidden = hiddenTotal();
     let msg = 'Không có tin phù hợp với bộ lọc.';
     if (hidden) msg = `Không có tin phù hợp trong ${store.ads.size.toLocaleString('vi-VN')} tin đã tải (đã ẩn ${hidden.toLocaleString('vi-VN')} tin bởi bộ lọc loại trừ).`;
     el.list.innerHTML = store.loading && !hidden
@@ -387,11 +558,46 @@ function renderList(keep = false) {
   maybeAutoFill();
 }
 
+function savedTabsHtml() {
+  const tab = (kind, label) => `<button type="button" data-tab="${kind}" aria-selected="${savedView === kind}">${label} <b>${myAds[kind].size}</b></button>`;
+  return `<div class="saved-bar">
+    <button type="button" class="back" data-saved-back>← Kết quả tìm kiếm</button>
+    <div class="saved-tabs" role="tablist">${tab('fav', '♥ Yêu thích')}${tab('hidden', '✓ Đã ẩn')}</div>
+    ${savedView === 'hidden' && myAds.hidden.size ? '<button type="button" class="link" data-unhide-all>Bỏ ẩn tất cả</button>' : ''}
+  </div>`;
+}
+
+function openSaved(kind) {
+  savedView = kind;
+  document.body.dataset.saved = kind;
+  el.savedBtn.setAttribute('aria-pressed', String(Boolean(kind)));
+  fitPending = true;
+  renderList();
+  renderMap();
+  if (kind) {
+    el.list.scrollTop = 0;
+    queueGeocode(savedAds(kind));
+  }
+}
+
+el.savedBtn.addEventListener('click', () => openSaved(savedView ? '' : 'fav'));
+el.list.addEventListener('click', async (e) => {
+  const tab = e.target.closest('.saved-tabs [data-tab]');
+  if (tab) return openSaved(tab.dataset.tab);
+  if (e.target.closest('[data-saved-back]')) return openSaved('');
+  if (e.target.closest('[data-unhide-all]')) {
+    if (!confirm(`Bỏ ẩn tất cả ${myAds.hidden.size} tin đã đánh dấu không phù hợp?`)) return;
+    const res = await fetch('/api/saved', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'hidden', op: 'clear' }) });
+    if (res.ok) loadMine(await res.json());
+    afterSavedChange('hidden');
+  }
+});
+
 // Bộ lọc loại trừ có thể ẩn gần hết một trang: tự tải thêm vài trang cho đủ tin để xem.
 function maybeAutoFill() {
-  if (store.done || store.loading || store.error || loadingAll || el.inBounds.checked) return;
+  if (savedView || store.done || store.loading || store.error || loadingAll || el.inBounds.checked) return;
   if (visible.length >= AUTO_FILL_MIN || autoPages >= AUTO_FILL_PAGES) return;
-  if (!hiddenCount.sale && !hiddenCount.keyword) return;
+  if (!hiddenTotal()) return;
   autoPages++;
   loadPage();
 }
@@ -401,7 +607,8 @@ function renderMore(step = RENDER_STEP) {
   rendered += next.length;
   el.list.querySelector('.sentinel')?.remove();
   el.list.insertAdjacentHTML('beforeend', next.map(cardHtml).join(''));
-  const more = rendered < visible.length || (!store.done && !el.inBounds.checked);
+  syncActs(el.list);
+  const more = rendered < visible.length || (!savedView && !store.done && !el.inBounds.checked);
   if (more) {
     el.list.insertAdjacentHTML('beforeend', '<div class="sentinel"><button type="button">Xem thêm</button></div>');
     sentinelObserver.observe(el.list.querySelector('.sentinel'));
@@ -419,12 +626,12 @@ const sentinelObserver = new IntersectionObserver((entries) => {
 function onSentinel() {
   autoPages = 0;
   if (rendered < visible.length) renderMore();
-  else if (!store.done && !store.loading) loadPage();
+  else if (!savedView && !store.done && !store.loading) loadPage();
 }
 
 el.list.addEventListener('click', (e) => {
   if (e.target.closest('.sentinel button')) return onSentinel();
-  if (e.target.closest('a')) return;
+  if (e.target.closest('a, button')) return;
   const card = e.target.closest('.card');
   if (card) {
     highlightCard(card.dataset.id);
@@ -441,7 +648,9 @@ function updateCount() {
   const shown = visible.length;
   const onMap = markers.size;
   let text;
-  if (store.error && !loaded) text = store.error;
+  if (savedView) {
+    text = `${shown.toLocaleString('vi-VN')} tin ${savedView === 'fav' ? 'yêu thích' : 'đã đánh dấu không phù hợp'} · ${onMap.toLocaleString('vi-VN')} trên bản đồ`;
+  } else if (store.error && !loaded) text = store.error;
   else if (!loaded && store.loading) text = 'Đang tải…';
   else {
     text = `${shown.toLocaleString('vi-VN')} tin hiển thị · đã tải ${loaded.toLocaleString('vi-VN')} / ${store.total.toLocaleString('vi-VN')} tin · ${onMap.toLocaleString('vi-VN')} trên bản đồ`;
@@ -450,10 +659,11 @@ function updateCount() {
     const parts = [];
     if (hiddenCount.sale) parts.push(`${hiddenCount.sale.toLocaleString('vi-VN')} tin sale`);
     if (hiddenCount.keyword) parts.push(`${hiddenCount.keyword.toLocaleString('vi-VN')} tin có từ khoá loại trừ`);
+    if (hiddenCount.marked) parts.push(`${hiddenCount.marked.toLocaleString('vi-VN')} tin bạn đánh dấu không phù hợp`);
     if (parts.length) text += ` · đã ẩn ${parts.join(', ')}`;
   }
   el.count.textContent = text;
-  el.showHiddenWrap.hidden = !hiddenCount.sale && !hiddenCount.keyword && !el.showHidden.checked;
+  el.showHiddenWrap.hidden = savedView || (!hiddenTotal() && !el.showHidden.checked);
   el.loadAll.textContent = loadingAll ? '■ Dừng tải' : store.done ? 'Đã tải hết' : 'Tải tất cả';
   el.loadAll.disabled = store.done && !loadingAll;
 }
@@ -567,7 +777,7 @@ async function runGeocode() {
   geo.running = true;
   while (geo.queue.length && el.approx.checked) {
     const ad = geo.queue.shift();
-    if (!store.ads.has(ad.id)) continue;
+    if (!store.ads.has(ad.id) && !myAds.fav.has(ad.id) && !myAds.hidden.has(ad.id)) continue;
     geo.pending = new Set(geo.queue.map((a) => Filters.geoQueries(a)[0])).size;
     for (const q of Filters.geoQueries(ad)) {
       const hit = await lookup(q);
@@ -736,6 +946,7 @@ for (const pop of [el.areaPop, el.wardPop]) {
 }
 
 function syncForm() {
+  el.hidemarked.checked = state.hidemarked !== '0';
   el.q.value = state.q;
   el.st.value = state.st;
   el.f.value = state.f;
@@ -821,6 +1032,7 @@ el.nqChips.addEventListener('click', (e) => {
   updateLocal({ nq: Filters.joinKeywords(list) });
 });
 el.nosale.addEventListener('change', () => updateLocal({ nosale: el.nosale.checked ? '1' : '' }));
+el.hidemarked.addEventListener('change', () => updateLocal({ hidemarked: el.hidemarked.checked ? '1' : '0' }));
 
 function update(patch) {
   Object.assign(state, patch);
@@ -927,6 +1139,9 @@ document.querySelector('.views').addEventListener('click', (e) => {
   try { saved = localStorage.getItem('phongtro.view'); } catch { /* bỏ qua */ }
   setView(['list', 'split', 'map'].includes(saved) ? saved : window.innerWidth < 800 ? 'list' : 'split');
   syncForm();
+  try {
+    loadMine(await api('/api/saved'));
+  } catch { /* chưa lưu được thì vẫn xem tin bình thường */ }
   restart();
   try {
     regions = (await api('/api/regions')).regions || [];

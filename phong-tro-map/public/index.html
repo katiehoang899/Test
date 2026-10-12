@@ -17,6 +17,7 @@
       <input id="q" name="q" type="search" placeholder="Tìm phòng trọ: tên đường, khu vực, tiện ích…" autocomplete="off">
       <button type="submit">Tìm</button>
     </form>
+    <button type="button" id="savedBtn" class="saved-btn" aria-pressed="false" title="Tin yêu thích và tin đã ẩn">♥ Đã lưu <b id="savedCount"></b></button>
     <div class="views" role="tablist" aria-label="Chế độ xem">
       <button type="button" data-view="list" role="tab">☰ Danh sách</button>
       <button type="button" data-view="split" role="tab">◧ Chia đôi</button>
@@ -129,6 +130,10 @@
 
     <label class="chip-toggle" title="Ẩn tin của người dẫn khách (sale trọ): tin ghi &quot;giá từ…&quot;, ghi khoảng giá (3tr – 5tr), &quot;nhiều phòng&quot;, &quot;hệ thống phòng&quot;, &quot;hỗ trợ tìm phòng&quot;…">
       <input type="checkbox" id="nosale"> Loại tin sale trọ
+    </label>
+
+    <label class="chip-toggle" title="Ẩn các tin bạn đã bấm ✓ Không phù hợp. Tắt để hiện lại các tin đó (có nhãn Đã đánh dấu).">
+      <input type="checkbox" id="hidemarked" checked> Ẩn tin đã đánh dấu
     </label>
 
     <select id="sort" name="sort" aria-label="Sắp xếp">
