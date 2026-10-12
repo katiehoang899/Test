@@ -30,6 +30,7 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - 🟢 ghim xanh: tin có toạ độ do người đăng chọn.
   - ⚪ ghim xám: tin **không có toạ độ** được đặt **gần đúng** theo phường (hoặc quận nếu không tìm thấy phường), dùng geocode của OpenStreetMap Nominatim. Có thể tắt bằng ô *Định vị gần đúng tin thiếu toạ độ*.
 - **Google Maps / Street View**: popup của mỗi tin có nút *📍 Google Maps* (mở Google Maps tại vị trí tin) và *🚶 Street View* (mở thẳng khung Street View ở đó). Click vào **bất kỳ điểm nào** trên bản đồ cũng hiện toạ độ và hai nút này. Với tin vị trí gần đúng, Google Maps tìm theo địa chỉ của tin, còn Street View mở ở khu vực phường.
+- **Xem trước Street View ngay trong popup** (tin có toạ độ): ô ảnh nhỏ hiện ảnh Street View mới nhất gần vị trí tin, kèm **ngày chụp** (ví dụ *📷 Tháng 11/2024*) và khoảng cách từ chỗ chụp tới vị trí tin. Camera tự quay về phía vị trí tin. Bấm vào ảnh để mở đúng ảnh đó trên Google Maps. Tính năng này cần Google Maps API key (xem bên dưới). Chưa có key thì popup hiện ô để dán key vào.
 - **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.
 - **Tải tất cả**: tự lấy hết các trang kết quả (tối đa 5.000 tin mỗi lần lọc), bấm lần nữa để dừng. Cuộn xuống cuối danh sách cũng tự tải thêm.
 - **Chỉ tin trong khung bản đồ**: kéo / phóng bản đồ tới khu vực muốn ở, danh sách chỉ còn các tin trong khung đó.
@@ -54,7 +55,18 @@ Biến môi trường (không bắt buộc):
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Dịch vụ geocode cho tin thiếu toạ độ |
 | `DATA_DIR` | `./data` | Nơi lưu cache geocode (`geocode-cache.json`) |
 
+| `GOOGLE_MAPS_API_KEY` | (trống) | Key cho ô xem trước Street View. Cũng có thể dán key ngay trong popup trên bản đồ, key được lưu ở `DATA_DIR/config.json` |
+
 Chạy test: `npm test`.
+
+### Lấy Google Maps API key (cho ô xem trước Street View)
+
+1. Vào [Google Cloud Console](https://console.cloud.google.com/), tạo project (cần gắn tài khoản thanh toán, Google có hạn mức dùng miễn phí hằng tháng).
+2. *APIs & Services → Library*, bật **Street View Static API**.
+3. *APIs & Services → Credentials → Create credentials → API key*. Nên giới hạn key chỉ dùng cho *Street View Static API*.
+4. Mở một ghim trên bản đồ, dán key vào ô trong popup rồi bấm **Lưu** (hoặc chạy với `GOOGLE_MAPS_API_KEY=… npm start`).
+
+Mỗi lần mở popup tốn 1 lượt tra metadata (Google không tính phí) và 1 lượt tải ảnh. Ảnh được lưu trong `DATA_DIR/streetview`, nên mở lại tin cũ không tốn thêm lượt. Key chỉ nằm trên server, trang web không đọc được. Không có key thì hai nút *Google Maps / Street View* vẫn dùng bình thường.
 
 ## Cách hoạt động
 

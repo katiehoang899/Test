@@ -300,6 +300,13 @@
     return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${round6(lat)},${round6(lng)}`;
   }
 
+  // Mở đúng một ảnh Street View (mã pano), quay về hướng heading (độ).
+  function panoUrl(pano, heading) {
+    let u = 'https://www.google.com/maps/@?api=1&map_action=pano&pano=' + encodeURIComponent(pano);
+    if (heading != null && Number.isFinite(Number(heading))) u += '&heading=' + Math.round(Number(heading));
+    return u;
+  }
+
   function round6(v) {
     return Number(Number(v).toFixed(6));
   }
@@ -316,7 +323,7 @@
   return {
     FIELDS, DEFAULTS, SORT_TO_SP, emptyState, parseRange, formatRange, formatMoney, rangeLabel, fold,
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
-    wardsOfArea, locationSources, googleMapsUrl, streetViewUrl,
+    wardsOfArea, locationSources, googleMapsUrl, streetViewUrl, panoUrl,
     splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };
 });

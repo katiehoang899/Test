@@ -11,6 +11,7 @@ const path = require('node:path');
 const PORT = Number(process.env.PORT) || 3100;
 const GATEWAY = (process.env.CHOTOT_GATEWAY || 'https://gateway.chotot.com').replace(/\/+$/, '');
 const NOMINATIM = (process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/+$/, '');
+const GOOGLE_MAPS = (process.env.GOOGLE_MAPS_URL || 'https://maps.googleapis.com').replace(/\/+$/, '');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UA = 'Mozilla/5.0 (PhongTroMap; +https://github.com/katiehoang899/test)';
@@ -247,6 +248,145 @@ function geocode(q) {
   return job;
 }
 
+// ---------- Street View (xem trước trong popup) ----------
+
+// Dùng Google Street View Static API, cần API key: biến môi trường GOOGLE_MAPS_API_KEY
+// hoặc nhập trên trang (lưu ở DATA_DIR/config.json). Key không bao giờ gửi về trình duyệt:
+// ảnh được tải qua server và lưu lại trong DATA_DIR/streetview.
+const configFile = path.join(DATA_DIR, 'config.json');
+const SV_RADIUS = 80; // tìm ảnh đường phố trong bán kính (m) quanh vị trí tin
+
+function readConfig() {
+  try { return JSON.parse(fs.readFileSync(configFile, 'utf8')); } catch { return {}; }
+}
+
+function writeConfig(cfg) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+}
+
+function googleKey() {
+  return process.env.GOOGLE_MAPS_API_KEY || readConfig().googleMapsKey || '';
+}
+
+function toRad(d) { return (d * Math.PI) / 180; }
+
+// Hướng (độ, 0 = bắc) và khoảng cách (m) từ điểm a tới điểm b.
+function bearing(a, b) {
+  const y = Math.sin(toRad(b.lng - a.lng)) * Math.cos(toRad(b.lat));
+  const x = Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) - Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lng - a.lng));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function distance(a, b) {
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+// Ảnh Street View gần nhất quanh (lat, lng): ngày chụp, mã ảnh, hướng camera nhìn về vị trí tin.
+async function streetViewMeta(latStr, lngStr) {
+  const lat = num(latStr);
+  const lng = num(lngStr);
+  if (!validLatLng(lat, lng)) throw Object.assign(new Error('Toạ độ không hợp lệ'), { status: 400 });
+  const key = googleKey();
+  if (!key) return { status: 'NO_KEY' };
+  const target = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
+  return cached(`sv:${key.slice(-6)}:${target.lat},${target.lng}`, 24 * 3600 * 1000, async () => {
+    const u = new URL(GOOGLE_MAPS + '/maps/api/streetview/metadata');
+    u.searchParams.set('location', `${target.lat},${target.lng}`);
+    u.searchParams.set('radius', String(SV_RADIUS));
+    u.searchParams.set('source', 'outdoor');
+    u.searchParams.set('key', key);
+    const data = await getJson(u.toString());
+    if (data.status !== 'OK') return { status: data.status || 'UNKNOWN_ERROR' };
+    const pano = { lat: num(data.location?.lat), lng: num(data.location?.lng) };
+    const dist = pano.lat != null ? distance(pano, target) : null;
+    return {
+      status: 'OK',
+      pano: data.pano_id,
+      date: data.date || null, // "YYYY-MM"
+      lat: pano.lat,
+      lng: pano.lng,
+      distance: dist != null ? Math.round(dist) : null,
+      // Đứng gần như đúng chỗ thì để Google chọn hướng mặc định.
+      heading: dist != null && dist > 3 ? Math.round(bearing(pano, target)) : null,
+    };
+  });
+}
+
+const PANO_RE = /^[A-Za-z0-9_-]{10,128}$/;
+
+async function streetViewImage(query, res) {
+  const pano = query.get('pano') || '';
+  const headingRaw = query.get('heading');
+  const heading = headingRaw === null || headingRaw === '' ? null : Math.round(Number(headingRaw));
+  if (!PANO_RE.test(pano) || (heading !== null && !(heading >= 0 && heading <= 360))) {
+    return sendJson(res, 400, { error: 'Tham số không hợp lệ' });
+  }
+  const dir = path.join(DATA_DIR, 'streetview');
+  const file = path.join(dir, `${pano}_${heading ?? 'x'}.jpg`);
+  const send = (buf) => {
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=604800' });
+    res.end(buf);
+  };
+  try { return send(fs.readFileSync(file)); } catch { /* chưa có trong cache */ }
+  const key = googleKey();
+  if (!key) return sendJson(res, 409, { error: 'NO_KEY' });
+  const u = new URL(GOOGLE_MAPS + '/maps/api/streetview');
+  u.searchParams.set('size', '480x240');
+  u.searchParams.set('pano', pano);
+  if (heading !== null) u.searchParams.set('heading', String(heading));
+  u.searchParams.set('fov', '80');
+  u.searchParams.set('pitch', '5');
+  u.searchParams.set('return_error_code', 'true');
+  u.searchParams.set('key', key);
+  const up = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) });
+  if (!up.ok || !String(up.headers.get('content-type')).startsWith('image/')) {
+    return sendJson(res, 502, { error: `Google trả về lỗi ${up.status}` });
+  }
+  const buf = Buffer.from(await up.arrayBuffer());
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, buf);
+  } catch { /* cache chỉ là phụ */ }
+  send(buf);
+}
+
+function readBody(req, limit = 4096) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(Object.assign(new Error('Body quá lớn'), { status: 413 }));
+        req.destroy();
+      } else chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+// Lưu / xoá Google Maps API key. Chỉ nhận JSON: trang web khác không gửi được request
+// này (trình duyệt chặn vì cần preflight CORS mà server không cho phép).
+async function saveConfig(req) {
+  if (!String(req.headers['content-type']).startsWith('application/json')) {
+    throw Object.assign(new Error('Cần Content-Type: application/json'), { status: 415 });
+  }
+  let body;
+  try { body = JSON.parse(await readBody(req)); } catch { throw Object.assign(new Error('JSON không hợp lệ'), { status: 400 }); }
+  const key = String(body.googleMapsKey ?? '').trim();
+  if (key && !/^[A-Za-z0-9_-]{20,100}$/.test(key)) throw Object.assign(new Error('API key không hợp lệ'), { status: 400 });
+  const cfg = readConfig();
+  if (key) cfg.googleMapsKey = key;
+  else delete cfg.googleMapsKey;
+  writeConfig(cfg);
+  for (const k of memo.keys()) if (k.startsWith('sv:')) memo.delete(k);
+}
+
 // ---------- HTTP ----------
 
 const MIME = {
@@ -285,7 +425,14 @@ function createServer() {
   return http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://localhost');
     try {
+      if (u.pathname === '/api/config' && req.method === 'POST') {
+        await saveConfig(req);
+        return sendJson(res, 200, { streetView: Boolean(googleKey()) });
+      }
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
+      if (u.pathname === '/api/config') return sendJson(res, 200, { streetView: Boolean(googleKey()), fromEnv: Boolean(process.env.GOOGLE_MAPS_API_KEY) });
+      if (u.pathname === '/api/streetview/meta') return sendJson(res, 200, await streetViewMeta(u.searchParams.get('lat'), u.searchParams.get('lng')));
+      if (u.pathname === '/api/streetview/image') return await streetViewImage(u.searchParams, res);
       if (u.pathname === '/api/ads') return sendJson(res, 200, await listAds(u.searchParams));
       if (u.pathname === '/api/regions') return sendJson(res, 200, { regions: await listRegions() });
       if (u.pathname === '/api/wards') return sendJson(res, 200, { wards: await listWards(u.searchParams.get('area')) });
@@ -303,4 +450,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards };
+module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, bearing, distance };

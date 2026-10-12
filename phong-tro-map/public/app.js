@@ -86,6 +86,7 @@ function popupHtml(ad) {
     <div class="p">${esc(priceText(ad))}</div>
     <div class="m">${meta}</div>
     <div class="a">${esc(ad.address)}${ad.approx ? ' <em>(vị trí gần đúng)</em>' : ''}</div>
+    ${ad.lat != null ? '<div class="sv"><div class="sv-skel">Đang tìm ảnh Street View…</div></div>' : ''}
     ${gmapsHtml(ad)}
     <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ↗</a>
   </div>`;
@@ -99,10 +100,111 @@ function gmapsHtml(ad) {
   const maps = exact ? Filters.googleMapsUrl(ad.lat, ad.lng) : Filters.googleMapsUrl(null, null, ad.address);
   const links = [`<a href="${esc(maps)}" target="_blank" rel="noopener">📍 Google Maps</a>`];
   if (at) {
-    links.push(`<a href="${esc(Filters.streetViewUrl(at.lat, at.lng))}" target="_blank" rel="noopener"${exact ? '' : ' title="Vị trí gần đúng: Street View ở khu vực phường / quận"'}>🚶 Street View</a>`);
+    links.push(`<a class="sv-link" href="${esc(Filters.streetViewUrl(at.lat, at.lng))}" target="_blank" rel="noopener"${exact ? '' : ' title="Vị trí gần đúng: Street View ở khu vực phường / quận"'}>🚶 Street View</a>`);
   }
   return `<div class="gmaps">${links.join('')}</div>`;
 }
+
+// ---------- xem trước Street View trong popup ----------
+
+const svMeta = new Map(); // "lat,lng" → Promise<meta>
+let openSv = null; // popup tin đang mở (để tải lại sau khi nhập API key)
+
+function streetViewMeta(lat, lng) {
+  const key = `${lat},${lng}`;
+  if (!svMeta.has(key)) {
+    const p = api(`/api/streetview/meta?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+    p.catch(() => svMeta.delete(key)); // lỗi mạng: lần sau thử lại
+    svMeta.set(key, p);
+  }
+  return svMeta.get(key);
+}
+
+// "2023-04" → "Tháng 4/2023"
+function svDate(d) {
+  const m = /^(\d{4})(?:-(\d{1,2}))?/.exec(d || '');
+  if (!m) return 'Không rõ ngày chụp';
+  return m[2] ? `Tháng ${Number(m[2])}/${m[1]}` : `Năm ${m[1]}`;
+}
+
+function svKeyForm(message) {
+  return `<div class="sv-msg">${message}
+    <form class="sv-key" data-sv-key>
+      <input name="key" type="password" placeholder="AIza…" autocomplete="off" aria-label="Google Maps API key" required>
+      <button type="submit">Lưu</button>
+    </form>
+    <span class="sv-help">Cần bật <b>Street View Static API</b> cho key trong Google Cloud. Key chỉ lưu trên máy chạy tool.</span>
+  </div>`;
+}
+
+function svHtml(meta) {
+  if (meta.status === 'OK') {
+    const img = `/api/streetview/image?pano=${encodeURIComponent(meta.pano)}${meta.heading != null ? `&heading=${meta.heading}` : ''}`;
+    const far = meta.distance != null && meta.distance > 10 ? ` · cách vị trí tin ~${meta.distance} m` : '';
+    return `<a class="sv-img" href="${esc(Filters.panoUrl(meta.pano, meta.heading))}" target="_blank" rel="noopener" title="Mở Street View trên Google Maps">
+        <img src="${esc(img)}" alt="Ảnh Street View gần vị trí tin">
+        <span class="sv-date">📷 ${esc(svDate(meta.date))}</span>
+      </a>
+      <div class="sv-note">Ảnh Street View mới nhất${esc(far)}</div>`;
+  }
+  if (meta.status === 'NO_KEY') return svKeyForm('Nhập Google Maps API key để xem trước ảnh Street View ngay tại đây.');
+  if (meta.status === 'REQUEST_DENIED') return svKeyForm('Google từ chối API key (sai key hoặc chưa bật Street View Static API). Nhập key khác:');
+  if (meta.status === 'OVER_QUERY_LIMIT') return '<div class="sv-msg">Đã hết lượt gọi Street View của API key trong hôm nay.</div>';
+  if (meta.status === 'ZERO_RESULTS' || meta.status === 'NOT_FOUND') {
+    return '<div class="sv-msg">Không có ảnh Street View trong bán kính 80 m (thường do phòng nằm sâu trong hẻm).</div>';
+  }
+  return '<div class="sv-msg">Không lấy được ảnh Street View.</div>';
+}
+
+async function loadStreetView(popup, ad) {
+  const box = popup.getElement()?.querySelector('.sv');
+  if (!box) return;
+  let meta;
+  try {
+    meta = await streetViewMeta(ad.lat, ad.lng);
+  } catch {
+    meta = { status: 'ERROR' };
+  }
+  if (!box.isConnected) return;
+  box.innerHTML = svHtml(meta);
+  if (meta.status === 'OK') {
+    // Nút "Street View" mở đúng ảnh đang xem trước, quay về phía phòng.
+    const link = popup.getElement().querySelector('.gmaps .sv-link');
+    if (link) link.href = Filters.panoUrl(meta.pano, meta.heading);
+    const img = box.querySelector('img');
+    img.addEventListener('error', () => {
+      box.innerHTML = '<div class="sv-msg">Không tải được ảnh Street View.</div>';
+      popup.update();
+    });
+  }
+  popup.update();
+}
+
+document.addEventListener('submit', async (e) => {
+  const form = e.target.closest('[data-sv-key]');
+  if (!form) return;
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ googleMapsKey: form.key.value.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+    svMeta.clear();
+    if (openSv && openSv.popup.isOpen()) {
+      const box = openSv.popup.getElement().querySelector('.sv');
+      if (box) box.innerHTML = '<div class="sv-skel">Đang tìm ảnh Street View…</div>';
+      loadStreetView(openSv.popup, openSv.ad);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    alert('Không lưu được API key: ' + err.message);
+  }
+});
 
 // Click vào một điểm bất kỳ trên bản đồ → mở điểm đó trên Google Maps / Street View.
 function pointPopupHtml(lat, lng) {
@@ -135,7 +237,20 @@ function renderMap() {
     const ll = adLatLng(ad);
     if (!ll) continue;
     const m = L.marker(ll, { icon: ad.lat != null ? icons.exact : icons.approx, title: ad.title });
-    m.bindPopup(() => popupHtml(ad), { maxWidth: 260, minWidth: 220 });
+    // Nội dung popup là một phần tử DOM tạo một lần và dùng lại: popup.update() không
+    // vẽ lại từ đầu, nên ảnh Street View đã chèn vào không bị mất.
+    let content = null;
+    m.bindPopup(() => {
+      if (!content) {
+        content = document.createElement('div');
+        content.innerHTML = popupHtml(ad);
+      }
+      return content;
+    }, { maxWidth: 260, minWidth: 240 });
+    m.on('popupopen', (e) => {
+      openSv = { popup: e.popup, ad };
+      loadStreetView(e.popup, ad);
+    });
     m.on('click', () => highlightCard(ad.id));
     markers.set(ad.id, m);
     layers.push(m);
