@@ -45,11 +45,18 @@ const USER_LAYERS = [
   },
 ];
 
-let activeLayer = null; // lớp đang ở chế độ đặt điểm / nối A–B (chỉ một lớp một lúc)
+let activeLayer = null;
+
+// Mọi chấm / đường của các lớp vẽ chung MỘT canvas: mỗi canvas phủ kín bản đồ và chỉ nhận
+// chuột cho hình của chính nó, nên nếu mỗi lớp một canvas thì canvas trên cùng (đỗ xe) che
+// mất lớp dưới (điểm ngập): không rê / bấm được. tolerance: nới vùng bắt chuột ra 6px.
+map.createPane('userVectors').style.zIndex = 450; // dưới ghim tin đăng (markerPane = 600)
+const vectorRenderer = L.canvas({ pane: 'userVectors', tolerance: 6 });
+const VECTOR = { pane: 'userVectors', renderer: vectorRenderer }; // lớp đang ở chế độ đặt điểm / nối A–B (chỉ một lớp một lúc)
 
 function createUserLayer(cfg) {
   const levelOf = (id) => cfg.levels.find((l) => l.id === id) || cfg.levels[cfg.levels.length - 1];
-  map.createPane(cfg.key).style.zIndex = cfg.zIndex; // dưới ghim tin đăng (markerPane = 600)
+  map.createPane(cfg.key).style.zIndex = cfg.zIndex; // biển P (phần tử HTML), dưới ghim tin đăng
   const group = L.layerGroup();
   const draft = L.layerGroup().addTo(map); // điểm A đang chọn khi nối A–B
   // Điểm / đoạn mới là "Chưa phân loại"; popup mở ngay sau khi đặt để chọn mức độ / loại.
@@ -165,7 +172,7 @@ function createUserLayer(cfg) {
       add({ type: 'point', coords: p });
     } else if (!st.a) {
       st.a = p;
-      L.circleMarker(p, { pane: cfg.key, radius: 7, color: '#fff', weight: 2, fillColor: levelOf(st.level).color, fillOpacity: 1 })
+      L.circleMarker(p, { ...VECTOR, radius: 7, color: '#fff', weight: 2, fillColor: levelOf(st.level).color, fillOpacity: 1 })
         .bindTooltip('A', { permanent: true, direction: 'top', className: 'ul-ab' })
         .addTo(draft);
       hint('Bấm điểm B (cuối đoạn). Esc để huỷ.');
@@ -228,30 +235,37 @@ function createUserLayer(cfg) {
   }
 
   function pointLayer(f, color) {
-    const opts = { pane: cfg.key, bubblingMouseEvents: false };
     if (!cfg.badge) {
-      return L.circleMarker(f.coords, { ...opts, radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 });
+      return L.circleMarker(f.coords, { ...VECTOR, bubblingMouseEvents: false, radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 });
     }
-    const icon = L.divIcon({
+    const badgeIcon = L.divIcon({
       className: 'ul-badge',
       html: `<span>${esc(cfg.badge)}<i style="background:${color}"></i></span>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12],
       popupAnchor: [0, -12],
     });
-    return L.marker(f.coords, { ...opts, icon, keyboard: false });
+    return L.marker(f.coords, { pane: cfg.key, bubblingMouseEvents: false, icon: badgeIcon, keyboard: false });
   }
 
   function render() {
     group.clearLayers();
     for (const f of st.items) {
       const color = levelOf(f.level).color;
-      const layer = f.type === 'line'
-        ? L.polyline(f.path, { pane: cfg.key, color, weight: 7, opacity: 0.85, dashArray: cfg.dash, lineCap: 'round', lineJoin: 'round', bubblingMouseEvents: false })
+      const isLine = f.type === 'line';
+      const layer = isLine
+        ? L.polyline(f.path, { ...VECTOR, color, weight: 7, opacity: 0.85, dashArray: cfg.dash, lineCap: 'round', lineJoin: 'round', bubblingMouseEvents: false })
         : pointLayer(f, color);
       layer.itemId = f.id;
       layer.bindPopup(() => popupHtml(f), { minWidth: 220 });
-      layer.bindTooltip(`${icon(cfg.icon)} ${esc(levelOf(f.level).label)}${f.note ? ' · ' + esc(f.note) : ''}`, { sticky: true });
+      // Rê chuột: hiện tên lớp, mức độ / loại, ghi chú; làm nổi chấm / đường đang trỏ.
+      layer.bindTooltip(`${icon(cfg.icon)} <b>${esc(isLine ? cfg.lineTitle : cfg.pointTitle)}</b> · ${esc(levelOf(f.level).label)}${f.note ? `<br>${esc(f.note)}` : ''}`,
+        { sticky: true, direction: 'top', offset: [0, -8], className: 'ul-tip' });
+      if (layer.setStyle) {
+        const base = isLine ? { weight: 7, opacity: 0.85 } : { radius: 9, weight: 2 };
+        layer.on('mouseover', () => { layer.setStyle(isLine ? { weight: 10, opacity: 1 } : { weight: 3 }); if (!isLine) layer.setRadius(11); });
+        layer.on('mouseout', () => { layer.setStyle(base); if (!isLine) layer.setRadius(9); });
+      }
       group.addLayer(layer);
     }
     ui.count.textContent = String(st.items.length);

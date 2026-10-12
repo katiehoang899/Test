@@ -452,3 +452,5 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .up-title .ic { width: 16px; height: 16px; }
 .ul-actions button .ic { width: 14px; height: 14px; }
 .leaflet-tooltip .ic { width: 14px; height: 14px; vertical-align: -3px; }
+.ul-tip { font-size: 12px; line-height: 1.4; width: max-content; max-width: 240px; white-space: normal; }
+.ul-tip .ic { color: #1d6fdc; }
