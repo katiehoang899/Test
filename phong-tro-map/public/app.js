@@ -72,10 +72,52 @@ async function api(path) {
 // ---------- bản đồ ----------
 
 const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([16.0, 106.5], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap',
-}).addTo(map);
+
+// Nền bản đồ: OpenStreetMap, dự phòng CARTO (cùng dữ liệu OSM, máy chủ khác) khi ô bản đồ OSM
+// không tải được (máy chủ OSM giới hạn / chặn, mạng chặn…) để không còn mảng trống.
+const BASEMAPS = {
+  osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+  }),
+  carto: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+  }),
+};
+let basemap = 'osm';
+try { if (localStorage.getItem('phongtro.basemap') === 'carto') basemap = 'carto'; } catch { /* bỏ qua */ }
+BASEMAPS[basemap].addTo(map);
+L.control.layers({ 'OpenStreetMap': BASEMAPS.osm, 'CARTO (dự phòng)': BASEMAPS.carto }, null, { position: 'topleft' }).addTo(map);
+
+let autoSwitched = false;
+map.on('baselayerchange', (e) => {
+  basemap = e.layer === BASEMAPS.carto ? 'carto' : 'osm';
+  try { localStorage.setItem('phongtro.basemap', basemap); } catch { /* bỏ qua */ }
+});
+
+// OSM lỗi nhiều hơn tải được (ít nhất 6 ô) → tự chuyển sang CARTO, một lần mỗi lần mở trang.
+const osmTiles = { ok: 0, err: 0 };
+BASEMAPS.osm.on('tileload', () => { osmTiles.ok++; });
+BASEMAPS.osm.on('tileerror', () => {
+  osmTiles.err++;
+  if (autoSwitched || basemap !== 'osm' || osmTiles.err < 6 || osmTiles.err <= osmTiles.ok) return;
+  autoSwitched = true;
+  map.removeLayer(BASEMAPS.osm);
+  BASEMAPS.carto.addTo(map); // control lớp bản đồ tự cập nhật lựa chọn
+  basemap = 'carto';
+  mapNotice('Không tải được bản đồ OpenStreetMap, đã chuyển sang bản đồ dự phòng CARTO. Đổi lại ở nút lớp bản đồ góc trái.');
+});
+
+function mapNotice(text) {
+  const n = document.createElement('div');
+  n.className = 'map-notice';
+  n.setAttribute('role', 'status');
+  n.textContent = text;
+  document.querySelector('.map-wrap').append(n);
+  setTimeout(() => n.remove(), 9000);
+}
 const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, chunkedLoading: true });
 map.addLayer(cluster);
 const markers = new Map(); // id → marker

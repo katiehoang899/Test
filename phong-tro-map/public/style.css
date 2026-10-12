@@ -320,7 +320,18 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .sv-key button { border: 0; background: #0f8f7e; color: #fff; border-radius: 5px; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .popup .sv-help { display: block; font-size: 11px; }
 .popup .go { display: inline-block; margin-top: 6px; font-weight: 600; }
-.leaflet-container { background: var(--bg); font: inherit; }
+.leaflet-container { background: #e8e6e1; font: inherit; } /* màu đất của bản đồ, kể cả chế độ tối: ô chưa tải không bị đen */
+/* Bảng trên bản đồ luôn nền sáng: dùng ô chọn / radio kiểu sáng cả khi máy bật chế độ tối. */
+.leaflet-container .flood-ctl, .leaflet-container .leaflet-control-layers, .leaflet-popup { color-scheme: light; color: #1d2327; }
+/* Nút chọn lớp bản đồ: dùng emoji thay cho ảnh icon của Leaflet (không phụ thuộc CDN). */
+.leaflet-control-layers-toggle {
+  background-image: none !important; display: grid !important; place-items: center; font-size: 20px; text-decoration: none;
+}
+.leaflet-control-layers-toggle::before { content: '🗺'; }
+.map-notice {
+  position: absolute; z-index: 1000; left: 50%; top: 12px; transform: translateX(-50%); max-width: min(520px, calc(100% - 24px));
+  background: #1d2327; color: #fff; font-size: 13px; padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+}
 
 .foot { padding: 6px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); background: var(--panel); }
 

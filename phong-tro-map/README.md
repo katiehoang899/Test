@@ -101,7 +101,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 | `Cổng 3100 đang được dùng` | Tool đã chạy sẵn: mở http://localhost:3100. Hoặc chạy ở cổng khác: `PORT=3200 npm start` (Windows: `set PORT=3200` rồi `npm start`) |
 | `node: command not found` / `'node' is not recognized` | Chưa cài Node.js hoặc chưa mở lại Terminal sau khi cài |
 | Danh sách báo *Không tải được tin: Upstream 403 / 429…* | Chợ Tốt chặn hoặc giới hạn tạm thời: đợi vài phút rồi tải lại trang. Nếu lỗi kéo dài, có thể API của Chợ Tốt đã đổi, hãy báo lại kèm thông báo lỗi |
-| Bản đồ trống, không có nền | Máy không vào được `tile.openstreetmap.org` hoặc `cdnjs.cloudflare.com` (mạng công ty / VPN chặn) |
+| Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều (có thông báo trên bản đồ), hoặc tự đổi ở nút **🗺** góc trái bản đồ. Nếu cả hai đều trống: mạng công ty / VPN đang chặn, hoặc không vào được `cdnjs.cloudflare.com` |
 | Danh sách khu vực chỉ có vài tỉnh | API khu vực của Chợ Tốt không trả về; tool tự lấy tên tỉnh / quận từ các tin đã tải, càng tải nhiều càng đủ |
 
 Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, kể cả ô nhập API key).
