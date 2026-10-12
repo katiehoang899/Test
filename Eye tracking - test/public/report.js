@@ -928,7 +928,10 @@ function renderCharts() {
     g.value++;
     groups.set(key, g);
   }
-  Charts.hbar(box, {
+  // biểu đồ click nằm ở cột trái, dưới danh sách phần tử được click
+  const side = $('#sideCharts');
+  side.replaceChildren();
+  Charts.hbar(side, {
     title: t('chart.top_clicks'),
     subtitle: t('chart.top_clicks_sub'),
     rows: [...groups.values()].sort((a, b) => b.value - a.value).slice(0, 10),
@@ -955,7 +958,7 @@ function renderCharts() {
     headers: [t('chart.col_page'), t('chart.col_value')],
     emptyText: t('chart.empty'),
   });
-  Charts.hbar(box, {
+  Charts.hbar(side, {
     title: t('chart.clicks_pages'),
     subtitle: t('chart.clicks_pages_sub'),
     rows: pageRows(clicksByPage),

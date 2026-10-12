@@ -17,8 +17,8 @@
 
   <div class="report-layout">
     <aside class="side">
-      <div class="card">
-        <h2 data-i18n="report.display"></h2>
+      <div class="card" data-collapse="report.display">
+        <h2><button type="button" class="chart-toggle side-toggle" aria-expanded="true"><span class="chart-chevron" aria-hidden="true"></span><span data-i18n="report.display"></span></button></h2>
         <label for="pageSelect" data-i18n="report.page"></label>
         <select id="pageSelect"></select>
 
@@ -41,17 +41,20 @@
         <label class="check"><input type="checkbox" id="merge"> <span data-i18n="report.merge"></span></label>
       </div>
 
-      <div class="card note-card" id="noteCard"></div>
+      <div class="card note-card" id="noteCard" data-collapse="report.note"></div>
 
-      <div class="card">
-        <h2 data-i18n="report.page_stats"></h2>
+      <div class="card" data-collapse="report.stats">
+        <h2><button type="button" class="chart-toggle side-toggle" aria-expanded="true"><span class="chart-chevron" aria-hidden="true"></span><span data-i18n="report.page_stats"></span></button></h2>
         <div id="stats"></div>
       </div>
 
-      <div class="card">
-        <h2 data-i18n="report.top_clicks"></h2>
+      <div class="card" data-collapse="report.top_clicks">
+        <h2><button type="button" class="chart-toggle side-toggle" aria-expanded="true"><span class="chart-chevron" aria-hidden="true"></span><span data-i18n="report.top_clicks"></span></button></h2>
         <ol class="list-compact small" id="topClicks"></ol>
       </div>
+
+      <!-- biểu đồ click (chuyển từ phần Biểu đồ sang cột trái) -->
+      <div class="side-charts" id="sideCharts"></div>
     </aside>
 
     <main>
@@ -100,6 +103,7 @@
   <script src="/__et/charts.js"></script>
   <script src="/__et/media.js"></script>
   <script src="/__et/rte.js"></script>
+  <script src="/__et/side.js"></script>
   <script src="/__et/note.js"></script>
   <script src="/__et/report.js"></script>
 </body>

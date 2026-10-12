@@ -9,8 +9,12 @@
    * host: phần tử card chứa ghi chú; meta: dữ liệu phiên (id, note, noteFormat, noteUpdatedAt, noteBy).
    */
   function mount(host, meta) {
+    // thẻ ở cột trái thu gọn được (side.js): tiêu đề là nút bật / tắt
+    const title = host.dataset.collapse
+      ? `<h2 style="margin: 0"><button type="button" class="chart-toggle side-toggle" aria-expanded="${!host.classList.contains('collapsed')}"><span class="chart-chevron" aria-hidden="true"></span><span id="noteTitle"></span></button></h2>`
+      : '<h2 style="margin: 0" id="noteTitle"></h2>';
     host.innerHTML = `<div class="sessions-head">
-        <h2 style="margin: 0" id="noteTitle"></h2>
+        ${title}
         <span class="small muted" id="noteState" role="status" aria-live="polite"></span>
       </div>
       <div id="noteRte"></div>`;

@@ -185,6 +185,7 @@
       'report.transcript_meta': '{n} segments · click a timestamp to replay from that moment',
       'report.seek_replay': 'Replay from here (heatmap + audio)',
       'report.no_transcript': 'No transcript yet. Click “Transcript” to create one.',
+      'common.copyright': '© {year} Katie Hoang Design. All rights reserved.',
       'note.title': 'Notes',
       'note.toolbar': 'Formatting',
       'note.bold': 'Bold',
@@ -727,6 +728,7 @@
       'report.transcript_meta': '{n} đoạn · bấm mốc thời gian để phát lại từ lúc đó',
       'report.seek_replay': 'Phát lại từ đây (heatmap + âm thanh)',
       'report.no_transcript': 'Chưa có transcript. Bấm “Transcript” để tạo.',
+      'common.copyright': '© {year} Katie Hoang Design. Bảo lưu mọi quyền.',
       'note.title': 'Ghi chú',
       'note.toolbar': 'Định dạng',
       'note.bold': 'In đậm',
@@ -1107,6 +1109,20 @@
     root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
     root.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
     root.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+    renderFooter();
+  }
+
+  // Bản quyền ở cuối mọi trang có header của công cụ (trang ghi toàn màn hình thì không có)
+  function renderFooter() {
+    if (!document.body || !document.querySelector('.app-header')) return;
+    let el = document.getElementById('appFooter');
+    if (!el) {
+      el = document.createElement('footer');
+      el.id = 'appFooter';
+      el.className = 'app-footer';
+      document.body.appendChild(el);
+    }
+    el.textContent = t('common.copyright', { year: new Date().getFullYear() });
   }
 
   function use(next) {

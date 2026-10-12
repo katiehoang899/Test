@@ -118,3 +118,7 @@ Giao diện tự co giãn theo màn hình: trên điện thoại, header xuống
 - Figma: dùng Figma Embed, ghi được ánh nhìn và việc chuyển màn hình, không ghi được click bên trong prototype.
 - Website có chống bot (Cloudflare challenge), đăng nhập bằng bên thứ ba, hoặc gọi API tuyệt đối sang domain khác có thể không chạy đúng qua proxy.
 - File `file://` trên máy không dùng được trong bản online.
+
+---
+
+© 2026 Katie Hoang Design. Bảo lưu mọi quyền.

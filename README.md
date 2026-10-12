@@ -189,3 +189,7 @@ npm test
 ## Giấy phép
 
 GPL-3.0-or-later (do sử dụng WebGazer.js, GPL-3.0).
+
+---
+
+© 2026 Katie Hoang Design. Bảo lưu mọi quyền.

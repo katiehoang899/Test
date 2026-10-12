@@ -433,7 +433,7 @@ textarea {
   background: var(--bg); color: var(--text); font: inherit; resize: vertical;
 }
 .form-error { color: var(--danger); min-height: 1em; margin: 6px 0; }
-.auth-wrap { min-height: calc(100vh - 70px); display: grid; place-items: center; padding: 24px 16px; }
+.auth-wrap { min-height: calc(100vh - 130px); display: grid; place-items: center; padding: 24px 16px; }
 .auth-card { width: min(400px, 100%); }
 .auth-card h1 { margin-bottom: 2px; }
 .auth-card label { margin-top: 12px; }
@@ -698,3 +698,15 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .transcript-toggle { width: auto; }
 .media-transcript.collapsed .segments { display: none; }
 .media-transcript.collapsed .chart-chevron { transform: rotate(-45deg); margin-top: 0; }
+
+/* cột trái (Báo cáo, Transcript): mọi thẻ thu gọn / mở rộng được bằng tiêu đề */
+.side-toggle { width: auto; max-width: 100%; }
+.card.collapsed[data-collapse] > :not(h2):not(.sessions-head) { display: none; }
+.card.collapsed[data-collapse] > h2, .card.collapsed[data-collapse] > .sessions-head { margin-bottom: 0; }
+.card.collapsed[data-collapse] .chart-chevron { transform: rotate(-45deg); margin-top: 0; }
+.side-charts .chart-card { padding: 14px; margin-bottom: 12px; }
+.side-charts .chart-card.collapsed { padding-top: 12px; padding-bottom: 12px; }
+.side-charts .chart-card h3 { font-size: 16px; }
+
+/* bản quyền cuối trang */
+.app-footer { padding: 18px 16px 22px; text-align: center; font-size: 12px; color: var(--muted); }

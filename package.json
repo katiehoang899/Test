@@ -24,10 +24,11 @@
     "electron-builder": "^26.15.3"
   },
   "productName": "Heatmap",
-  "author": "Heatmap",
+  "author": "Katie Hoang Design",
   "build": {
     "appId": "com.heatmap.desktop",
     "productName": "Heatmap",
+    "copyright": "Copyright © 2026 Katie Hoang Design",
     "files": [
       "server.js",
       "public/**",
