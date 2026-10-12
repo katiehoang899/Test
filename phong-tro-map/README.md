@@ -31,6 +31,10 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - ⚪ ghim xám: tin **không có toạ độ** được đặt **gần đúng** theo phường (hoặc quận nếu không tìm thấy phường), dùng geocode của OpenStreetMap Nominatim. Có thể tắt bằng ô *Định vị gần đúng tin thiếu toạ độ*.
 - **Google Maps / Street View**: popup của mỗi tin có nút *📍 Google Maps* (mở Google Maps tại vị trí tin) và *🚶 Street View* (mở thẳng khung Street View ở đó). Click vào **bất kỳ điểm nào** trên bản đồ cũng hiện toạ độ và hai nút này. Với tin vị trí gần đúng, Google Maps tìm theo địa chỉ của tin, còn Street View mở ở khu vực phường.
 - **Xem trước Street View ngay trong popup** (tin có toạ độ): ô ảnh nhỏ hiện ảnh Street View mới nhất gần vị trí tin, kèm **ngày chụp** (ví dụ *📷 Tháng 11/2024*) và khoảng cách từ chỗ chụp tới vị trí tin. Camera tự quay về phía vị trí tin. Bấm vào ảnh để mở đúng ảnh đó trên Google Maps. Tính năng này cần Google Maps API key (xem bên dưới). Chưa có key thì popup hiện ô để dán key vào.
+- **♥ Yêu thích**: bấm *♡ Yêu thích* trên tin (trong danh sách hoặc popup bản đồ) để lưu lại. Nút **♥ Đã lưu** trên header mở tab *Yêu thích*: xem lại các tin đã lưu trên danh sách và bản đồ. Tool lưu kèm nội dung tin, nên vẫn xem được khi tin đã bị gỡ khỏi Nhà Tốt.
+- **✓ Không phù hợp**: tin đã xem mà không ưng thì bấm *✓ Không phù hợp*, tin sẽ bị ẩn khỏi kết quả từ đó về sau. Tắt ô **Ẩn tin đã đánh dấu** trên thanh lọc để hiện lại các tin này (làm mờ, có nhãn *Đã đánh dấu không phù hợp*). Tab *Đã ẩn* trong **♥ Đã lưu** liệt kê các tin đã ẩn, với nút *↺ Bỏ ẩn* cho từng tin và *Bỏ ẩn tất cả*.
+  - Tin yêu thích và tin đã ẩn được lưu trên máy, trong file `saved.json` ở thư mục dữ liệu (bản web: `phong-tro-map/data/`, app: `~/Library/Application Support/Phong Tro Map/`). Tắt / mở lại tool vẫn còn, và dùng chung giữa các trình duyệt trên cùng máy.
+- **📞 Số điện thoại / Zalo**: nếu nội dung tin có số điện thoại (`0909 123 456`, `0909.123.456`, `+84 909…`) thì số hiện luôn trên tin, kèm nút **Zalo** (mở `zalo.me/<số>` để nhắn tin) và bấm vào số để gọi. Tin không ghi số trong nội dung thì bấm **Hiện SĐT / Zalo**: tool hỏi API của Nhà Tốt, không có thì tìm trong nội dung đầy đủ của tin, vẫn không có thì hiện link sang tin trên Nhà Tốt.
 - **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.
 - **Tải tất cả**: tự lấy hết các trang kết quả (tối đa 5.000 tin mỗi lần lọc), bấm lần nữa để dừng. Cuộn xuống cuối danh sách cũng tự tải thêm.
 - **Chỉ tin trong khung bản đồ**: kéo / phóng bản đồ tới khu vực muốn ở, danh sách chỉ còn các tin trong khung đó.
@@ -117,6 +121,30 @@ Chạy test: `npm test`.
 4. Mở một ghim trên bản đồ, dán key vào ô trong popup rồi bấm **Lưu** (hoặc chạy với `GOOGLE_MAPS_API_KEY=… npm start`).
 
 Mỗi lần mở popup tốn 1 lượt tra metadata (Google không tính phí) và 1 lượt tải ảnh. Ảnh được lưu trong `DATA_DIR/streetview`, nên mở lại tin cũ không tốn thêm lượt. Key chỉ nằm trên server, trang web không đọc được. Không có key thì hai nút *Google Maps / Street View* vẫn dùng bình thường.
+
+## Ứng dụng macOS (.dmg)
+
+Phòng trọ Map cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, API key, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
+
+**Tải bản build sẵn:** GitHub Actions (workflow *Build Phòng trọ Map (.dmg)*) build file `.dmg` trên máy macOS khi bấm *Actions → Build Phòng trọ Map (.dmg) → Run workflow*, hoặc khi `phong-tro-map/package.json` thay đổi (ví dụ tăng `version`). File nằm ở mục **Artifacts** cuối trang của lần chạy (tải về là file `.zip`, giải nén ra `.dmg`):
+
+- `PhongTroMap-<version>-arm64.dmg` cho Mac chip Apple (M1/M2/M3/M4)
+- `PhongTroMap-<version>-x64.dmg` cho Mac chip Intel
+
+**Cài:** mở file `.dmg`, kéo **Phong Tro Map** vào *Applications*. App được ký ad-hoc, chưa notarize với Apple, nên lần mở đầu macOS sẽ chặn. Để mở:
+
+- Chuột phải vào app → **Open** → **Open**, hoặc
+- *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
+- chạy `xattr -dr com.apple.quarantine "/Applications/Phong Tro Map.app"`
+
+**Tự build trên Mac:**
+
+```bash
+cd phong-tro-map
+npm install
+npm run app        # chạy thử app desktop
+npm run dist:mac   # tạo file .dmg trong phong-tro-map/dist/
+```
 
 ## Cách hoạt động
 

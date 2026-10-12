@@ -15,6 +15,11 @@
   },
   "license": "GPL-3.0-or-later",
   "author": "Katie Design",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/katiehoang899/Test.git",
+    "directory": "phong-tro-map"
+  },
   "devDependencies": {
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3"

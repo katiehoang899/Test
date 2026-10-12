@@ -1,0 +1,38 @@
+name: Build Phòng trọ Map (.dmg)
+
+# Build file .dmg của Phòng trọ Map trên máy macOS của GitHub:
+# - bấm "Run workflow" (Actions → Build Phòng trọ Map (.dmg)), hoặc
+# - push thay đổi phong-tro-map/package.json (vd. tăng "version" khi phát hành bản mới).
+# Sửa code bình thường không build .dmg.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'phong-tro-map/package.json'
+      - '.github/workflows/phong-tro-map-dmg.yml'
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: phong-tro-map
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: phong-tro-map/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+
+      # Ký ad-hoc (identity "-" trong package.json), không cần tài khoản Apple Developer.
+      - run: npm run dist:mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhongTroMap-macOS
+          path: phong-tro-map/dist/*.dmg

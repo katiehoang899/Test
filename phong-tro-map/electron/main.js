@@ -53,15 +53,17 @@ function createWindow() {
     backgroundColor: '#f5f6f7',
     webPreferences: { contextIsolation: true, sandbox: true },
   });
-  // Link tới Nhà Tốt, Google Maps, Street View… mở bằng trình duyệt mặc định.
+  // Link tới Nhà Tốt, Google Maps, Zalo… mở bằng trình duyệt mặc định; số điện thoại (tel:)
+  // mở bằng ứng dụng gọi điện của máy (FaceTime / iPhone trên macOS).
+  const EXTERNAL = /^(https?|tel):/i;
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url) && !isOwnUrl(url)) shell.openExternal(url);
+    if (EXTERNAL.test(url) && !isOwnUrl(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   mainWindow.webContents.on('will-navigate', (e, url) => {
     if (isOwnUrl(url)) return;
     e.preventDefault();
-    if (/^https?:/i.test(url)) shell.openExternal(url);
+    if (EXTERNAL.test(url)) shell.openExternal(url);
   });
   mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.loadURL(baseUrl);
