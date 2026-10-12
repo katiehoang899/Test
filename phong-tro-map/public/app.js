@@ -1119,6 +1119,41 @@ document.addEventListener('click', (e) => {
   });
 });
 
+// ---------- tra cứu điểm ngập ----------
+
+const flood = { dlg: $('#floodDlg'), frame: $('#floodFrame'), msg: $('#floodMsg'), open: $('#floodOpen'), info: null };
+
+// Link mở tab mới kèm "text fragment" để trình duyệt cuộn thẳng tới mục tra cứu theo tên đường.
+function floodTextUrl(info) {
+  return `${info.url}#:~:text=${encodeURIComponent(info.text)}`;
+}
+
+$('#floodBtn').addEventListener('click', async () => {
+  flood.dlg.showModal();
+  if (flood.info) return;
+  flood.msg.hidden = false;
+  flood.msg.textContent = 'Đang mở trang tra cứu…';
+  try {
+    flood.info = await api('/api/flood-lookup');
+  } catch {
+    flood.info = { url: 'https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html', text: 'Đường nơi bạn ở có nằm trong điểm ngập không', embeddable: null };
+  }
+  const link = floodTextUrl(flood.info);
+  flood.open.href = link;
+  if (flood.info.embeddable === false) {
+    flood.msg.innerHTML = `<span>VnExpress không cho nhúng trang tra cứu vào trang web khác.</span>
+      <a href="${esc(link)}" target="_blank" rel="noopener">Mở tra cứu điểm ngập trên VnExpress ↗</a>
+      <small>Bản app Mac (Phong Tro Map) hiện được trang này ngay trong popup.</small>`;
+    return;
+  }
+  flood.frame.addEventListener('load', () => { flood.msg.hidden = true; }, { once: true });
+  flood.frame.src = link;
+});
+flood.dlg.addEventListener('click', (e) => {
+  // Bấm nút × hoặc ra ngoài khung (vùng nền mờ) thì đóng.
+  if (e.target.closest('[data-close]') || e.target === flood.dlg) flood.dlg.close();
+});
+
 // ---------- chế độ xem ----------
 
 function setView(v) {

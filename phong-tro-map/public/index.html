@@ -17,6 +17,7 @@
       <input id="q" name="q" type="search" placeholder="Tìm phòng trọ: tên đường, khu vực, tiện ích…" autocomplete="off">
       <button type="submit">Tìm</button>
     </form>
+    <button type="button" id="floodBtn" class="flood-btn" title="Tra cứu các điểm ngập thường xuyên của TP HCM (VnExpress)">🌊 Tra cứu điểm ngập</button>
     <button type="button" id="savedBtn" class="saved-btn" aria-pressed="false" title="Tin yêu thích và tin đã ẩn">♥ Đã lưu <b id="savedCount"></b></button>
     <div class="views" role="tablist" aria-label="Chế độ xem">
       <button type="button" data-view="list" role="tab">☰ Danh sách</button>
@@ -167,6 +168,20 @@
       </div>
     </section>
   </main>
+
+  <dialog id="floodDlg" class="flood-dlg" aria-labelledby="floodTitle">
+    <div class="flood-head">
+      <h2 id="floodTitle">🌊 Đường nơi bạn ở có nằm trong điểm ngập không?</h2>
+      <a id="floodOpen" class="flood-open" href="#" target="_blank" rel="noopener">Mở trên VnExpress ↗</a>
+      <button type="button" class="flood-close" data-close aria-label="Đóng">×</button>
+    </div>
+    <div class="flood-body">
+      <p class="flood-msg" id="floodMsg" hidden></p>
+      <iframe id="floodFrame" title="Tra cứu điểm ngập TP HCM (VnExpress)" referrerpolicy="no-referrer-when-downgrade"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe>
+    </div>
+    <div class="flood-foot">Nguồn: VnExpress, theo danh sách điểm ngập thường xuyên của Sở Xây dựng TP HCM. Nếu khung trống, bấm <b>Mở trên VnExpress</b>.</div>
+  </dialog>
 
   <footer class="foot">
     Dữ liệu tin đăng từ <a href="https://www.nhatot.com/thue-phong-tro" target="_blank" rel="noopener">nhatot.com</a> · Bản đồ © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>

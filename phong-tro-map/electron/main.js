@@ -4,13 +4,16 @@
 // rồi mở cửa sổ trỏ vào http://127.0.0.1:<cổng>/.
 
 const path = require('node:path');
-const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, session, webFrameMain } = require('electron');
 
 // Cache geocode, ảnh Street View và API key lưu trong thư mục dữ liệu của app
 // (macOS: ~/Library/Application Support/Phong Tro Map).
 process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
 
-const { createServer } = require(path.join(__dirname, '..', 'server.js'));
+// App tự gỡ lệnh cấm nhúng của trang tra cứu điểm ngập (xem allowFloodFrame), nên báo server là nhúng được.
+process.env.PTM_DESKTOP = '1';
+
+const { createServer, FLOOD_LOOKUP_URL, FLOOD_LOOKUP_TEXT } = require(path.join(__dirname, '..', 'server.js'));
 
 // Cổng cố định để trình duyệt nhớ chế độ xem (localStorage theo cổng); bận thì lấy cổng trống bất kỳ.
 const PREFERRED_PORT = 31070;
@@ -39,6 +42,59 @@ async function startServer() {
   }
 }
 
+// ---------- tra cứu điểm ngập ----------
+
+const FLOOD_HOST = new URL(FLOOD_LOOKUP_URL).hostname;
+
+function isFloodHost(url) {
+  try {
+    const host = new URL(url).hostname;
+    return host === FLOOD_HOST || host === 'vnexpress.net' || host.endsWith('.vnexpress.net');
+  } catch {
+    return false;
+  }
+}
+
+// VnExpress có thể cấm nhúng trang vào trang khác (X-Frame-Options / CSP frame-ancestors).
+// Chỉ với khung (iframe) của trang VnExpress trong popup tra cứu, bỏ hai header đó để hiện được.
+function allowFloodFrame() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.resourceType !== 'subFrame' || !isFloodHost(details.url)) return callback({});
+    const headers = {};
+    for (const [name, values] of Object.entries(details.responseHeaders || {})) {
+      const key = name.toLowerCase();
+      if (key === 'x-frame-options') continue;
+      headers[name] = key === 'content-security-policy'
+        ? values.map((v) => v.replace(/frame-ancestors[^;]*;?/gi, ''))
+        : values;
+    }
+    callback({ responseHeaders: headers });
+  });
+}
+
+// Khi trang tra cứu tải xong trong khung, cuộn tới mục "Đường nơi bạn ở có nằm trong điểm ngập không".
+// Nội dung tương tác có thể hiện chậm, nên thử lại vài lần.
+function scrollFloodFrame(frame) {
+  const script = `(() => {
+    const want = ${JSON.stringify(FLOOD_LOOKUP_TEXT.toLowerCase())};
+    let tries = 0;
+    const find = () => {
+      const els = document.querySelectorAll('h1, h2, h3, h4, h5, strong, b, p, div, span');
+      for (const el of els) {
+        if (el.children.length > 3) continue;
+        if ((el.textContent || '').toLowerCase().includes(want)) {
+          el.scrollIntoView({ block: 'start' });
+          return true;
+        }
+      }
+      return false;
+    };
+    const timer = setInterval(() => { if (find() || ++tries > 20) clearInterval(timer); }, 500);
+    find();
+  })();`;
+  frame.executeJavaScript(script).catch(() => {});
+}
+
 function isOwnUrl(url) {
   return baseUrl !== null && url.startsWith(baseUrl);
 }
@@ -64,6 +120,11 @@ function createWindow() {
     if (isOwnUrl(url)) return;
     e.preventDefault();
     if (EXTERNAL.test(url)) shell.openExternal(url);
+  });
+  mainWindow.webContents.on('did-frame-finish-load', (e, isMainFrame, processId, routingId) => {
+    if (isMainFrame) return;
+    const frame = webFrameMain.fromId(processId, routingId);
+    if (frame && isFloodHost(frame.url)) scrollFloodFrame(frame);
   });
   mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.loadURL(baseUrl);
@@ -120,6 +181,7 @@ if (!app.requestSingleInstanceLock()) {
       app.quit();
       return;
     }
+    allowFloodFrame();
     buildMenu();
     createWindow();
     app.on('activate', showMainWindow);

@@ -188,9 +188,42 @@ body[data-view="map"] .list { display: none; }
 .badge.marked { border-color: var(--accent); color: var(--accent); }
 
 /* Tab Đã lưu */
+.flood-btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 12px; cursor: pointer;
+  white-space: nowrap; margin-left: auto; color: #1f6fb2; font-weight: 600;
+}
+.flood-btn:hover { border-color: #1f6fb2; }
+.flood-btn + .saved-btn { margin-left: 0; }
+.flood-dlg {
+  width: min(1100px, calc(100vw - 32px)); height: min(860px, calc(100vh - 32px)); max-width: none; max-height: none;
+  padding: 0; border: 0; border-radius: 12px; background: var(--panel); color: var(--text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35); display: none; flex-direction: column; overflow: hidden;
+}
+.flood-dlg[open] { display: flex; }
+.flood-dlg::backdrop { background: rgba(0, 0, 0, .45); }
+.flood-head { display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--line); }
+.flood-head h2 { margin: 0; font-size: 16px; flex: 1; min-width: 0; }
+.flood-open { font-weight: 600; white-space: nowrap; }
+.flood-close { border: 0; background: none; font-size: 26px; line-height: 1; cursor: pointer; color: var(--muted); padding: 0 6px; }
+.flood-body { flex: 1; position: relative; background: #fff; }
+.flood-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.flood-msg {
+  position: absolute; inset: 0; z-index: 1; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 24px; text-align: center; color: #1d2327; background: #fff;
+}
+.flood-msg[hidden] { display: none; }
+.flood-msg a { background: #0f8f7e; color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; }
+.flood-foot { padding: 6px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); }
+@media (max-width: 800px) {
+  .flood-btn { font-size: 0; padding: 7px 10px; }
+  .flood-btn::before { content: '🌊'; font-size: 16px; }
+  .flood-dlg { width: 100vw; height: 100dvh; border-radius: 0; }
+  .flood-head h2 { font-size: 14px; }
+}
+
 .saved-btn {
   border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 12px; cursor: pointer;
-  white-space: nowrap; margin-left: auto; color: #e0245e; font-weight: 600;
+  white-space: nowrap; color: #e0245e; font-weight: 600;
 }
 .saved-btn b { background: #e0245e; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 12px; }
 .saved-btn b:empty { display: none; }
