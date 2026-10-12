@@ -41,8 +41,8 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
   - Ô **🌊 Điểm ngập** bật / tắt hiển thị cả lớp. Dữ liệu lưu trên máy (`floods.json` trong thư mục dữ liệu).
 - **🚗 Lớp đỗ xe hơi** (bảng *Đỗ xe hơi* ở góc phải bản đồ, dưới bảng điểm ngập): dùng giống hệt lớp điểm ngập.
-  - Chọn **loại chỗ đỗ**: 🟢 Miễn phí, 🔵 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại.
-  - **📍 Đặt điểm**: hiện biển **P** theo màu loại chỗ đỗ. **〰 Nối A–B**: vẽ đoạn đường đỗ được xe (nét đứt, bám theo đường phố).
+  - Chọn **loại chỗ đỗ**: 🟢 Miễn phí, 🟠 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại.
+  - **📍 Đặt điểm**: hiện biển **P** xanh dương, chấm màu ở góc biển là loại chỗ đỗ. **〰 Nối A–B**: vẽ đoạn đường đỗ được xe (nét đứt, bám theo đường phố).
   - Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).

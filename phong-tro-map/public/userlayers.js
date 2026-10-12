@@ -34,11 +34,11 @@ const USER_LAYERS = [
     lineTitle: 'Đoạn đỗ xe hơi',
     notePlaceholder: 'vd. đỗ được sau 18h, 30k/lượt',
     zIndex: 460,
-    badge: 'P', // điểm vẽ dạng biển "P" thay cho chấm tròn
+    badge: 'P', // điểm vẽ dạng biển "P" xanh dương (chấm màu ở góc là loại chỗ đỗ)
     dash: '12 8', // đoạn A–B vẽ nét đứt để phân biệt với đoạn ngập
     levels: [
       { id: 'free', label: 'Miễn phí', color: '#2e9d58' },
-      { id: 'paid', label: 'Có thu phí', color: '#1f6fb2' },
+      { id: 'paid', label: 'Có thu phí', color: '#e8871e' },
       { id: 'limited', label: 'Giới hạn giờ', color: '#8e5bd0' },
       { id: 'unknown', label: 'Chưa phân loại', color: '#959ca6' },
     ],
@@ -222,7 +222,7 @@ function createUserLayer(cfg) {
     }
     const icon = L.divIcon({
       className: 'ul-badge',
-      html: `<span style="background:${color}">${esc(cfg.badge)}</span>`,
+      html: `<span>${esc(cfg.badge)}<i style="background:${color}"></i></span>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12],
       popupAnchor: [0, -12],
