@@ -5,6 +5,9 @@
 const PAGE = 50; // số tin mỗi lần gọi API (tối đa của Chợ Tốt)
 const LOAD_ALL_CAP = 5000; // "Tải tất cả" dừng ở đây để không gọi API quá nhiều
 const RENDER_STEP = 60; // số thẻ tin thêm vào danh sách mỗi lần cuộn
+const AUTO_FILL_MIN = 20; // bộ lọc loại trừ ẩn nhiều tin: tự tải thêm trang cho đủ số tin này…
+const AUTO_FILL_PAGES = 8; // …nhưng không quá số trang này mỗi lần, sau đó chờ người dùng bấm "Xem thêm"
+const LOCAL_ONLY = ['nq', 'nosale']; // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
 
 const $ = (s) => document.querySelector(s);
 const el = {
@@ -14,6 +17,8 @@ const el = {
   priceMin: $('#priceMin'), priceMax: $('#priceMax'), sizeMin: $('#sizeMin'), sizeMax: $('#sizeMax'),
   priceLabel: $('#priceLabel'), sizeLabel: $('#sizeLabel'), furnLabel: $('#furnLabel'),
   count: $('#count'), list: $('#list'), loadAll: $('#loadAll'), inBounds: $('#inBounds'), approx: $('#approx'),
+  nqLabel: $('#nqLabel'), nqChips: $('#nqChips'), nqInput: $('#nqInput'), nqAdd: $('#nqAdd'), nqSuggest: $('#nqSuggest'),
+  nosale: $('#nosale'), showHidden: $('#showHidden'), showHiddenWrap: $('#showHiddenWrap'),
 };
 
 let state = Filters.stateFromSearch(location.search);
@@ -25,6 +30,8 @@ let loadingAll = false;
 let visible = []; // tin đang hiển thị (sau lọc + sắp xếp)
 let rendered = 0;
 let fitPending = true;
+let autoPages = 0;
+const hiddenCount = { sale: 0, keyword: 0 };
 
 // ---------- tiện ích ----------
 
@@ -138,9 +145,27 @@ map.on('moveend', () => {
 
 // ---------- danh sách ----------
 
-function filteredAds() {
-  const all = [...store.ads.values()].filter((ad) => Filters.matches(ad, state));
-  return Filters.sortAds(all, state.sort);
+function saleOf(ad) {
+  if (!ad.sale) ad.sale = Filters.saleReasons(ad);
+  return ad.sale;
+}
+
+// Tin khớp bộ lọc, đã sắp xếp. Tin bị bộ lọc loại trừ (từ khoá / sale trọ) được đếm
+// vào hiddenCount và chỉ trả về khi withHidden (ad.hidden ghi lý do).
+function filteredAds({ withHidden = false } = {}) {
+  hiddenCount.sale = 0;
+  hiddenCount.keyword = 0;
+  const out = [];
+  for (const ad of store.ads.values()) {
+    if (!Filters.matches(ad, state)) continue;
+    ad.hidden = Filters.hiddenReason(ad, state, saleOf(ad));
+    if (ad.hidden) {
+      hiddenCount[ad.hidden.kind]++;
+      if (!withHidden) continue;
+    }
+    out.push(ad);
+  }
+  return Filters.sortAds(out, state.sort);
 }
 
 function cardHtml(ad) {
@@ -151,7 +176,9 @@ function cardHtml(ad) {
     ad.deposit ? `Cọc ${Filters.formatMoney(ad.deposit)}` : '',
   ].filter(Boolean);
   const loc = ad.lat != null ? '' : ad.approxAt ? '<span class="badge soft">Vị trí gần đúng</span>' : '<span class="badge soft">Chưa có vị trí</span>';
-  return `<article class="card" data-id="${esc(ad.id)}" tabindex="0">
+  const sale = saleOf(ad);
+  const saleBadge = !ad.hidden && sale.length ? `<span class="badge sale" title="${esc('Dấu hiệu: ' + sale.join(', '))}">Có thể là sale</span>` : '';
+  return `<article class="card${ad.hidden ? ' is-hidden' : ''}" data-id="${esc(ad.id)}" tabindex="0">
     <div class="thumb">${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span>Không có ảnh</span>'}
       ${ad.imageCount > 1 ? `<span class="imgs">${ad.imageCount} ảnh</span>` : ''}</div>
     <div class="info">
@@ -164,7 +191,9 @@ function cardHtml(ad) {
         <span class="badge ${ad.isCompany ? 'pro' : ''}">${ad.isCompany ? 'Môi giới' : 'Cá nhân'}</span>
         ${ad.type === 'h' ? '<span class="badge">Cần thuê</span>' : ''}
         ${loc}
+        ${saleBadge}
       </div>
+      ${ad.hidden ? `<div class="why">Bị ẩn: ${esc(ad.hidden.text)}</div>` : ''}
     </div>
   </article>`;
 }
@@ -172,7 +201,7 @@ function cardHtml(ad) {
 // keep = true: giữ số thẻ đã hiện (khi chỉ có thêm tin mới) để danh sách không nhảy về đầu.
 function renderList(keep = false) {
   const count = keep ? Math.max(rendered, RENDER_STEP) : RENDER_STEP;
-  let list = filteredAds();
+  let list = filteredAds({ withHidden: el.showHidden.checked });
   if (el.inBounds.checked) {
     const b = map.getBounds();
     list = list.filter((ad) => {
@@ -184,13 +213,29 @@ function renderList(keep = false) {
   rendered = 0;
   el.list.innerHTML = '';
   if (!list.length) {
-    el.list.innerHTML = store.loading
+    const hidden = hiddenCount.sale + hiddenCount.keyword;
+    let msg = 'Không có tin phù hợp với bộ lọc.';
+    if (hidden) msg = `Không có tin phù hợp trong ${store.ads.size.toLocaleString('vi-VN')} tin đã tải (đã ẩn ${hidden.toLocaleString('vi-VN')} tin bởi bộ lọc loại trừ).`;
+    el.list.innerHTML = store.loading && !hidden
       ? '<p class="empty">Đang tải tin…</p>'
-      : `<p class="empty">${store.error ? esc(store.error) : 'Không có tin phù hợp với bộ lọc.'}</p>`;
+      : `<p class="empty">${store.error ? esc(store.error) : esc(msg)}</p>`;
+    if (!store.done && !store.error && !el.inBounds.checked) {
+      el.list.insertAdjacentHTML('beforeend', '<div class="sentinel"><button type="button">Tải thêm tin</button></div>');
+    }
   } else {
     renderMore(count);
   }
   updateCount();
+  maybeAutoFill();
+}
+
+// Bộ lọc loại trừ có thể ẩn gần hết một trang: tự tải thêm vài trang cho đủ tin để xem.
+function maybeAutoFill() {
+  if (store.done || store.loading || store.error || loadingAll || el.inBounds.checked) return;
+  if (visible.length >= AUTO_FILL_MIN || autoPages >= AUTO_FILL_PAGES) return;
+  if (!hiddenCount.sale && !hiddenCount.keyword) return;
+  autoPages++;
+  loadPage();
 }
 
 function renderMore(step = RENDER_STEP) {
@@ -214,6 +259,7 @@ const sentinelObserver = new IntersectionObserver((entries) => {
 }, { root: null, rootMargin: '400px' });
 
 function onSentinel() {
+  autoPages = 0;
   if (rendered < visible.length) renderMore();
   else if (!store.done && !store.loading) loadPage();
 }
@@ -243,8 +289,13 @@ function updateCount() {
     text = `${shown.toLocaleString('vi-VN')} tin hiển thị · đã tải ${loaded.toLocaleString('vi-VN')} / ${store.total.toLocaleString('vi-VN')} tin · ${onMap.toLocaleString('vi-VN')} trên bản đồ`;
     if (store.loading) text += ' · đang tải…';
     if (geo.pending) text += ` · đang định vị ${geo.pending} khu vực…`;
+    const parts = [];
+    if (hiddenCount.sale) parts.push(`${hiddenCount.sale.toLocaleString('vi-VN')} tin sale`);
+    if (hiddenCount.keyword) parts.push(`${hiddenCount.keyword.toLocaleString('vi-VN')} tin có từ khoá loại trừ`);
+    if (parts.length) text += ` · đã ẩn ${parts.join(', ')}`;
   }
   el.count.textContent = text;
+  el.showHiddenWrap.hidden = !hiddenCount.sale && !hiddenCount.keyword && !el.showHidden.checked;
   el.loadAll.textContent = loadingAll ? '■ Dừng tải' : store.done ? 'Đã tải hết' : 'Tải tất cả';
   el.loadAll.disabled = store.done && !loadingAll;
 }
@@ -308,6 +359,7 @@ function restart() {
   store.error = '';
   loadingAll = false;
   fitPending = true;
+  autoPages = 0;
   history.replaceState(null, '', location.pathname + Filters.stateToSearch(state));
   renderList();
   renderMap();
@@ -316,6 +368,7 @@ function restart() {
 
 el.loadAll.addEventListener('click', loadAll);
 el.inBounds.addEventListener('change', () => renderList());
+el.showHidden.addEventListener('change', () => renderList());
 
 // ---------- định vị gần đúng ----------
 
@@ -447,8 +500,73 @@ function syncForm() {
   document.querySelectorAll('.presets').forEach((box) => {
     box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === state[box.dataset.target]));
   });
+  el.nosale.checked = state.nosale === '1';
+  const kws = nqList();
+  el.nqLabel.textContent = kws.length ? String(kws.length) : '';
+  el.nqChips.replaceChildren(...kws.map((k, i) => {
+    const chip = document.createElement('span');
+    chip.textContent = k;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.dataset.remove = String(i);
+    x.setAttribute('aria-label', `Bỏ từ khoá ${k}`);
+    x.textContent = '×';
+    chip.append(x);
+    return chip;
+  }));
+  const folded = Filters.splitKeywords(state.nq);
+  el.nqSuggest.querySelectorAll('button').forEach((b) => { b.disabled = folded.includes(Filters.splitKeywords(b.dataset.k)[0]); });
   document.querySelectorAll('.pop').forEach((p) => p.classList.toggle('set', Boolean(p.querySelector('b').textContent)));
 }
+
+// Từ khoá loại trừ như người dùng gõ (bỏ trùng không phân biệt dấu).
+function nqList() {
+  const seen = new Set();
+  return String(state.nq || '').split(/[,;\n]+/).map((k) => k.trim()).filter((k) => {
+    const f = Filters.splitKeywords(k)[0];
+    if (!f || seen.has(f)) return false;
+    seen.add(f);
+    return true;
+  });
+}
+
+// Đổi bộ lọc chỉ chạy trên trình duyệt: lọc lại tin đã tải, không gọi lại API.
+function updateLocal(patch) {
+  Object.assign(state, patch);
+  syncForm();
+  history.replaceState(null, '', location.pathname + Filters.stateToSearch(state));
+  autoPages = 0;
+  renderList();
+  renderMap();
+}
+
+function addKeywords(text) {
+  const nq = Filters.joinKeywords([...nqList(), ...String(text).split(/[,;\n]+/)]);
+  if (nq !== state.nq) updateLocal({ nq });
+}
+
+el.nqAdd.addEventListener('click', () => {
+  addKeywords(el.nqInput.value);
+  el.nqInput.value = '';
+  el.nqInput.focus();
+});
+el.nqInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  el.nqAdd.click();
+});
+el.nqSuggest.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-k]');
+  if (b) addKeywords(b.dataset.k);
+});
+el.nqChips.addEventListener('click', (e) => {
+  const x = e.target.closest('button[data-remove]');
+  if (!x) return;
+  const list = nqList();
+  list.splice(Number(x.dataset.remove), 1);
+  updateLocal({ nq: Filters.joinKeywords(list) });
+});
+el.nosale.addEventListener('change', () => updateLocal({ nosale: el.nosale.checked ? '1' : '' }));
 
 function update(patch) {
   Object.assign(state, patch);
@@ -499,8 +617,9 @@ el.form.addEventListener('click', (e) => {
   }
   const clear = e.target.closest('[data-clear]');
   if (clear) {
+    const key = clear.dataset.clear;
     clear.closest('details').open = false;
-    return update({ [clear.dataset.clear]: '' });
+    return (LOCAL_ONLY.includes(key) ? updateLocal : update)({ [key]: '' });
   }
 });
 el.form.addEventListener('change', (e) => {
@@ -520,8 +639,20 @@ el.reset.addEventListener('click', () => {
   update(Filters.emptyState());
 });
 
+// Popup lọc gần mép phải màn hình thì canh phải để không bị cắt.
+document.querySelectorAll('details.pop').forEach((d) => d.addEventListener('toggle', () => {
+  const body = d.querySelector('.pop-body');
+  body.style.left = '';
+  body.style.right = '';
+  if (d.open && window.innerWidth > 800 && body.getBoundingClientRect().right > window.innerWidth - 8) {
+    body.style.left = 'auto';
+    body.style.right = '0';
+  }
+}));
+
 // Chỉ mở một popup lọc tại một thời điểm; bấm ra ngoài thì đóng.
 document.addEventListener('click', (e) => {
+  if (!e.target.isConnected) return; // nút vừa bị vẽ lại (vd. bỏ một từ khoá) – giữ popup mở
   document.querySelectorAll('details.pop[open]').forEach((d) => {
     if (!d.contains(e.target)) d.open = false;
   });

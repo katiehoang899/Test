@@ -91,7 +91,7 @@ function normalizeAd(ad) {
   return {
     id: String(listId),
     title: ad.subject || '',
-    body: typeof ad.body === 'string' ? ad.body.slice(0, 600) : '',
+    body: typeof ad.body === 'string' ? ad.body.slice(0, 4000) : '', // đủ dài để lọc từ khoá / tin sale
     price: num(ad.price),
     priceText: ad.price_string || null,
     size: num(ad.size),

@@ -76,3 +76,44 @@ test('geoQueries goes from ward to district', () => {
   ]);
   assert.deepEqual(F.geoQueries({}), []);
 });
+
+test('splitKeywords / joinKeywords / excludedKeyword', () => {
+  assert.deepEqual(F.splitKeywords('Giá từ 5,  sale ;ở ghép,,GIÁ TỪ 5'), ['gia tu 5', 'sale', 'o ghep']);
+  assert.equal(F.joinKeywords(['Giá từ 5', ' ở  ghép ', '']), 'Giá từ 5, ở ghép');
+  const ad = { title: 'Phòng trọ Q7', body: 'Giá   từ 5tr5, có gác' };
+  assert.equal(F.excludedKeyword(ad, 'Giá từ 5'), 'gia tu 5');
+  assert.equal(F.excludedKeyword(ad, 'gia tu 5'), 'gia tu 5', 'không dấu cũng khớp');
+  assert.equal(F.excludedKeyword(ad, 'ở ghép, máy giặt'), null);
+  assert.equal(F.excludedKeyword(ad, ''), null);
+});
+
+test('saleReasons flags "sale trọ" ads, not normal ones', () => {
+  const sale = (body) => F.saleReasons({ title: '', body });
+  assert.deepEqual(sale('Phòng trọ Quận 7 giá từ 3tr'), ['có "giá từ"']);
+  assert.deepEqual(sale('Chỉ từ 2,5tr/tháng'), ['có "giá từ"']);
+  assert.deepEqual(sale('Cho thuê phòng 3tr5 - 5tr gần ĐH'), ['khoảng giá 3,5 – 5 triệu']);
+  assert.deepEqual(sale('Giá 3 - 5 triệu tuỳ phòng'), ['khoảng giá 3 – 5 triệu']);
+  assert.deepEqual(sale('Từ 3 đến 5 triệu'), ['khoảng giá 3 – 5 triệu']);
+  assert.deepEqual(sale('phòng 3.500.000 - 5.000.000đ'), ['khoảng giá 3,5 – 5 triệu']);
+  assert.ok(sale('Hệ thống phòng trọ khắp Q7, còn nhiều phòng trống').length);
+  assert.ok(sale('Mình chuyên sale phòng, hỗ trợ tìm phòng miễn phí').length);
+
+  assert.deepEqual(sale('Phòng 25m2, giá 3tr5/tháng, điện 3.5k, nước 100k/người, cọc 1 tháng'), []);
+  assert.deepEqual(sale('Rộng 3 - 4m, giờ giấc 5h - 23h, ở 2 - 3 người, giá 4 triệu'), []);
+  assert.deepEqual(sale('Phòng có tủ 2 cánh, tủ lạnh, giá 3tr'), []);
+  assert.deepEqual(sale('Diện tích 20 - 25m2, giá 4tr'), []);
+});
+
+test('hiddenReason combines keyword and sale filters', () => {
+  const ad = { title: 'Phòng Q7', body: 'Giá từ 3tr, ở ghép được' };
+  const s = (patch) => ({ ...F.emptyState(), ...patch });
+  assert.equal(F.hiddenReason(ad, s({})), null);
+  assert.equal(F.hiddenReason(ad, s({ nq: 'ở ghép' })).kind, 'keyword');
+  assert.equal(F.hiddenReason(ad, s({ nosale: '1' })).kind, 'sale');
+  assert.match(F.hiddenReason(ad, s({ nosale: '1' })).text, /giá từ/);
+  assert.equal(F.hiddenReason({ title: 'Phòng Q7', body: 'giá 3tr' }, s({ nosale: '1' })), null);
+  const st = F.stateFromSearch('?nq=Gi%C3%A1+t%E1%BB%AB+5%2C+sale&nosale=1');
+  assert.equal(st.nq, 'Giá từ 5, sale');
+  assert.equal(st.nosale, '1');
+  assert.equal(F.stateFromSearch('?nosale=yes').nosale, '');
+});

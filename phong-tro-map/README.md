@@ -15,6 +15,16 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   | Đăng bởi: Cá nhân / Môi giới | `f=p` / `f=c` |
   | Từ khoá | `q` |
   | Sắp xếp: mới nhất, giá tăng / giảm, diện tích, giá / m² | `sp` + sắp xếp lại trên trình duyệt |
+- **Loại trừ từ khoá** (`nq`): nhập các từ khoá cách nhau bằng dấu phẩy, ví dụ `Giá từ 5, ở ghép`. Tin có chứa một trong các từ khoá đó (trong tiêu đề hoặc nội dung, không phân biệt hoa thường hay có dấu) sẽ bị ẩn. Có sẵn gợi ý: *giá từ, chỉ từ, ở ghép, ký túc xá, sleepbox, chung chủ*.
+- **Loại tin sale trọ** (`nosale=1`): ẩn tin của người dẫn khách, tức là một tin đăng cho nhiều phòng. Tin bị coi là sale nếu nội dung có:
+  - "giá từ", "chỉ từ", "giá dao động", "từ 3tr…";
+  - **khoảng giá**: `3tr - 5tr`, `3 - 5 triệu`, `2tr5 ~ 4tr`, `từ 3 đến 5 triệu`, `3.500.000 - 5.000.000đ`;
+  - "nhiều phòng", "còn nhiều phòng", "đa dạng mức giá", "hệ thống phòng / chuỗi CHDV";
+  - "hỗ trợ tìm phòng", "dẫn xem phòng", "xem phòng miễn phí", "list phòng", "giỏ hàng", "ký gửi", chữ "sale".
+
+  Giá điện nước (`3.5k`), kích thước (`rộng 3 - 4m`, `20 - 25m2`), giờ giấc (`5h - 23h`), số người ở (`2 - 3 người`) **không** bị tính là khoảng giá. Khi bộ lọc này đang tắt, tin có dấu hiệu sale vẫn được gắn nhãn *Có thể là sale* (rê chuột để xem lý do).
+  - Thanh trạng thái cho biết đã ẩn bao nhiêu tin. Tick **Hiện tin bị ẩn** để xem lại các tin đó (làm mờ, kèm lý do) và kiểm tra xem bộ lọc có ẩn nhầm không.
+  - Hai bộ lọc này chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ, nên bật/tắt có hiệu lực ngay, không cần tải lại. Nếu bộ lọc ẩn gần hết tin đã tải, tool tự tải thêm (tối đa 8 trang mỗi lần) cho đủ tin để xem.
 - **Bản đồ** (OpenStreetMap + Leaflet): các tin được gom cụm khi thu nhỏ. Bấm vào ghim để xem ảnh, giá, diện tích, địa chỉ và link tới tin gốc. Bấm một tin trong danh sách thì bản đồ bay tới đúng ghim của tin đó.
   - 🟢 ghim xanh: tin có toạ độ do người đăng chọn.
   - ⚪ ghim xám: tin **không có toạ độ** được đặt **gần đúng** theo phường (hoặc quận nếu không tìm thấy phường), dùng geocode của OpenStreetMap Nominatim. Có thể tắt bằng ô *Định vị gần đúng tin thiếu toạ độ*.

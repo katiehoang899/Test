@@ -95,6 +95,32 @@
       <option value="c">Môi giới</option>
     </select>
 
+    <details class="pop" id="nqPop">
+      <summary><span>Loại trừ từ khoá</span> <b id="nqLabel"></b></summary>
+      <div class="pop-body">
+        <p class="hint">Ẩn tin có chứa các từ khoá này trong tiêu đề hoặc nội dung (không phân biệt hoa thường, có dấu hay không dấu).</p>
+        <div class="chips" id="nqChips"></div>
+        <div class="nq-add">
+          <input id="nqInput" type="text" placeholder="Ví dụ: Giá từ 5, ở ghép" aria-label="Từ khoá loại trừ">
+          <button type="button" id="nqAdd" class="primary">Thêm</button>
+        </div>
+        <div class="suggest" id="nqSuggest">
+          <span>Gợi ý:</span>
+          <button type="button" data-k="giá từ">giá từ</button>
+          <button type="button" data-k="chỉ từ">chỉ từ</button>
+          <button type="button" data-k="ở ghép">ở ghép</button>
+          <button type="button" data-k="ký túc xá">ký túc xá</button>
+          <button type="button" data-k="sleepbox">sleepbox</button>
+          <button type="button" data-k="chung chủ">chung chủ</button>
+        </div>
+        <div class="pop-actions"><button type="button" data-clear="nq">Xoá hết</button></div>
+      </div>
+    </details>
+
+    <label class="chip-toggle" title="Ẩn tin của người dẫn khách (sale trọ): tin ghi &quot;giá từ…&quot;, ghi khoảng giá (3tr – 5tr), &quot;nhiều phòng&quot;, &quot;hệ thống phòng&quot;, &quot;hỗ trợ tìm phòng&quot;…">
+      <input type="checkbox" id="nosale"> Loại tin sale trọ
+    </label>
+
     <select id="sort" name="sort" aria-label="Sắp xếp">
       <option value="">Tin mới nhất</option>
       <option value="price_asc">Giá thấp → cao</option>
@@ -109,6 +135,7 @@
   <div class="status" id="statusBar">
     <span id="count">Đang tải…</span>
     <span class="status-actions">
+      <label class="toggle" id="showHiddenWrap" hidden title="Hiện cả các tin bị bộ lọc loại trừ ẩn đi (làm mờ, kèm lý do)"><input type="checkbox" id="showHidden"> Hiện tin bị ẩn</label>
       <label class="toggle" title="Chỉ liệt kê các tin nằm trong khung bản đồ đang xem"><input type="checkbox" id="inBounds"> Chỉ tin trong khung bản đồ</label>
       <label class="toggle" title="Tin không có toạ độ sẽ được đặt gần đúng theo phường / quận"><input type="checkbox" id="approx" checked> Định vị gần đúng tin thiếu toạ độ</label>
       <button type="button" id="loadAll">Tải tất cả</button>

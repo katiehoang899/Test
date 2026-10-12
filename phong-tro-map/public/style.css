@@ -29,6 +29,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -89,6 +90,23 @@ button, input, select { font: inherit; color: inherit; }
 .pop-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .pop-actions .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .checks label { display: flex; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
+.hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+#nqPop .pop-body { width: 340px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chips:empty { display: none; }
+.chips span { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 4px 2px 10px; font-weight: 600; }
+.chips button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; }
+.nq-add { display: flex; gap: 6px; }
+.nq-add input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.nq-add .primary { border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; padding: 0 12px; cursor: pointer; }
+.suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.suggest button { border: 1px dashed var(--line); background: none; border-radius: 999px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+.suggest button:disabled { opacity: .4; cursor: default; }
+.chip-toggle {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 999px; cursor: pointer; white-space: nowrap; flex: 0 0 auto;
+}
+.chip-toggle:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 button.link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0 4px; }
 
 /* ---------- thanh trạng thái ---------- */
@@ -135,6 +153,9 @@ body[data-view="map"] .list { display: none; }
 .badge { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
 .badge.pro { border-color: #d68910; color: #d68910; }
 .badge.soft { border-style: dashed; }
+.badge.sale { border-color: #b03a2e; color: #b03a2e; }
+.card.is-hidden { opacity: .55; border-style: dashed; }
+.card .why { font-size: 12px; color: #b03a2e; }
 .empty { color: var(--muted); text-align: center; padding: 40px 0; }
 .sentinel { text-align: center; padding: 8px; grid-column: 1 / -1; }
 .sentinel button { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 16px; cursor: pointer; }

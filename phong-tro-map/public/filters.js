@@ -6,9 +6,11 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Filters = api;
 })(typeof self !== 'undefined' ? self : this, function () {
-  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort'];
+  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale'];
 
-  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: '', ward: '', price: '', size: '', furnishing_rent: [], f: '', sort: '' };
+  // nq: từ khoá loại trừ (cách nhau bằng dấu phẩy), nosale = '1': ẩn tin sale trọ.
+  // Hai bộ lọc này chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
+  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: '', ward: '', price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '' };
 
   // Sắp xếp phía máy chủ Chợ Tốt (tham số sp). Kết quả đã tải luôn được sắp xếp lại
   // phía trình duyệt, nên "Tải tất cả" cho thứ tự đúng kể cả khi sp bị bỏ qua.
@@ -75,6 +77,7 @@
     }
     if (!['u', 'h', 'u,h'].includes(s.st)) s.st = DEFAULTS.st;
     if (!['', 'p', 'c'].includes(s.f)) s.f = '';
+    s.nosale = s.nosale === '1' ? '1' : '';
     return s;
   }
 
@@ -129,6 +132,107 @@
     return true;
   }
 
+  // ---------- loại trừ từ khoá & tin sale trọ ----------
+
+  const textCache = new WeakMap();
+  function adText(ad) {
+    let t = textCache.get(ad);
+    if (t == null) {
+      t = fold([ad.title, ad.body].join('\n')).replace(/\s+/g, ' ');
+      textCache.set(ad, t);
+    }
+    return t;
+  }
+
+  // "Giá từ 5, sale; ở ghép" → ['gia tu 5', 'sale', 'o ghep']
+  function splitKeywords(nq) {
+    const seen = new Set();
+    for (const part of String(nq || '').split(/[,;\n]+/)) {
+      const k = fold(part).replace(/\s+/g, ' ').trim();
+      if (k) seen.add(k);
+    }
+    return [...seen];
+  }
+
+  // Nhập lại danh sách từ khoá (giữ nguyên chữ người dùng gõ) thành chuỗi lưu trên URL.
+  function joinKeywords(list) {
+    return list.map((k) => String(k).replace(/[,;\n]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).join(', ');
+  }
+
+  function excludedKeyword(ad, nq) {
+    const words = splitKeywords(nq);
+    if (!words.length) return null;
+    const text = adText(ad);
+    return words.find((w) => text.includes(w)) || null;
+  }
+
+  // Số tiền "3", "3.5", "3tr5", "3 trieu 500" → triệu đồng.
+  function millions(numStr, tail) {
+    const base = parseFloat(numStr.replace(',', '.'));
+    if (!Number.isFinite(base)) return null;
+    const t = /^\d+$/.test(tail || '') ? parseFloat('0.' + tail) : 0;
+    return base + t;
+  }
+
+  // Đơn vị triệu: "triệu", "tr", "củ". Không tính "m" vì dễ nhầm với mét ("rộng 3 - 4m").
+  const UNIT = '(?:trieu|tr|cu)(?![a-z])';
+  const AMOUNT = `(\\d{1,3}(?:[.,]\\d{1,2})?)\\s*(?:${UNIT}\\s*(\\d{1,3})?)?`;
+  // 3tr - 5tr, 3 - 5 triệu, 2tr5 ~ 4tr, từ 3 đến 5 triệu, 3->5tr
+  const RANGE_RE = new RegExp(`(?:^|[^\\d.,])${AMOUNT}\\s*(?:-|–|—|~|den|toi|->|=>)\\s*(\\d{1,3}(?:[.,]\\d{1,2})?)\\s*${UNIT}\\s*(\\d{1,3})?`, 'g');
+  // 3.500.000 - 5.000.000đ
+  const RANGE_VND_RE = /(\d{1,3}(?:[.,]\d{3}){2})\s*(?:d|vnd|dong)?\s*(?:-|–|—|~|den|toi)\s*(\d{1,3}(?:[.,]\d{3}){2})/g;
+  const SALE_PHRASES = [
+    [/\bgia\s*(?:chi\s*)?tu\b|\bgia\s*dao\s*dong\b|\bdao\s*dong\s*tu\b|\bchi\s*tu\s*\d|\btu\s*\d{1,3}(?:[.,]\d{1,2})?\s*(?:trieu|tr|cu)(?![a-z])/, 'có "giá từ"'],
+    [/\bnhieu\s*(?:phong|can|loai\s*phong|khu\s*vuc|quan|muc\s*gia|dien\s*tich|chi\s*nhanh|co\s*so|toa)\b|\bcon\s*nhieu\s*phong\b|\bda\s*dang\s*(?:phong|loai\s*phong|muc\s*gia|gia|dien\s*tich)\b/, 'nhiều phòng / nhiều khu vực'],
+    [/\bhe\s*thong\s*(?:phong|can\s*ho|chdv|nha\s*tro|toa\s*nha|ccmn)\b|\bchuoi\s*(?:phong|can\s*ho|chdv)\b/, 'hệ thống / chuỗi phòng'],
+    [/\bho\s*tro\s*(?:tim|xem|dan\s*di\s*xem)\s*phong\b|\bdan\s*(?:di\s*)?xem\s*phong\b|\b(?:tim|xem)\s*phong\s*(?:mien\s*phi|free)\b|\bfree\s*(?:tim|xem)\s*phong\b|\blist\s*phong\b|\bgio\s*hang\b|\bky\s*gui\b/, 'nhận tìm / dẫn xem phòng'],
+    [/\bsale\b/, 'có chữ "sale"'],
+  ];
+
+  function fmtM(v) {
+    return String(Math.round(v * 100) / 100).replace('.', ',');
+  }
+
+  // Trả về danh sách lý do nếu tin giống tin của "sale trọ" (người dẫn khách, đăng
+  // một tin cho nhiều phòng với khoảng giá), rỗng nếu là tin bình thường.
+  function saleReasons(ad) {
+    const text = adText(ad);
+    const reasons = [];
+    for (const m of text.matchAll(RANGE_RE)) {
+      const a = millions(m[1], m[2]);
+      const b = millions(m[3], m[4]);
+      if (a != null && b != null && a > 0 && a < b && b <= 100 && b - a >= 0.3) {
+        reasons.push(`khoảng giá ${fmtM(a)} – ${fmtM(b)} triệu`);
+        break;
+      }
+    }
+    if (!reasons.length) {
+      for (const m of text.matchAll(RANGE_VND_RE)) {
+        const a = Number(m[1].replace(/[.,]/g, ''));
+        const b = Number(m[2].replace(/[.,]/g, ''));
+        if (a >= 300000 && a < b && b <= 1e8) {
+          reasons.push(`khoảng giá ${fmtM(a / 1e6)} – ${fmtM(b / 1e6)} triệu`);
+          break;
+        }
+      }
+    }
+    for (const [re, label] of SALE_PHRASES) {
+      if (re.test(text)) reasons.push(label);
+    }
+    return reasons;
+  }
+
+  // Lý do tin bị ẩn bởi bộ lọc loại trừ, hoặc null nếu tin được hiện.
+  function hiddenReason(ad, state, sale) {
+    const kw = excludedKeyword(ad, state.nq);
+    if (kw) return { kind: 'keyword', text: `có từ khoá loại trừ "${kw}"` };
+    if (state.nosale === '1') {
+      const r = sale || saleReasons(ad);
+      if (r.length) return { kind: 'sale', text: 'tin sale trọ: ' + r.join(', ') };
+    }
+    return null;
+  }
+
   function sortAds(ads, sort) {
     const list = ads.slice();
     const byNum = (get, dir) => (a, b) => {
@@ -160,5 +264,6 @@
   return {
     FIELDS, DEFAULTS, SORT_TO_SP, emptyState, parseRange, formatRange, formatMoney, rangeLabel, fold,
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
+    splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };
 });
