@@ -65,6 +65,8 @@
     let activeSince = performance.now();
     let activeMs = 0;
     let state = 'recording';
+    // mốc nối thời gian: a = ms trong file ghi, t = ms của phiên tại đó (thêm một mốc mỗi lần tiếp tục sau tạm dừng)
+    const anchors = [{ a: 0, t: Math.round(startT) }];
     rec.ondataavailable = (e) => uploader.push(e.data);
     const done = new Promise((resolve) => { rec.onstop = resolve; });
     rec.start(CHUNK_MS);
@@ -85,6 +87,7 @@
         if (state !== 'paused') return;
         rec.resume();
         activeSince = performance.now();
+        anchors.push({ a: Math.round(activeMs), t: Math.round(opts.now()) });
         set('recording');
       },
       async stop() {
@@ -94,7 +97,7 @@
         rec.stop();
         await done;
         if (opts.onStop) opts.onStop();
-        const item = await uploader.finish({ endT: opts.now(), durationMs: Math.round(activeMs) });
+        const item = await uploader.finish({ endT: opts.now(), durationMs: Math.round(activeMs), anchors });
         set('stopped');
         return item;
       },

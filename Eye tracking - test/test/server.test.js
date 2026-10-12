@@ -675,3 +675,18 @@ test('ghi âm độc lập với eye tracking; cài đặt ghi âm mặc định
   await api('PUT', '/api/settings', { eyeTrackingEnabled: true, recordAudioDefault: true });
   for (const x of [s, s2]) await api('DELETE', `/api/sessions/${x.id}`);
 });
+
+test('bản ghi lưu mốc tạm dừng / tiếp tục để báo cáo phát lại khớp với ghi âm', async () => {
+  const s = (await api('POST', '/api/sessions', { url: 'https://anchor.test/', recordAudio: true })).body;
+  const r = await fetch(`${base}/__et/api/sessions/${s.id}/media/audio-1?kind=audio&mime=audio%2Fwebm&t=200`, { method: 'POST', body: Buffer.from('abc') });
+  assert.equal(r.status, 200);
+  const fin = (await api('POST', `/api/sessions/${s.id}/media/audio-1/finish`, {
+    endT: 20000,
+    durationMs: 15000,
+    anchors: [{ a: 6000, t: 10000 }, { a: 0, t: 200 }, { a: 'x', t: 1 }, { a: -5, t: 3 }, null],
+  })).body;
+  assert.deepEqual(fin.anchors, [{ a: 0, t: 200 }, { a: 6000, t: 10000 }]); // sắp xếp, bỏ mốc hỏng
+  const fin2 = (await api('POST', `/api/sessions/${s.id}/media/audio-1/finish`, { endT: 20000, durationMs: 15000 })).body;
+  assert.equal(fin2.anchors, undefined); // bản cũ không gửi mốc → báo cáo dùng startT
+  await api('DELETE', `/api/sessions/${s.id}`);
+});

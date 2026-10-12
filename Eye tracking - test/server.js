@@ -1118,6 +1118,12 @@ async function handleMedia(req, res, url, meta, mediaId, action) {
       if (!cur) return;
       cur.endT = num(body.endT) ?? null;
       cur.durationMs = num(body.durationMs) ?? null;
+      // mốc nối thời gian file ghi ↔ phiên (tạm dừng / tiếp tục), để báo cáo phát lại khớp với ghi âm
+      cur.anchors = (Array.isArray(body.anchors) ? body.anchors : []).slice(0, 1000)
+        .map((x) => ({ a: num(x && x.a), t: num(x && x.t) }))
+        .filter((x) => x.a != null && x.t != null && x.a >= 0)
+        .sort((x, y) => x.a - y.a);
+      if (!cur.anchors.length) delete cur.anchors;
     });
     return sendJson(res, 200, (updated.media || []).find((x) => x.id === mediaId));
   }

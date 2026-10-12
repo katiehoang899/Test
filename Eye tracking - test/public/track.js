@@ -708,6 +708,9 @@ $('#toggleDot').addEventListener('click', () => {
 
 $('#recalibrate').addEventListener('click', () => calibrate());
 
+/** Phiên của người tham gia (guest): không có nút tạm dừng ghi âm / ghi màn hình. */
+const isGuest = () => !!(session && session.guestId);
+
 // ---------- ghi màn hình khung trình duyệt (Record | Pause | Stop) ----------
 
 let screenRec = null;
@@ -721,8 +724,9 @@ function renderRec() {
   const st = screenRec ? screenRec.state : 'idle';
   const active = st === 'recording' || st === 'paused';
   $('#recStart').hidden = active || st === 'stopping';
-  $('#recPause').hidden = st !== 'recording';
-  $('#recResume').hidden = st !== 'paused';
+  // người tham gia (guest) không được tạm dừng ghi; admin / mod tự chạy phiên thì được
+  $('#recPause').hidden = st !== 'recording' || isGuest();
+  $('#recResume').hidden = st !== 'paused' || isGuest();
   $('#recStop').hidden = !active;
   $('#recTime').hidden = !active && st !== 'stopping';
   $('#recTime').classList.toggle('live', st === 'recording');
@@ -748,7 +752,7 @@ $('#recStart').addEventListener('click', async () => {
   $('#recStart').disabled = false;
   renderRec();
 });
-$('#recPause').addEventListener('click', () => screenRec && screenRec.pause());
+$('#recPause').addEventListener('click', () => screenRec && !isGuest() && screenRec.pause());
 $('#recResume').addEventListener('click', () => screenRec && screenRec.resume());
 $('#recStop').addEventListener('click', async () => {
   if (!screenRec) return;
@@ -771,7 +775,7 @@ function renderMic() {
   $('#micToggle').textContent = st === 'paused' ? '⏵' : '⏸';
   $('#micToggle').title = label;
   $('#micToggle').setAttribute('aria-label', label);
-  $('#micToggle').hidden = st !== 'recording' && st !== 'paused';
+  $('#micToggle').hidden = (st !== 'recording' && st !== 'paused') || isGuest();
 }
 setInterval(() => audioRec && audioRec.state !== 'stopped' && renderMic(), 500);
 
@@ -788,7 +792,7 @@ async function startAudioRecording() {
 }
 
 $('#micToggle').addEventListener('click', () => {
-  if (!audioRec) return;
+  if (!audioRec || isGuest()) return;
   if (audioRec.state === 'recording') audioRec.pause();
   else audioRec.resume();
   renderMic();

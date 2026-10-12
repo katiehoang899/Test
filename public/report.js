@@ -24,6 +24,7 @@ const state = {
   time: Infinity,     // mốc thời gian phát lại (ms, theo phiên chính)
   timeRange: [0, 0],
   playing: false,
+  transcript: null,   // transcript của phiên (để hiện dưới bản ghi âm)
 };
 
 function esc(s) {
@@ -38,6 +39,14 @@ function maxOf(list, f = (v) => v, init = 0) {
     if (x > m) m = x;
   }
   return m;
+}
+
+/** mm:ss (hoặc h:mm:ss) — cùng kiểu mốc thời gian của transcript. */
+function fmtClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const mm = String(Math.floor(s / 60) % 60).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 function fmtDuration(ms) {
@@ -150,6 +159,8 @@ function buildPageData() {
   const main = perSession[0];
   // events đã theo thứ tự thời gian ghi
   state.timeRange = main.events.length ? [main.events[0].t, main.events[main.events.length - 1].t] : [0, 0];
+  // phiên có ghi âm: thanh thời gian phủ cả phiên (và cả bản ghi âm), không chỉ trang đang xem
+  if (audioMode()) state.timeRange = sessionRange();
   state.time = Infinity;
 }
 
@@ -554,9 +565,13 @@ function updateTimeline() {
   const slider = $('#time');
   slider.min = a;
   slider.max = b;
-  if (!Number.isFinite(state.time)) slider.value = b;
   const cur = Number.isFinite(state.time) ? state.time : b;
-  $('#timeLabel').textContent = `${fmtDuration(cur - a)} / ${fmtDuration(b - a)}`;
+  slider.value = cur; // thanh trượt chạy theo khi đang phát
+  // có ghi âm: đồng hồ phát lại = vị trí trong bản ghi âm (khớp mốc thời gian của transcript)
+  const tr = audioMode() ? mainTrack() : null;
+  $('#timeLabel').textContent = tr
+    ? `${fmtClock(audioClock(tr, cur))} / ${fmtClock(tr.durMs)}`
+    : `${fmtDuration(cur - a)} / ${fmtDuration(b - a)}`;
 }
 
 function syncReplayScroll() {
@@ -566,6 +581,7 @@ function syncReplayScroll() {
 }
 
 function setTime(t) {
+  followPage(t);
   const [, b] = state.timeRange;
   state.time = t >= b ? Infinity : t;
   updateTimeline();
@@ -575,32 +591,191 @@ function setTime(t) {
 
 $('#time').addEventListener('input', (e) => {
   stopPlay();
-  setTime(Number(e.target.value));
+  const T = Number(e.target.value);
+  setTime(T);
+  if (audioMode()) seekAudios(T);
 });
+
+// ---------- đồng bộ phát lại với ghi âm ----------
+// Phiên có ghi âm: âm thanh là "đồng hồ chuẩn" — đang phát âm thanh thì phát lại đi theo vị trí âm thanh;
+// tới đoạn có ghi âm thì tự bật âm thanh; tới lúc người dùng ở trang khác thì tự chuyển trang.
+
+function audioTracks() {
+  return (state.primary.media || []).filter((m) => m.kind === 'audio' && m.size > 0).map((m) => {
+    const anchors = m.anchors && m.anchors.length ? m.anchors : [{ a: 0, t: m.startT || 0 }];
+    const durMs = m.durationMs || (m.endT != null ? m.endT - (m.startT || 0) : 0);
+    const last = anchors[anchors.length - 1];
+    return { id: m.id, anchors, durMs, start: anchors[0].t, end: last.t + Math.max(0, durMs - last.a) };
+  });
+}
+const audioMode = () => !!state.data && state.data.length === 1 && audioTracks().length > 0;
+function mainTrack() {
+  const list = audioTracks();
+  return list.find((x) => state.transcript && x.id === state.transcript.audioId) || list[0] || null;
+}
+
+/** ms trong file ghi âm → ms của phiên (theo các mốc tạm dừng / tiếp tục). */
+function audioToSession(tr, ms) {
+  let k = tr.anchors[0];
+  for (const x of tr.anchors) if (x.a <= ms) k = x;
+  return k.t + (ms - k.a);
+}
+/** ms của phiên → ms trong file ghi âm; null nếu lúc đó không ghi (trước, sau hoặc đang tạm dừng). */
+function sessionToAudio(tr, T) {
+  const an = tr.anchors;
+  for (let i = an.length - 1; i >= 0; i--) {
+    if (T < an[i].t) continue;
+    const ms = an[i].a + (T - an[i].t);
+    return ms <= (i + 1 < an.length ? an[i + 1].a : tr.durMs) ? ms : null;
+  }
+  return null;
+}
+/** Vị trí hiển thị trong bản ghi âm tại thời điểm T (đứng yên khi không ghi). */
+function audioClock(tr, T) {
+  const ms = sessionToAudio(tr, T);
+  if (ms != null) return ms;
+  let pos = 0;
+  tr.anchors.forEach((x, i) => { if (x.t <= T) pos = i + 1 < tr.anchors.length ? tr.anchors[i + 1].a : tr.durMs; });
+  return pos;
+}
+const trackAt = (T) => audioTracks().find((x) => sessionToAudio(x, T) != null) || null;
+const audioEl = (id) => [...document.querySelectorAll('#mediaList audio[data-media]')].find((el) => el.dataset.media === id) || null;
+
+function sessionRange() {
+  const ev = state.primary.events || [];
+  const tracks = audioTracks();
+  const a = Math.min(ev.length ? ev[0].t : Infinity, ...tracks.map((x) => x.start));
+  const b = Math.max(ev.length ? ev[ev.length - 1].t : -Infinity, ...tracks.map((x) => x.end));
+  return [Number.isFinite(a) ? a : 0, Number.isFinite(b) ? b : 0];
+}
+
+/** Chuyển sang trang người dùng đang xem tại thời điểm T (chỉ khi phát lại theo ghi âm). */
+function followPage(T) {
+  if (!audioMode() || !Number.isFinite(T)) return;
+  let page = null;
+  for (const v of visits(state.primary.events || [])) if (v.start <= T) page = v.page;
+  if (!page || page === state.page || ![...$('#pageSelect').options].some((o) => o.value === page)) return;
+  state.page = page;
+  $('#pageSelect').value = page;
+  buildPageData();
+  layoutStage();
+  renderStats();
+  renderCharts();
+  loadFrame();
+}
+
+let audioStarting = false; // đang bật âm thanh bằng code (không phải người dùng bấm)
+function playingAudio() {
+  for (const tr of audioTracks()) {
+    const el = audioEl(tr.id);
+    if (el && !el.paused && !el.ended) return { tr, el };
+  }
+  return null;
+}
+function startAudioAt(tr, T) {
+  const el = audioEl(tr.id);
+  const ms = sessionToAudio(tr, T);
+  if (!el || ms == null || audioStarting) return;
+  if (Number.isFinite(el.duration) && ms / 1000 >= el.duration - 0.1) return; // đã hết file (thời lượng ghi nhỉnh hơn file)
+  audioStarting = true;
+  el.currentTime = ms / 1000;
+  el.play().catch(() => {}).finally(() => { audioStarting = false; });
+}
+function seekAudios(T) {
+  for (const tr of audioTracks()) {
+    const el = audioEl(tr.id);
+    const ms = sessionToAudio(tr, T);
+    if (el && ms != null) el.currentTime = ms / 1000;
+  }
+}
+function pauseAudios() {
+  document.querySelectorAll('#mediaList audio').forEach((el) => { if (!el.paused) el.pause(); });
+}
 
 let playStart = 0;
 let playFrom = 0;
+let ticking = false;
+function ensureTick() {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(tick);
+}
 function tick(now) {
+  ticking = false;
   if (!state.playing) return;
-  const t = playFrom + (now - playStart);
-  setTime(Math.min(t, state.timeRange[1]));
-  if (t >= state.timeRange[1]) stopPlay();
-  else requestAnimationFrame(tick);
+  const drv = audioMode() ? playingAudio() : null;
+  let T;
+  if (drv) {
+    T = audioToSession(drv.tr, drv.el.currentTime * 1000);
+    playFrom = T;
+    playStart = now;
+  } else {
+    T = playFrom + (now - playStart);
+    const tr = audioMode() ? trackAt(T) : null;
+    if (tr) startAudioAt(tr, T);
+  }
+  const end = state.timeRange[1];
+  setTime(Math.min(T, end));
+  if (T >= end && !drv) stopPlay();
+  else ensureTick();
+}
+
+function startPlay(from) {
+  state.playing = true;
+  $('#play').textContent = t('report.pause');
+  playFrom = from;
+  playStart = performance.now();
+  ensureTick();
 }
 
 function stopPlay() {
   state.playing = false;
   $('#play').textContent = t('report.play');
+  pauseAudios();
 }
 
 $('#play').addEventListener('click', () => {
   if (state.playing) return stopPlay();
-  state.playing = true;
-  $('#play').textContent = t('report.pause');
-  playFrom = Number.isFinite(state.time) ? state.time : state.timeRange[0];
-  playStart = performance.now();
-  requestAnimationFrame(tick);
+  const from = Number.isFinite(state.time) ? state.time : state.timeRange[0];
+  if (audioMode()) {
+    const tr = trackAt(from);
+    if (tr) startAudioAt(tr, from);
+  }
+  startPlay(from);
 });
+
+// Trình phát âm thanh của bản ghi: bấm play / tua / dừng ngay trên đó thì phát lại cũng đi theo.
+// (sự kiện media không nổi bọt → nghe ở pha capture)
+$('#mediaList').addEventListener('play', (e) => {
+  if (!e.target.matches('audio[data-media]') || state.playing || !audioMode()) return;
+  const tr = audioTracks().find((x) => x.id === e.target.dataset.media);
+  if (tr) startPlay(audioToSession(tr, e.target.currentTime * 1000));
+}, true);
+$('#mediaList').addEventListener('pause', (e) => {
+  if (!e.target.matches('audio[data-media]') || !state.playing || audioStarting || e.target.ended) return;
+  stopPlay();
+}, true);
+$('#mediaList').addEventListener('seeked', (e) => {
+  if (!e.target.matches('audio[data-media]') || state.playing || !audioMode()) return;
+  const tr = audioTracks().find((x) => x.id === e.target.dataset.media);
+  if (tr) setTime(Math.min(audioToSession(tr, e.target.currentTime * 1000), state.timeRange[1]));
+}, true);
+// tô sáng đoạn transcript đang phát
+$('#mediaList').addEventListener('timeupdate', (e) => {
+  if (!e.target.matches('audio[data-media]')) return;
+  const item = e.target.closest('.media-item');
+  const now = e.target.currentTime;
+  let active = null;
+  item.querySelectorAll('.segment[data-start]').forEach((row) => { if (Number(row.dataset.start) <= now) active = row; });
+  item.querySelectorAll('.segment.active').forEach((row) => { if (row !== active) row.classList.remove('active'); });
+  if (active && !active.classList.contains('active')) {
+    active.classList.add('active');
+    const box = active.parentElement;
+    if (active.offsetTop < box.scrollTop || active.offsetTop + active.offsetHeight > box.scrollTop + box.clientHeight) {
+      box.scrollTo({ top: active.offsetTop - box.clientHeight / 3, behavior: 'smooth' });
+    }
+  }
+}, true);
 
 // ---------- điều khiển ----------
 
@@ -807,27 +982,44 @@ function renderMedia() {
     return;
   }
   let n = 0;
+  const tr = state.transcript;
+  const firstAudio = list.find((m) => m.kind === 'audio');
   box.innerHTML = list.map((m) => {
     const src = `/__et/api/sessions/${state.primary.id}/media/${encodeURIComponent(m.id)}`;
     const title = m.kind === 'screen' ? t('report.screen_rec', { n: ++n }) : t('report.audio_rec');
     const metaLine = t('report.rec_meta', { duration: fmtDuration(m.durationMs || 0), start: fmtDuration(m.startT || 0), size: fmtBytes(m.size) });
     const player = m.kind === 'screen'
       ? `<video controls preload="metadata" src="${src}"></video>`
-      : `<audio controls preload="metadata" src="${src}"></audio>`;
+      : `<audio controls preload="metadata" src="${src}" data-media="${esc(m.id)}"></audio>`;
     const dl = m.kind === 'screen'
       ? `<a class="btn" href="${src}?download=1">${esc(t('report.download_video'))} (.${esc(m.file.split('.').pop())})</a>`
       : `<a class="btn primary" href="/__et/transcript.html?id=${state.primary.id}&media=${encodeURIComponent(m.id)}">${esc(t('report.transcript'))}</a>
          <button type="button" data-wav="${esc(m.id)}">${esc(t('report.download_audio'))}</button>`;
-    return `<div class="media-item">
+    // transcript của bản ghi âm này (transcript gắn audioId; bản cũ không có thì lấy bản ghi âm đầu tiên)
+    const segs = m.kind === 'audio' && tr && (tr.audioId ? tr.audioId === m.id : m === firstAudio)
+      ? (tr.segments || []).filter((s) => String(s.text || '').trim()) : [];
+    const transcript = m.kind !== 'audio' ? ''
+      : segs.length ? `<div class="media-transcript">
+          <div class="sessions-head"><b>${esc(t('report.transcript_title'))}</b><span class="small muted">${esc(t('report.transcript_meta', { n: segs.length }))}</span></div>
+          <div class="segments">${segs.map((s) => `<div class="segment" data-start="${s.start}">
+            <button type="button" class="ts" data-seek-media="${esc(m.id)}" data-sec="${s.start}" title="${esc(t('report.seek_replay'))}">${fmtClock(s.start * 1000)}</button>
+            <div class="text">${esc(String(s.text).trim())}</div>
+          </div>`).join('')}</div>
+        </div>`
+        : `<p class="small muted" style="margin: 0">${esc(t('report.no_transcript'))}</p>`;
+    return `<div class="media-item${segs.length ? ' has-transcript' : ''}">
       <b>${esc(title)}</b>
       <span class="small muted">${esc(metaLine)}</span>
       ${player}
+      ${transcript}
       <div class="row">${dl}<button type="button" class="danger" data-del-media="${esc(m.id)}">${esc(t('report.delete_rec'))}</button></div>
     </div>`;
   }).join('');
 }
 
 $('#mediaList').addEventListener('click', async (e) => {
+  const seek = e.target.closest('[data-seek-media]');
+  if (seek) return seekToSegment(seek.dataset.seekMedia, Number(seek.dataset.sec) || 0);
   const del = e.target.closest('[data-del-media]');
   const wav = e.target.closest('[data-wav]');
   const base = `/__et/api/sessions/${state.primary.id}/media/`;
@@ -855,6 +1047,28 @@ $('#mediaList').addEventListener('click', async (e) => {
   }
 });
 
+/** Bấm mốc thời gian của transcript: phát lại nhảy tới đúng thời điểm đó và phát cùng âm thanh. */
+function seekToSegment(mediaId, sec) {
+  const tr = audioTracks().find((x) => x.id === mediaId);
+  const el = audioEl(mediaId);
+  if (!tr || !el) return;
+  stopPlay();
+  if (!audioMode()) { // đang xem gộp nhiều phiên: chỉ nghe lại
+    el.currentTime = sec;
+    el.play().catch(() => {});
+    return;
+  }
+  const T = Math.min(audioToSession(tr, sec * 1000), state.timeRange[1]);
+  setTime(T);
+  // đưa khung phát lại vào tầm nhìn nếu đang cuộn xuống dưới
+  const tl = $('.timeline').getBoundingClientRect();
+  if (tl.top < 0 || tl.bottom > innerHeight) $('.timeline').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  audioStarting = true;
+  el.currentTime = sec;
+  el.play().catch(() => {}).finally(() => { audioStarting = false; });
+  startPlay(T);
+}
+
 function renderHeader() {
   const p = state.primary;
   $('#sessionUrl').textContent = `${p.url} — ${p.participant || t('common.anonymous')} — ${new Date(p.createdAt).toLocaleString(I18N.locale())}`;
@@ -874,6 +1088,7 @@ async function init() {
     return;
   }
   const p = state.primary;
+  state.transcript = await getJson(`/__et/api/sessions/${p.id}/transcript`).catch(() => null);
   renderHeader();
   renderMedia();
   SessionNote.mount($('#noteCard'), p);

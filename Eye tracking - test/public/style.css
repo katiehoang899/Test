@@ -687,3 +687,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 @media (max-width: 720px) {
   .guide-panel { top: auto; bottom: 8px; right: 8px; left: 8px; width: auto; max-height: 55%; }
 }
+
+/* báo cáo: transcript ngay dưới bản ghi âm; bấm mốc thời gian để phát lại tới đúng lúc đó */
+.media-item.has-transcript { grid-column: 1 / -1; }
+.media-transcript { border-top: 1px solid var(--border); padding-top: 8px; }
+.media-transcript .sessions-head { margin-bottom: 2px; }
+.media-transcript .segments { position: relative; max-height: 420px; overflow-y: auto; margin-top: 4px; }
+.media-transcript .segment { grid-template-columns: 72px minmax(0, 1fr); padding: 9px 6px; }
+.media-transcript .segment .ts { font-size: 14px; }
