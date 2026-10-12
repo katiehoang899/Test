@@ -139,7 +139,7 @@ function popupHtml(ad) {
     ${actsHtml(ad)}
     ${ad.lat != null ? '<div class="sv"><div class="sv-skel">Đang tìm ảnh Street View…</div></div>' : ''}
     ${gmapsHtml(ad)}
-    <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ↗</a>
+    <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ${icon('external')}</a>
   </div>`;
 }
 
@@ -149,9 +149,9 @@ function gmapsHtml(ad) {
   const exact = ad.lat != null;
   const at = exact ? { lat: ad.lat, lng: ad.lng } : ad.approxAt;
   const maps = exact ? Filters.googleMapsUrl(ad.lat, ad.lng) : Filters.googleMapsUrl(null, null, ad.address);
-  const links = [`<a href="${esc(maps)}" target="_blank" rel="noopener">📍 Google Maps</a>`];
+  const links = [`<a href="${esc(maps)}" target="_blank" rel="noopener">${icon('pin')} Google Maps</a>`];
   if (at) {
-    links.push(`<a class="sv-link" href="${esc(Filters.streetViewUrl(at.lat, at.lng))}" target="_blank" rel="noopener"${exact ? '' : ' title="Vị trí gần đúng: Street View ở khu vực phường / quận"'}>🚶 Street View</a>`);
+    links.push(`<a class="sv-link" href="${esc(Filters.streetViewUrl(at.lat, at.lng))}" target="_blank" rel="noopener"${exact ? '' : ' title="Vị trí gần đúng: Street View ở khu vực phường / quận"'}>${icon('person')} Street View</a>`);
   }
   return `<div class="gmaps">${links.join('')}</div>`;
 }
@@ -194,7 +194,7 @@ function svHtml(meta) {
     const far = meta.distance != null && meta.distance > 10 ? ` · cách vị trí tin ~${meta.distance} m` : '';
     return `<a class="sv-img" href="${esc(Filters.panoUrl(meta.pano, meta.heading))}" target="_blank" rel="noopener" title="Mở Street View trên Google Maps">
         <img src="${esc(img)}" alt="Ảnh Street View gần vị trí tin">
-        <span class="sv-date">📷 ${esc(svDate(meta.date))}</span>
+        <span class="sv-date">${icon('camera')} ${esc(svDate(meta.date))}</span>
       </a>
       <div class="sv-note">Ảnh Street View mới nhất${esc(far)}</div>`;
   }
@@ -264,8 +264,8 @@ function pointPopupHtml(lat, lng) {
   return `<div class="popup">
     <div class="coords">${la}, ${ln}</div>
     <div class="gmaps">
-      <a href="${esc(Filters.googleMapsUrl(la, ln))}" target="_blank" rel="noopener">📍 Google Maps</a>
-      <a href="${esc(Filters.streetViewUrl(la, ln))}" target="_blank" rel="noopener">🚶 Street View</a>
+      <a href="${esc(Filters.googleMapsUrl(la, ln))}" target="_blank" rel="noopener">${icon('pin')} Google Maps</a>
+      <a href="${esc(Filters.streetViewUrl(la, ln))}" target="_blank" rel="noopener">${icon('person')} Street View</a>
     </div>
   </div>`;
 }
@@ -414,7 +414,7 @@ function phoneHtml(ad) {
   const inner = phones.length
     ? phones.map(phoneLinks).join('<span class="sep">·</span>')
     : `<button type="button" class="link-btn" data-act="phone" data-id="${esc(ad.id)}">Hiện SĐT / Zalo</button>`;
-  return `<div class="phone" data-phone="${esc(ad.id)}">📞 ${inner}</div>`;
+  return `<div class="phone" data-phone="${esc(ad.id)}">${icon('phone')} ${inner}</div>`;
 }
 
 // Nút ♥ Yêu thích / ✓ Không phù hợp (trạng thái gán bằng syncActs).
@@ -430,14 +430,14 @@ function syncActs(root = document) {
     const on = myAds.fav.has(b.dataset.id);
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', String(on));
-    b.textContent = on ? '♥ Đã thích' : '♡ Yêu thích';
+    b.innerHTML = on ? `${icon('heart', 'fill')} Đã thích` : `${icon('heart')} Yêu thích`;
     b.title = on ? 'Bỏ khỏi danh sách yêu thích' : 'Lưu vào danh sách yêu thích';
   });
   root.querySelectorAll('[data-act="hide"]').forEach((b) => {
     const on = myAds.hidden.has(b.dataset.id);
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', String(on));
-    b.textContent = on ? '↺ Bỏ ẩn' : '✓ Không phù hợp';
+    b.innerHTML = on ? `${icon('undo')} Bỏ ẩn` : `${icon('check')} Không phù hợp`;
     b.title = on ? 'Bỏ đánh dấu, hiện lại tin này' : 'Đã xem nhưng không phù hợp: ẩn tin này';
   });
 }
@@ -512,12 +512,12 @@ async function showPhone(id, btn) {
     const { phone } = await api('/api/phone?id=' + encodeURIComponent(id));
     if (phone) {
       if (ad) ad.phones = [phone];
-      html = '📞 ' + phoneLinks(phone);
+      html = `${icon('phone')} ${phoneLinks(phone)}`;
     }
   } catch { /* xử lý bên dưới */ }
   if (!html) {
     const url = ad?.url || `https://www.nhatot.com/${encodeURIComponent(id)}.htm`;
-    html = `📞 <span class="muted">Không lấy được số.</span> <a href="${esc(url)}" target="_blank" rel="noopener">Xem trên Nhà Tốt ↗</a>`;
+    html = `${icon('phone')} <span class="muted">Không lấy được số.</span> <a href="${esc(url)}" target="_blank" rel="noopener">Xem trên Nhà Tốt ${icon('external')}</a>`;
   }
   document.querySelectorAll(`[data-phone="${CSS.escape(id)}"]`).forEach((x) => { x.innerHTML = html; });
 }
@@ -535,9 +535,9 @@ document.addEventListener('click', (e) => {
   } else if (b.dataset.act === 'phone') showPhone(id, b);
 }, true);
 
-const ICON_COPY = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>';
-const ICON_CHECK = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
-const ICON_MAP = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="#ea4335" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2.6" fill="#fff"/></svg>';
+const ICON_COPY = icon('copy');
+const ICON_CHECK = icon('check');
+const ICON_MAP = icon('pin');
 
 // Địa chỉ bất động sản + nút copy + nút mở vị trí trên Google Maps.
 function addressHtml(ad, fallback) {
@@ -635,8 +635,8 @@ function renderList(keep = false) {
   el.list.innerHTML = savedView ? savedTabsHtml() : '';
   if (savedView && !list.length) {
     el.list.insertAdjacentHTML('beforeend', `<p class="empty">${savedView === 'fav'
-      ? 'Chưa có tin yêu thích. Bấm ♡ Yêu thích trên một tin để lưu lại.'
-      : 'Chưa ẩn tin nào. Bấm ✓ Không phù hợp trên tin đã xem mà không ưng để ẩn đi.'}</p>`);
+      ? 'Chưa có tin yêu thích. Bấm “Yêu thích” trên một tin để lưu lại.'
+      : 'Chưa ẩn tin nào. Bấm “Không phù hợp” trên tin đã xem mà không ưng để ẩn đi.'}</p>`);
   } else if (!list.length) {
     const hidden = hiddenTotal();
     let msg = 'Không có tin phù hợp với bộ lọc.';
@@ -657,8 +657,8 @@ function renderList(keep = false) {
 function savedTabsHtml() {
   const tab = (kind, label) => `<button type="button" data-tab="${kind}" aria-selected="${savedView === kind}">${label} <b>${myAds[kind].size}</b></button>`;
   return `<div class="saved-bar">
-    <button type="button" class="back" data-saved-back>← Kết quả tìm kiếm</button>
-    <div class="saved-tabs" role="tablist">${tab('fav', '♥ Yêu thích')}${tab('hidden', '✓ Đã ẩn')}</div>
+    <button type="button" class="back" data-saved-back>${icon('arrowLeft')} Kết quả tìm kiếm</button>
+    <div class="saved-tabs" role="tablist">${tab('fav', `${icon('heart')} Yêu thích`)}${tab('hidden', `${icon('check')} Đã ẩn`)}</div>
     ${savedView === 'hidden' && myAds.hidden.size ? '<button type="button" class="link" data-unhide-all>Bỏ ẩn tất cả</button>' : ''}
   </div>`;
 }
@@ -760,7 +760,7 @@ function updateCount() {
   }
   el.count.textContent = text;
   el.showHiddenWrap.hidden = savedView || (!hiddenTotal() && !el.showHidden.checked);
-  el.loadAll.textContent = loadingAll ? '■ Dừng tải' : store.done ? 'Đã tải hết' : 'Tải tất cả';
+  el.loadAll.innerHTML = loadingAll ? `${icon('stop')} Dừng tải` : store.done ? `${icon('check')} Đã tải hết` : `${icon('download')} Tải tất cả`;
   el.loadAll.disabled = store.done && !loadingAll;
 }
 
@@ -1071,7 +1071,7 @@ function syncForm() {
     x.type = 'button';
     x.dataset.remove = String(i);
     x.setAttribute('aria-label', `Bỏ từ khoá ${k}`);
-    x.textContent = '×';
+    x.innerHTML = icon('close');
     chip.append(x);
     return chip;
   }));

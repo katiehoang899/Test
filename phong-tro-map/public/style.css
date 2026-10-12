@@ -31,6 +31,9 @@
 }
 
 * { box-sizing: border-box; }
+/* Icon nét (icons.js): to theo cỡ chữ, cùng màu chữ. */
+.ic { width: 1.2em; height: 1.2em; flex: none; vertical-align: -0.24em; }
+.ic.fill path { fill: currentColor; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
@@ -67,7 +70,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .filters select, .pop summary {
   height: 34px; padding: 0 30px 0 12px; border: 1px solid var(--line); border-radius: 999px;
-  background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2361707a'/%3E%3C/svg%3E") no-repeat right 12px center;
+  background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2361707a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 11px center;
   appearance: none; cursor: pointer; max-width: 220px;
 }
 .filters select:disabled { opacity: .5; cursor: default; }
@@ -242,6 +245,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .addr { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); min-width: 0; }
 .addr-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .addr-text b { font-weight: 600; color: var(--muted); }
+.icon-btn .ic { width: 16px; height: 16px; }
 .icon-btn {
   flex: 0 0 auto; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; padding: 0;
@@ -349,9 +353,8 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .leaflet-container .ul-ctl, .leaflet-container .leaflet-control-layers, .leaflet-popup { color-scheme: light; color: #1d2327; }
 /* Nút chọn lớp bản đồ: dùng emoji thay cho ảnh icon của Leaflet (không phụ thuộc CDN). */
 .leaflet-control-layers-toggle {
-  background-image: none !important; display: grid !important; place-items: center; font-size: 20px; text-decoration: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%231d2327' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 4 8.5 4.3L12 12.6 3.5 8.3z'/%3E%3Cpath d='m3.5 12.2 8.5 4.3 8.5-4.3M3.5 16 12 20.3l8.5-4.3'/%3E%3C/svg%3E") no-repeat center !important;
 }
-.leaflet-control-layers-toggle::before { content: '🗺'; }
 .map-notice {
   position: absolute; z-index: 1000; left: 50%; top: 12px; transform: translateX(-50%); max-width: min(520px, calc(100% - 24px));
   background: #1d2327; color: #fff; font-size: 13px; padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
@@ -374,3 +377,24 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
   .list { padding: 4px 16px 16px; }
   .thumb { flex-basis: 108px; height: 96px; }
 }
+
+/* Nút có icon + chữ */
+.search button, .views button, .saved-btn, .act, #loadAll, .saved-bar .back, .saved-tabs button,
+.ul-actions button, .ul-pop .up-actions button, .ul-pop .up-actions a, .popup .gmaps a, .popup .go, .nq-add .primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: .35em;
+}
+.search button .ic { width: 17px; height: 17px; }
+.act .ic { width: 15px; height: 15px; }
+.views button .ic, .saved-btn .ic { width: 17px; height: 17px; }
+.tool-btn .ic { width: 21px; height: 21px; }
+.tool-btn { color: var(--accent); }
+.tool-btn.ok { color: #23914f; }
+.phone > .ic { width: 15px; height: 15px; color: var(--muted); }
+.popup .sv-date { display: inline-flex; align-items: center; gap: 4px; }
+.popup .sv-date .ic { width: 13px; height: 13px; }
+.chips button .ic { width: 13px; height: 13px; vertical-align: -2px; }
+.ul-toggle .ic { width: 17px; height: 17px; color: #1d6fdc; }
+.ul-ctl[data-layer="floods"] .ul-toggle .ic { color: #1f8fd6; }
+.up-title .ic { width: 16px; height: 16px; }
+.ul-actions button .ic { width: 14px; height: 14px; }
+.leaflet-tooltip .ic { width: 14px; height: 14px; vertical-align: -3px; }

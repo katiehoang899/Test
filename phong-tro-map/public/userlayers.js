@@ -1,6 +1,6 @@
 'use strict';
 
-/* global L, Filters, map, api, esc, mapClickHooks */
+/* global L, Filters, map, api, esc, icon, mapClickHooks */
 
 // Lớp bản đồ do người dùng tự thêm: điểm ngập, chỗ đỗ xe hơi. Mỗi lớp có bảng điều khiển
 // riêng trên bản đồ (bật / tắt, chú thích loại, "Đặt điểm", "Nối A–B"); đoạn A–B bám theo
@@ -9,7 +9,7 @@
 const USER_LAYERS = [
   {
     key: 'floods',
-    icon: '🌊',
+    icon: 'drop',
     title: 'Điểm ngập',
     legend: 'Mức độ ngập:',
     what: 'điểm ngập',
@@ -26,7 +26,7 @@ const USER_LAYERS = [
   },
   {
     key: 'parking',
-    icon: '🚗',
+    icon: 'car',
     title: 'Đỗ xe hơi',
     legend: 'Loại chỗ đỗ:',
     what: 'điểm đỗ xe hơi',
@@ -63,15 +63,15 @@ function createUserLayer(cfg) {
       div.dataset.layer = cfg.key;
       div.innerHTML = `
         <label class="ul-toggle" title="Bật / tắt hiển thị ${esc(cfg.what)} trên bản đồ">
-          <input type="checkbox" data-ul-show> ${cfg.icon} ${esc(cfg.title)} <b data-ul-count></b>
+          <input type="checkbox" data-ul-show> ${icon(cfg.icon)} ${esc(cfg.title)} <b data-ul-count></b>
         </label>
         <div class="ul-body" data-ul-body>
           <div class="ul-title">${esc(cfg.legend)}</div>
           ${cfg.levels.map((l) => `<label class="ul-level"><input type="radio" name="ul-${cfg.key}" value="${l.id}"${l.id === st.level ? ' checked' : ''}>
             <i style="background:${l.color}"></i> ${esc(l.label)}</label>`).join('')}
           <div class="ul-actions">
-            <button type="button" data-ul-mode="point" title="Bấm 1 chỗ trên bản đồ để đặt ${esc(cfg.what)}">📍 Đặt điểm</button>
-            <button type="button" data-ul-mode="line" title="Bấm điểm A rồi điểm B để vẽ một đoạn đường">〰 Nối A–B</button>
+            <button type="button" data-ul-mode="point" title="Bấm 1 chỗ trên bản đồ để đặt ${esc(cfg.what)}">${icon('pinPlus')} Đặt điểm</button>
+            <button type="button" data-ul-mode="line" title="Bấm điểm A rồi điểm B để vẽ một đoạn đường">${icon('route')} Nối A–B</button>
           </div>
           <div class="ul-hint" data-ul-hint hidden></div>
         </div>`;
@@ -201,7 +201,7 @@ function createUserLayer(cfg) {
     const center = isLine ? f.path[Math.floor(f.path.length / 2)] : f.coords;
     const title = isLine ? `${cfg.lineTitle} · ${Filters.formatDistance(Filters.pathLength(f.path))}` : cfg.pointTitle;
     return `<div class="popup ul-pop" data-ul-item="${esc(f.id)}" data-ul-layer="${cfg.key}">
-      <div class="up-title"><i style="background:${levelOf(f.level).color}"></i> ${cfg.icon} ${esc(title)}</div>
+      <div class="up-title"><i style="background:${levelOf(f.level).color}"></i> ${icon(cfg.icon)} ${esc(title)}</div>
       <label>${esc(cfg.legend.replace(/:$/, ''))}
         <select data-ul-level>${cfg.levels.map((l) => `<option value="${l.id}"${l.id === f.level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select>
       </label>
@@ -209,8 +209,8 @@ function createUserLayer(cfg) {
         <input data-ul-note maxlength="300" value="${esc(f.note || '')}" placeholder="${esc(cfg.notePlaceholder)}">
       </label>
       <div class="up-actions">
-        <a href="${esc(Filters.googleMapsUrl(center[0], center[1]))}" target="_blank" rel="noopener">📍 Google Maps</a>
-        <button type="button" data-ul-del>Xoá</button>
+        <a href="${esc(Filters.googleMapsUrl(center[0], center[1]))}" target="_blank" rel="noopener">${icon('pin')} Google Maps</a>
+        <button type="button" data-ul-del>${icon('trash')} Xoá</button>
       </div>
     </div>`;
   }
@@ -239,7 +239,7 @@ function createUserLayer(cfg) {
         : pointLayer(f, color);
       layer.itemId = f.id;
       layer.bindPopup(() => popupHtml(f), { minWidth: 220 });
-      layer.bindTooltip(`${cfg.icon} ${esc(levelOf(f.level).label)}${f.note ? ' · ' + esc(f.note) : ''}`, { sticky: true });
+      layer.bindTooltip(`${icon(cfg.icon)} ${esc(levelOf(f.level).label)}${f.note ? ' · ' + esc(f.note) : ''}`, { sticky: true });
       group.addLayer(layer);
     }
     ui.count.textContent = st.items.length ? String(st.items.length) : '';

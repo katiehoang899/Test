@@ -18,22 +18,20 @@
     <a class="brand" href="./"><img src="logo.svg" alt="" width="30" height="30"> Phòng trọ Map</a>
     <form id="searchForm" class="search" role="search">
       <input id="q" name="q" type="search" placeholder="Tìm phòng trọ: tên đường, khu vực, tiện ích…" autocomplete="off">
-      <button type="submit">Tìm</button>
+      <button type="submit" data-icon="search">Tìm</button>
     </form>
     <!-- Mở trang tra cứu của VnExpress; "#:~:text=" để trình duyệt cuộn tới mục "Đường nơi bạn ở có nằm trong điểm ngập không". -->
     <div class="tool-btns">
-      <a class="tool-btn" href="https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html#:~:text=%C4%90%C6%B0%E1%BB%9Dng%20n%C6%A1i%20b%E1%BA%A1n%20%E1%BB%9F%20c%C3%B3%20n%E1%BA%B1m%20trong%20%C4%91i%E1%BB%83m%20ng%E1%BA%ADp%20kh%C3%B4ng" target="_blank" rel="noopener"
-        data-tip="Tra cứu điểm ngập qua VnExpress" aria-label="Tra cứu điểm ngập qua VnExpress">🌊</a>
-      <a class="tool-btn" href="https://nhaminhbach.com/" target="_blank" rel="noopener"
-        data-tip="Kiểm tra phòng trọ minh bạch nhaminhbach.com" aria-label="Kiểm tra phòng trọ minh bạch nhaminhbach.com">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#2e9d58"/><path d="M7.5 12.4l3 3 6-6.2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
+      <a class="tool-btn" href="https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html#:~:text=%C4%90%C6%B0%E1%BB%9Dng%20n%C6%A1i%20b%E1%BA%A1n%20%E1%BB%9F%20c%C3%B3%20n%E1%BA%B1m%20trong%20%C4%91i%E1%BB%83m%20ng%E1%BA%ADp%20kh%C3%B4ng" target="_blank" rel="noopener" data-icon="drop"
+        data-tip="Tra cứu điểm ngập qua VnExpress" aria-label="Tra cứu điểm ngập qua VnExpress"></a>
+      <a class="tool-btn ok" href="https://nhaminhbach.com/" target="_blank" rel="noopener" data-icon="checkCircle"
+        data-tip="Kiểm tra phòng trọ minh bạch nhaminhbach.com" aria-label="Kiểm tra phòng trọ minh bạch nhaminhbach.com"></a>
     </div>
-    <button type="button" id="savedBtn" class="saved-btn" aria-pressed="false" title="Tin yêu thích và tin đã ẩn">♥ Đã lưu <b id="savedCount"></b></button>
+    <button type="button" id="savedBtn" class="saved-btn" aria-pressed="false" title="Tin yêu thích và tin đã ẩn" data-icon="heart">Đã lưu <b id="savedCount"></b></button>
     <div class="views" role="tablist" aria-label="Chế độ xem">
-      <button type="button" data-view="list" role="tab">☰ Danh sách</button>
-      <button type="button" data-view="split" role="tab">◧ Chia đôi</button>
-      <button type="button" data-view="map" role="tab">🗺 Bản đồ</button>
+      <button type="button" data-view="list" role="tab" data-icon="list">Danh sách</button>
+      <button type="button" data-view="split" role="tab" data-icon="split">Chia đôi</button>
+      <button type="button" data-view="map" role="tab" data-icon="map">Bản đồ</button>
     </div>
   </header>
 
@@ -125,7 +123,7 @@
         <div class="chips" id="nqChips"></div>
         <div class="nq-add">
           <input id="nqInput" type="text" placeholder="Ví dụ: Giá từ 5, ở ghép" aria-label="Từ khoá loại trừ">
-          <button type="button" id="nqAdd" class="primary">Thêm</button>
+          <button type="button" id="nqAdd" class="primary" data-icon="plus">Thêm</button>
         </div>
         <div class="suggest" id="nqSuggest">
           <span>Gợi ý:</span>
@@ -144,7 +142,7 @@
       <input type="checkbox" id="nosale"> Loại tin sale trọ
     </label>
 
-    <label class="chip-toggle" title="Ẩn các tin bạn đã bấm ✓ Không phù hợp. Tắt để hiện lại các tin đó (có nhãn Đã đánh dấu).">
+    <label class="chip-toggle" title="Ẩn các tin bạn đã bấm “Không phù hợp”. Tắt để hiện lại các tin đó (có nhãn Đã đánh dấu).">
       <input type="checkbox" id="hidemarked" checked> Ẩn tin đã đánh dấu
     </label>
 
@@ -186,6 +184,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+  <script src="icons.js"></script>
   <script src="filters.js"></script>
   <script src="app.js"></script>
   <script src="userlayers.js"></script>
