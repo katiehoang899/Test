@@ -999,9 +999,12 @@ function renderMedia() {
     const segs = m.kind === 'audio' && tr && (tr.audioId ? tr.audioId === m.id : m === firstAudio)
       ? (tr.segments || []).filter((s) => String(s.text || '').trim()) : [];
     const transcript = m.kind !== 'audio' ? ''
-      : segs.length ? `<div class="media-transcript">
-          <div class="sessions-head"><b>${esc(t('report.transcript_title'))}</b><span class="small muted">${esc(t('report.transcript_meta', { n: segs.length }))}</span></div>
-          <div class="segments">${segs.map((s) => `<div class="segment" data-start="${s.start}">
+      : segs.length ? `<div class="media-transcript${transcriptCollapsed() ? ' collapsed' : ''}">
+          <div class="sessions-head">
+            <button type="button" class="chart-toggle transcript-toggle" aria-expanded="${!transcriptCollapsed()}" aria-controls="tr-${esc(m.id)}"><span class="chart-chevron" aria-hidden="true"></span><span>${esc(t('report.transcript_title'))}</span></button>
+            <span class="small muted">${esc(t('report.transcript_meta', { n: segs.length }))}</span>
+          </div>
+          <div class="segments" id="tr-${esc(m.id)}">${segs.map((s) => `<div class="segment" data-start="${s.start}">
             <button type="button" class="ts" data-seek-media="${esc(m.id)}" data-sec="${s.start}" title="${esc(t('report.seek_replay'))}">${fmtClock(s.start * 1000)}</button>
             <div class="text">${esc(String(s.text).trim())}</div>
           </div>`).join('')}</div>
@@ -1018,6 +1021,8 @@ function renderMedia() {
 }
 
 $('#mediaList').addEventListener('click', async (e) => {
+  const toggle = e.target.closest('.transcript-toggle');
+  if (toggle) return setTranscriptCollapsed(!transcriptCollapsed());
   const seek = e.target.closest('[data-seek-media]');
   if (seek) return seekToSegment(seek.dataset.seekMedia, Number(seek.dataset.sec) || 0);
   const del = e.target.closest('[data-del-media]');
@@ -1046,6 +1051,19 @@ $('#mediaList').addEventListener('click', async (e) => {
     }
   }
 });
+
+// Thu gọn / mở rộng transcript dưới bản ghi âm; nhớ lựa chọn trên máy này
+const TRANSCRIPT_STORE = 'heatmap.report.transcriptCollapsed';
+function transcriptCollapsed() {
+  try { return localStorage.getItem(TRANSCRIPT_STORE) === '1'; } catch { return false; }
+}
+function setTranscriptCollapsed(collapsed) {
+  try { localStorage.setItem(TRANSCRIPT_STORE, collapsed ? '1' : '0'); } catch { /* bỏ qua */ }
+  document.querySelectorAll('.media-transcript').forEach((box) => {
+    box.classList.toggle('collapsed', collapsed);
+    box.querySelector('.transcript-toggle').setAttribute('aria-expanded', String(!collapsed));
+  });
+}
 
 /** Bấm mốc thời gian của transcript: phát lại nhảy tới đúng thời điểm đó và phát cùng âm thanh. */
 function seekToSegment(mediaId, sec) {

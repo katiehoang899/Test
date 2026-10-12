@@ -695,3 +695,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .media-transcript .segments { position: relative; max-height: 420px; overflow-y: auto; margin-top: 4px; }
 .media-transcript .segment { grid-template-columns: 72px minmax(0, 1fr); padding: 9px 6px; }
 .media-transcript .segment .ts { font-size: 14px; }
+.transcript-toggle { width: auto; }
+.media-transcript.collapsed .segments { display: none; }
+.media-transcript.collapsed .chart-chevron { transform: rotate(-45deg); margin-top: 0; }
