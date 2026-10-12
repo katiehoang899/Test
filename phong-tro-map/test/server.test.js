@@ -239,3 +239,17 @@ test('/api/parking: separate layer with its own types', async () => {
   assert.equal((await fetch(`${base}/api/other`)).status, 404);
   assert.equal((await fetch(`${base}/api/config`)).status, 404, 'đã bỏ API key Street View');
 });
+
+test('static files: always revalidated, 304 when unchanged', async () => {
+  const first = await fetch(`${base}/style.css`);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers.get('cache-control'), 'no-cache');
+  const etag = first.headers.get('etag');
+  assert.ok(etag);
+  const again = await fetch(`${base}/style.css`, { headers: { 'If-None-Match': etag } });
+  assert.equal(again.status, 304);
+  const ico = await fetch(`${base}/favicon.ico?v=blue`);
+  assert.equal(ico.status, 200);
+  assert.equal(ico.headers.get('content-type'), 'image/x-icon');
+  assert.equal((await fetch(`${base}/vendor`)).status, 404, 'thư mục không phải file');
+});

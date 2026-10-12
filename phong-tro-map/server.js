@@ -503,20 +503,34 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function serveStatic(pathname, res) {
+// File tĩnh luôn được trình duyệt kiểm tra lại (no-cache + ETag): cập nhật code là thấy ngay,
+// file không đổi thì trả 304 (không tải lại).
+function serveStatic(pathname, req, res) {
   const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
   const file = path.resolve(PUBLIC_DIR, rel);
   if (!file.startsWith(PUBLIC_DIR + path.sep)) {
     res.writeHead(403);
     return res.end();
   }
-  fs.readFile(file, (err, buf) => {
-    if (err) {
+  fs.stat(file, (statErr, st) => {
+    if (statErr || !st.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('Not found');
     }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
-    res.end(buf);
+    const etag = `W/"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
+    const headers = { 'Cache-Control': 'no-cache', ETag: etag };
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    fs.readFile(file, (err, buf) => {
+      if (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        return res.end('Not found');
+      }
+      res.writeHead(200, { ...headers, 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+      res.end(buf);
+    });
   });
 }
 
@@ -537,7 +551,7 @@ function createServer() {
       if (u.pathname === '/api/regions') return sendJson(res, 200, { regions: await listRegions() });
       if (u.pathname === '/api/wards') return sendJson(res, 200, { wards: await listWards(u.searchParams.get('area')) });
       if (u.pathname === '/api/geocode') return sendJson(res, 200, { result: await geocode(u.searchParams.get('q')) });
-      return serveStatic(u.pathname, res);
+      return serveStatic(u.pathname, req, res);
     } catch (err) {
       sendJson(res, err.status || 500, { error: err.message || 'Lỗi không xác định' });
     }
