@@ -40,6 +40,11 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - **📍 Đặt điểm**: bấm một chỗ trên bản đồ. **〰 Nối A–B**: bấm điểm A rồi điểm B, tool vẽ đoạn ngập bám theo đường phố (dịch vụ chỉ đường miễn phí [OSRM](https://project-osrm.org/), không tìm được đường thì nối thẳng). Esc để huỷ.
   - Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
   - Ô **🌊 Điểm ngập** bật / tắt hiển thị cả lớp. Dữ liệu lưu trên máy (`floods.json` trong thư mục dữ liệu).
+- **🚗 Lớp đỗ xe hơi** (bảng *Đỗ xe hơi* ở góc phải bản đồ, dưới bảng điểm ngập): dùng giống hệt lớp điểm ngập.
+  - Chọn **loại chỗ đỗ**: 🟢 Miễn phí, 🔵 Có thu phí, 🟣 Giới hạn giờ, ⚪ Chưa phân loại.
+  - **📍 Đặt điểm**: hiện biển **P** theo màu loại chỗ đỗ. **〰 Nối A–B**: vẽ đoạn đường đỗ được xe (nét đứt, bám theo đường phố).
+  - Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
+  - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **🌊 Tra cứu điểm ngập**: nút trên header mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) của VnExpress (theo danh sách của Sở Xây dựng TP HCM) trong tab mới (app Mac: trình duyệt mặc định), trình duyệt cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
 - **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.

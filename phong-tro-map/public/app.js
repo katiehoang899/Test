@@ -341,7 +341,7 @@ function highlightCard(id) {
 // Bấm ra ngoài khi đang mở popup chỉ để đóng popup, không mở popup điểm mới.
 let lastPopupClose = 0;
 map.on('popupclose', () => { lastPopupClose = Date.now(); });
-// Các chức năng khác (vd. thêm điểm ngập, floods.js) xử lý cú bấm trước; trả về true là đã dùng.
+// Các chức năng khác (vd. thêm điểm ngập / chỗ đỗ xe, userlayers.js) xử lý cú bấm trước; trả về true là đã dùng.
 const mapClickHooks = [];
 
 map.on('click', (e) => {

@@ -285,3 +285,19 @@ test('/api/floods: add points and A–B segments, update, remove', async () => {
   const file = JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, 'floods.json'), 'utf8'));
   assert.equal(file.length, 1, 'lưu ra file');
 });
+
+test('/api/parking: separate layer with its own types', async () => {
+  const post = (body) => fetch(`${base}/api/parking`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const floodsBefore = (await (await fetch(`${base}/api/floods`)).json()).floods.length;
+  assert.deepEqual(await (await fetch(`${base}/api/parking`)).json(), { parking: [] });
+  let { parking } = await (await post({ op: 'add', type: 'point', coords: [10.75, 106.66], level: 'paid', note: '30k/lượt' })).json();
+  assert.equal(parking[0].level, 'paid');
+  ({ parking } = await (await post({ op: 'add', type: 'line', path: [[10.75, 106.66], [10.751, 106.661]], level: 'frequent' })).json());
+  assert.equal(parking[1].level, 'unknown', 'mức độ ngập không phải loại chỗ đỗ');
+  ({ parking } = await (await post({ op: 'update', id: parking[1].id, level: 'limited' })).json());
+  assert.equal(parking[1].level, 'limited');
+  assert.equal((await post({ op: 'update', id: 'nope' })).status, 404);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, 'parking.json'), 'utf8')).length, 2);
+  assert.equal((await (await fetch(`${base}/api/floods`)).json()).floods.length, floodsBefore, 'không đụng lớp điểm ngập');
+  assert.equal((await fetch(`${base}/api/other`)).status, 404);
+});

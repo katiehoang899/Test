@@ -237,37 +237,45 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
 .icon-btn.copied { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-/* Lớp điểm ngập */
-.flood-ctl {
+/* Lớp do người dùng thêm: điểm ngập, chỗ đỗ xe hơi */
+.ul-ctl {
   background: #fff; color: #1d2327; border-radius: 10px; box-shadow: 0 1px 6px rgba(0, 0, 0, .25);
   padding: 8px 10px; font-size: 13px; min-width: 170px;
 }
-.fc-toggle { display: flex; align-items: center; gap: 6px; font-weight: 700; cursor: pointer; }
-.fc-toggle b { background: #1f6fb2; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; }
-.fc-toggle b:empty { display: none; }
-.fc-body { margin-top: 8px; border-top: 1px solid #e1e5e8; padding-top: 6px; }
-.fc-title { font-weight: 700; margin-bottom: 2px; }
-.fc-level { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
-.fc-level input { margin: 0; }
-.fc-level i, .fp-title i {
+.ul-toggle { display: flex; align-items: center; gap: 6px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.ul-toggle b { background: #1f6fb2; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; }
+.ul-toggle b:empty { display: none; }
+.ul-body { margin-top: 8px; border-top: 1px solid #e1e5e8; padding-top: 6px; }
+.ul-title { font-weight: 700; margin-bottom: 2px; }
+.ul-level { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+.ul-level input { margin: 0; }
+.ul-level i, .up-title i {
   display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #9aa3ad;
 }
-.fc-actions { display: flex; gap: 4px; margin-top: 6px; }
-.fc-actions button {
+.ul-actions { display: flex; gap: 4px; margin-top: 6px; }
+.ul-actions button {
   flex: 1; border: 1px solid #d0d7dc; background: #fff; border-radius: 6px; padding: 4px 6px; font-size: 12px; cursor: pointer; white-space: nowrap;
 }
-.fc-actions button:hover { border-color: #1f6fb2; color: #1f6fb2; }
-.fc-actions button.on { background: #1f6fb2; border-color: #1f6fb2; color: #fff; font-weight: 600; }
-.fc-hint { margin-top: 6px; font-size: 12px; color: #1f6fb2; max-width: 190px; }
-.fc-ab { font-weight: 700; }
+.ul-actions button:hover { border-color: #1f6fb2; color: #1f6fb2; }
+.ul-actions button.on { background: #1f6fb2; border-color: #1f6fb2; color: #fff; font-weight: 600; }
+.ul-hint { margin-top: 6px; font-size: 12px; color: #1f6fb2; max-width: 190px; }
+.ul-ab { font-weight: 700; }
+.ul-badge span {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; border: 2px solid #fff;
+  color: #fff; font: 700 14px/1 system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); box-sizing: border-box;
+}
 #map.drawing, #map.drawing .leaflet-interactive { cursor: crosshair; }
-.flood-pop .fp-title { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
-.flood-pop label { display: block; font-size: 12px; color: #61707a; margin-bottom: 6px; }
-.flood-pop select, .flood-pop input {
+.ul-pop .up-title { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
+.ul-pop label { display: block; font-size: 12px; color: #61707a; margin-bottom: 6px; }
+.ul-pop select, .ul-pop input {
   display: block; width: 100%; margin-top: 2px; padding: 4px 6px; border: 1px solid #d0d7dc; border-radius: 5px; font-size: 13px; color: #1d2327; background: #fff;
 }
-.flood-pop .fp-actions { display: flex; justify-content: space-between; align-items: center; }
-.flood-pop .fp-actions button { border: 1px solid #e3a3a3; color: #b03a2e; background: #fff; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
+.ul-pop .up-actions { display: flex; justify-content: space-between; align-items: center; }
+.ul-pop .up-actions button { border: 1px solid #e3a3a3; color: #b03a2e; background: #fff; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
+@media (max-width: 800px) {
+  .ul-ctl { min-width: 0; padding: 6px 8px; }
+  .ul-body .ul-title, .ul-level { font-size: 12px; }
+}
 
 .empty { color: var(--muted); text-align: center; padding: 40px 0; }
 .sentinel { text-align: center; padding: 8px; grid-column: 1 / -1; }
@@ -322,7 +330,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .go { display: inline-block; margin-top: 6px; font-weight: 600; }
 .leaflet-container { background: #e8e6e1; font: inherit; } /* màu đất của bản đồ, kể cả chế độ tối: ô chưa tải không bị đen */
 /* Bảng trên bản đồ luôn nền sáng: dùng ô chọn / radio kiểu sáng cả khi máy bật chế độ tối. */
-.leaflet-container .flood-ctl, .leaflet-container .leaflet-control-layers, .leaflet-popup { color-scheme: light; color: #1d2327; }
+.leaflet-container .ul-ctl, .leaflet-container .leaflet-control-layers, .leaflet-popup { color-scheme: light; color: #1d2327; }
 /* Nút chọn lớp bản đồ: dùng emoji thay cho ảnh icon của Leaflet (không phụ thuộc CDN). */
 .leaflet-control-layers-toggle {
   background-image: none !important; display: grid !important; place-items: center; font-size: 20px; text-decoration: none;

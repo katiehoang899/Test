@@ -506,20 +506,24 @@ async function adPhone(id) {
   });
 }
 
-// ---------- điểm ngập do người dùng thêm ----------
+// ---------- lớp bản đồ do người dùng thêm (điểm ngập, chỗ đỗ xe hơi) ----------
 
-// DATA_DIR/floods.json: [{ id, type: 'point' | 'line', level, coords: [lat, lng] (điểm)
-// hoặc path: [[lat, lng], …] (đoạn A–B), note, at }].
-const floodsFile = path.join(DATA_DIR, 'floods.json');
-const FLOOD_LEVELS = ['frequent', 'medium', 'light', 'unknown'];
-const FLOODS_MAX = 2000;
-let floodsCache = null;
+// Mỗi lớp lưu trong DATA_DIR/<tên lớp>.json: [{ id, type: 'point' | 'line', level,
+// coords: [lat, lng] (điểm) hoặc path: [[lat, lng], …] (đoạn A–B), note, at }].
+// level là mức độ ngập, hoặc loại chỗ đỗ xe.
+const USER_LAYERS = {
+  floods: { levels: ['frequent', 'medium', 'light', 'unknown'], what: 'điểm ngập' },
+  parking: { levels: ['free', 'paid', 'limited', 'unknown'], what: 'điểm đỗ xe' },
+};
+const USER_LAYER_MAX = 2000;
+const userLayerCache = {};
 
-function loadFloods() {
-  if (floodsCache) return floodsCache;
-  try { floodsCache = JSON.parse(fs.readFileSync(floodsFile, 'utf8')); } catch { floodsCache = []; }
-  if (!Array.isArray(floodsCache)) floodsCache = [];
-  return floodsCache;
+function loadUserLayer(name) {
+  if (userLayerCache[name]) return userLayerCache[name];
+  let items;
+  try { items = JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${name}.json`), 'utf8')); } catch { items = []; }
+  userLayerCache[name] = Array.isArray(items) ? items : [];
+  return userLayerCache[name];
 }
 
 function cleanLatLng(p) {
@@ -533,17 +537,18 @@ function badRequest(msg) {
   return Object.assign(new Error(msg), { status: 400 });
 }
 
-async function updateFloods(req) {
+async function updateUserLayer(name, req) {
   if (!String(req.headers['content-type']).startsWith('application/json')) {
     throw Object.assign(new Error('Cần Content-Type: application/json'), { status: 415 });
   }
   let body;
   try { body = JSON.parse(await readBody(req, 512 * 1024)); } catch { throw badRequest('JSON không hợp lệ'); }
-  const floods = loadFloods();
-  const level = FLOOD_LEVELS.includes(body.level) ? body.level : 'unknown';
+  const { levels, what } = USER_LAYERS[name];
+  const items = loadUserLayer(name);
+  const level = levels.includes(body.level) ? body.level : 'unknown';
   const note = str(body.note, 300).trim();
   if (body.op === 'add') {
-    if (floods.length >= FLOODS_MAX) throw badRequest('Đã đủ số điểm ngập tối đa');
+    if (items.length >= USER_LAYER_MAX) throw badRequest(`Đã đủ số ${what} tối đa`);
     const item = { id: crypto.randomUUID(), type: body.type === 'line' ? 'line' : 'point', level, note, at: Date.now() };
     if (item.type === 'point') {
       item.coords = cleanLatLng(body.coords);
@@ -554,21 +559,21 @@ async function updateFloods(req) {
       item.path = pts;
       item.routed = Boolean(body.routed);
     }
-    floods.push(item);
+    items.push(item);
   } else if (body.op === 'update' || body.op === 'remove') {
-    const i = floods.findIndex((f) => f.id === body.id);
-    if (i < 0) throw Object.assign(new Error('Không tìm thấy điểm ngập'), { status: 404 });
-    if (body.op === 'remove') floods.splice(i, 1);
+    const i = items.findIndex((f) => f.id === body.id);
+    if (i < 0) throw Object.assign(new Error(`Không tìm thấy ${what}`), { status: 404 });
+    if (body.op === 'remove') items.splice(i, 1);
     else {
-      if (FLOOD_LEVELS.includes(body.level)) floods[i].level = body.level;
-      if (typeof body.note === 'string') floods[i].note = note;
+      if (levels.includes(body.level)) items[i].level = body.level;
+      if (typeof body.note === 'string') items[i].note = note;
     }
   } else {
     throw badRequest('Thao tác không hợp lệ');
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(floodsFile, JSON.stringify(floods));
-  return floods;
+  fs.writeFileSync(path.join(DATA_DIR, `${name}.json`), JSON.stringify(items));
+  return items;
 }
 
 // Đường đi A–B theo đường phố (OSRM). Không tìm được thì nối thẳng (routed: false).
@@ -636,10 +641,12 @@ function createServer() {
         return sendJson(res, 200, { streetView: Boolean(googleKey()) });
       }
       if (u.pathname === '/api/saved' && req.method === 'POST') return sendJson(res, 200, await updateSaved(req));
-      if (u.pathname === '/api/floods' && req.method === 'POST') return sendJson(res, 200, { floods: await updateFloods(req) });
+      // /api/floods, /api/parking: lớp điểm ngập / chỗ đỗ xe hơi do người dùng thêm.
+      const layer = /^\/api\/(floods|parking)$/.exec(u.pathname)?.[1];
+      if (layer && req.method === 'POST') return sendJson(res, 200, { [layer]: await updateUserLayer(layer, req) });
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
-      if (u.pathname === '/api/floods') return sendJson(res, 200, { floods: loadFloods() });
+      if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
       if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
       if (u.pathname === '/api/config') return sendJson(res, 200, { streetView: Boolean(googleKey()), fromEnv: Boolean(process.env.GOOGLE_MAPS_API_KEY) });
