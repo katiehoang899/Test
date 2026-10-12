@@ -108,7 +108,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 | `Cổng 3100 đang được dùng` | Tool đã chạy sẵn: mở http://localhost:3100. Hoặc chạy ở cổng khác: `PORT=3200 npm start` (Windows: `set PORT=3200` rồi `npm start`) |
 | `node: command not found` / `'node' is not recognized` | Chưa cài Node.js hoặc chưa mở lại Terminal sau khi cài |
 | Danh sách báo *Không tải được tin: Upstream 403 / 429…* | Chợ Tốt chặn hoặc giới hạn tạm thời: đợi vài phút rồi tải lại trang. Nếu lỗi kéo dài, có thể API của Chợ Tốt đã đổi, hãy báo lại kèm thông báo lỗi |
-| Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều (có thông báo trên bản đồ), hoặc tự đổi ở nút **🗺** góc trái bản đồ. Nếu cả hai đều trống: mạng công ty / VPN đang chặn, hoặc không vào được `cdnjs.cloudflare.com` |
+| Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều, hoặc tự đổi ở nút lớp bản đồ góc trái. Nếu cả hai đều không tải được, bản đồ hiện thông báo: máy đang mất mạng, hoặc mạng công ty / VPN / phần mềm chặn quảng cáo đang chặn `tile.openstreetmap.org` và `basemaps.cartocdn.com`. Ghim tin đăng vẫn hiện và dùng được |
 | Danh sách khu vực chỉ có vài tỉnh | API khu vực của Chợ Tốt không trả về; tool tự lấy tên tỉnh / quận từ các tin đã tải, càng tải nhiều càng đủ |
 
 Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, xem và sửa được tin đã lưu, điểm ngập, điểm đỗ xe).
@@ -156,6 +156,8 @@ npm run dist:mac   # tạo file .dmg trong phong-tro-map/dist/
 `server.js` là proxy nhỏ tới API công khai mà chính nhatot.com dùng (`gateway.chotot.com/v1/public/ad-listing`, danh mục `cg=1050` = phòng trọ). Trình duyệt không gọi thẳng được API này vì bị chặn CORS. Server cache kết quả 1 phút, danh sách khu vực 1 ngày. Geocode chạy tuần tự 1 request/giây đúng [chính sách của Nominatim](https://operations.osmfoundation.org/policies/nominatim/) và lưu ra file, nên lần sau mở lại không phải định vị lại.
 
 Trình duyệt còn **lọc lại** các tin đã tải theo đúng bộ lọc đang chọn (giá, diện tích, khu vực, nội thất, người đăng, từ khoá không dấu). Nhờ vậy nếu API bỏ qua một tham số thì danh sách vẫn đúng bộ lọc, chỉ ít tin hơn.
+
+Thư viện bản đồ [Leaflet](https://leafletjs.com/) 1.9.4 và [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) 1.5.3 đi kèm trong `public/vendor/` (kèm giấy phép), không tải từ CDN, nên mạng chặn CDN vẫn mở được bản đồ. Ảnh nền bản đồ vẫn cần Internet.
 
 ## Lưu ý
 

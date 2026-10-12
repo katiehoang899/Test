@@ -110,13 +110,35 @@ BASEMAPS.osm.on('tileerror', () => {
   mapNotice('Không tải được bản đồ OpenStreetMap, đã chuyển sang bản đồ dự phòng CARTO. Đổi lại ở nút lớp bản đồ góc trái.');
 });
 
-function mapNotice(text) {
+// CARTO cũng lỗi (không có ô nào tải được): báo rõ, không để bản đồ trống mà không biết vì sao.
+const cartoTiles = { ok: 0, err: 0 };
+let noTilesShown = false;
+BASEMAPS.carto.on('tileload', () => { cartoTiles.ok++; });
+BASEMAPS.carto.on('tileerror', () => {
+  cartoTiles.err++;
+  if (noTilesShown || cartoTiles.ok || osmTiles.ok || cartoTiles.err < 6) return;
+  noTilesShown = true;
+  mapNotice('Không tải được ảnh nền bản đồ từ OpenStreetMap và CARTO. Máy đang mất mạng, hoặc mạng công ty / VPN / phần mềm chặn quảng cáo đang chặn tile.openstreetmap.org và basemaps.cartocdn.com. Tin đăng và ghim vẫn dùng được.', 0);
+});
+
+// ms = 0: thông báo ở lại tới khi bấm ×.
+function mapNotice(text, ms = 9000) {
+  document.querySelectorAll('.map-notice').forEach((old) => old.remove()); // thông báo mới thay thông báo cũ
   const n = document.createElement('div');
   n.className = 'map-notice';
   n.setAttribute('role', 'status');
   n.textContent = text;
+  if (!ms) {
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'map-notice-close';
+    x.setAttribute('aria-label', 'Đóng');
+    x.innerHTML = icon('close');
+    x.addEventListener('click', () => n.remove());
+    n.append(x);
+  }
   document.querySelector('.map-wrap').append(n);
-  setTimeout(() => n.remove(), 9000);
+  if (ms) setTimeout(() => n.remove(), ms);
 }
 const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, chunkedLoading: true });
 map.addLayer(cluster);
