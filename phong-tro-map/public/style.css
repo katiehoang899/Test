@@ -304,8 +304,16 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .ul-pop .up-title { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
 .ul-pop label { display: block; font-size: 12px; color: #61707a; margin-bottom: 6px; }
 .ul-pop select, .ul-pop input {
-  display: block; width: 100%; margin-top: 2px; padding: 4px 6px; border: 1px solid #d0d7dc; border-radius: 5px; font-size: 13px; color: #1d2327; background: #fff;
+  display: block; width: 100%; height: 32px; margin-top: 3px; padding: 0 10px; border: 1px solid #d0d7dc; border-radius: 8px;
+  font: inherit; font-size: 13px; color: #1d2327; background: #fff;
 }
+/* Dropdown cùng kiểu ô lọc: bỏ mũi tên mặc định, dùng chevron nét bo tròn cách mép phải. */
+.ul-pop select {
+  appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2361707a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 11px center;
+}
+.ul-pop select:hover, .ul-pop input:hover { border-color: #aab4bc; }
+.ul-pop select:focus-visible, .ul-pop input:focus-visible { outline: none; border-color: #1d6fdc; box-shadow: 0 0 0 3px rgba(29, 111, 220, .2); }
 .ul-pop .up-actions { display: flex; justify-content: space-between; align-items: center; }
 .ul-pop .up-actions button { border: 1px solid #e3a3a3; color: #b03a2e; background: #fff; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
 @media (max-width: 800px) {
