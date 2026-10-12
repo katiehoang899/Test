@@ -445,8 +445,21 @@ function createServer() {
 }
 
 if (require.main === module) {
-  createServer().listen(PORT, () => {
-    console.log(`Phòng trọ Map: http://localhost:${PORT}`);
+  // Mặc định chỉ nghe trên máy này (localhost). HOST=0.0.0.0 để máy khác trong mạng LAN mở được.
+  const HOST = process.env.HOST || '127.0.0.1';
+  const server = createServer();
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Cổng ${PORT} đang được dùng (có thể Phòng trọ Map đã chạy rồi: mở http://localhost:${PORT}).`);
+      console.error(`Muốn chạy ở cổng khác: PORT=3200 npm start`);
+    } else {
+      console.error(err.message);
+    }
+    process.exit(1);
+  });
+  server.listen(PORT, HOST, () => {
+    console.log(`Phòng trọ Map đang chạy: http://localhost:${PORT}`);
+    console.log('Nhấn Ctrl+C (hoặc đóng cửa sổ này) để tắt.');
   });
 }
 

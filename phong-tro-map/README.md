@@ -36,21 +36,71 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
 - **Chỉ tin trong khung bản đồ**: kéo / phóng bản đồ tới khu vực muốn ở, danh sách chỉ còn các tin trong khung đó.
 - Bộ lọc được lưu trên URL (`?region_v2=13000&price=2000000-4000000…`), nên có thể gửi link cho người khác.
 
-## Chạy
+## Chạy thử trên máy (localhost)
 
-Yêu cầu Node.js ≥ 18, không cần cài thêm package.
+### Bước 1. Cài Node.js (chỉ làm một lần)
+
+Tải bản **LTS** tại [nodejs.org](https://nodejs.org/) rồi cài như phần mềm bình thường. Cần bản 18 trở lên. Kiểm tra bằng Terminal (macOS) hoặc Command Prompt (Windows):
 
 ```bash
-cd phong-tro-map
-npm start
-# mở http://localhost:3100
+node -v   # ví dụ v22.x.x
 ```
+
+### Bước 2. Lấy code về máy
+
+Chọn **một** trong hai cách:
+
+- **Tải ZIP (không cần git):** mở nhánh [`claude/affectionate-hamilton-dbu4od`](https://github.com/katiehoang899/Test/tree/claude/affectionate-hamilton-dbu4od), bấm nút xanh **Code → Download ZIP**, rồi giải nén.
+- **Dùng git:**
+  ```bash
+  git clone -b claude/affectionate-hamilton-dbu4od https://github.com/katiehoang899/Test.git
+  ```
+
+### Bước 3. Chạy
+
+- **macOS:** mở thư mục `phong-tro-map`, **bấm đúp `start.command`**. Lần đầu macOS có thể chặn ("không xác định được nhà phát triển"): **chuột phải → Open → Open**. Nếu báo không có quyền chạy (thường gặp khi tải ZIP), mở Terminal và chạy lệnh dưới đây một lần:
+  ```bash
+  chmod +x ~/Downloads/Test-claude-affectionate-hamilton-dbu4od/phong-tro-map/start.command
+  ```
+  (đổi đường dẫn cho đúng chỗ bạn giải nén; có thể kéo file vào cửa sổ Terminal để điền đường dẫn).
+- **Windows:** mở thư mục `phong-tro-map`, **bấm đúp `start.bat`**. Nếu Windows hiện "Windows protected your PC": **More info → Run anyway**.
+- **Hoặc dùng lệnh** (mọi hệ điều hành):
+  ```bash
+  cd phong-tro-map
+  npm start
+  ```
+
+Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ địa chỉ này vào trình duyệt). Không cần `npm install`, vì tool không dùng package ngoài.
+
+### Bước 4. Dùng thử
+
+1. Chọn **Tp Hồ Chí Minh** (hoặc tỉnh khác) → **Quận / huyện** → tick vài quận → **Áp dụng**.
+2. Chọn **Giá thuê**, bật **Loại tin sale trọ**, thêm **Loại trừ từ khoá** nếu cần.
+3. Bấm một tin trong danh sách: bản đồ bay tới ghim của tin đó. Popup có ảnh Street View (cần API key, xem bên dưới) và nút **Google Maps / Street View**.
+4. Bấm **Tải tất cả** để lấy hết tin theo bộ lọc.
+
+### Tắt
+
+Đóng cửa sổ Terminal / Command Prompt đang chạy, hoặc bấm **Ctrl + C** trong đó.
+
+### Gặp lỗi?
+
+| Hiện tượng | Cách xử lý |
+|---|---|
+| `Cổng 3100 đang được dùng` | Tool đã chạy sẵn: mở http://localhost:3100. Hoặc chạy ở cổng khác: `PORT=3200 npm start` (Windows: `set PORT=3200` rồi `npm start`) |
+| `node: command not found` / `'node' is not recognized` | Chưa cài Node.js hoặc chưa mở lại Terminal sau khi cài |
+| Danh sách báo *Không tải được tin: Upstream 403 / 429…* | Chợ Tốt chặn hoặc giới hạn tạm thời: đợi vài phút rồi tải lại trang. Nếu lỗi kéo dài, có thể API của Chợ Tốt đã đổi, hãy báo lại kèm thông báo lỗi |
+| Bản đồ trống, không có nền | Máy không vào được `tile.openstreetmap.org` hoặc `cdnjs.cloudflare.com` (mạng công ty / VPN chặn) |
+| Danh sách khu vực chỉ có vài tỉnh | API khu vực của Chợ Tốt không trả về; tool tự lấy tên tỉnh / quận từ các tin đã tải, càng tải nhiều càng đủ |
+
+Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, kể cả ô nhập API key).
 
 Biến môi trường (không bắt buộc):
 
 | Biến | Mặc định | Ý nghĩa |
 |---|---|---|
 | `PORT` | `3100` | Cổng web |
+| `HOST` | `127.0.0.1` | Địa chỉ nghe. `0.0.0.0` để máy khác trong mạng LAN mở được |
 | `CHOTOT_GATEWAY` | `https://gateway.chotot.com` | API của Chợ Tốt |
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Dịch vụ geocode cho tin thiếu toạ độ |
 | `DATA_DIR` | `./data` | Nơi lưu cache geocode (`geocode-cache.json`) |
