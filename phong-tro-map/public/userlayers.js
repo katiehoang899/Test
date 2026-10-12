@@ -63,12 +63,12 @@ function createUserLayer(cfg) {
       div.dataset.layer = cfg.key;
       div.innerHTML = `
         <label class="ul-toggle" title="Bật / tắt hiển thị ${esc(cfg.what)} trên bản đồ">
-          <input type="checkbox" data-ul-show> ${icon(cfg.icon)} ${esc(cfg.title)} <b data-ul-count></b>
+          <input type="checkbox" data-ul-show> ${icon(cfg.icon)} <span class="tx">${esc(cfg.title)}</span> <b data-ul-count></b>
         </label>
         <div class="ul-body" data-ul-body>
           <div class="ul-title">${esc(cfg.legend)}</div>
           ${cfg.levels.map((l) => `<label class="ul-level"><input type="radio" name="ul-${cfg.key}" value="${l.id}"${l.id === st.level ? ' checked' : ''}>
-            <i style="background:${l.color}"></i> ${esc(l.label)}</label>`).join('')}
+            <i style="background:${l.color}"></i> <span class="tx">${esc(l.label)}</span></label>`).join('')}
           <div class="ul-actions">
             <button type="button" data-ul-mode="point" title="Bấm 1 chỗ trên bản đồ để đặt ${esc(cfg.what)}">${icon('pinPlus')} Đặt điểm</button>
             <button type="button" data-ul-mode="line" title="Bấm điểm A rồi điểm B để vẽ một đoạn đường">${icon('route')} Nối A–B</button>

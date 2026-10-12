@@ -124,6 +124,10 @@ button, input, select { font: inherit; color: inherit; }
 .suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .suggest button { border: 1px dashed var(--line); background: none; border-radius: 999px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
 .suggest button:disabled { opacity: .4; cursor: default; }
+/* Chữ cạnh ô tick / radio: cắt khoảng trống trên (chỗ cho dấu tiếng Việt) và dưới dòng chữ,
+   để căn giữa theo phần chữ nhìn thấy (chiều cao chữ hoa → đường chân chữ). */
+.tx { text-box: trim-both cap alphabetic; }
+label input[type="checkbox"], label input[type="radio"] { margin: 0; flex: none; }
 .chip-toggle {
   display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px;
   border: 1px solid var(--line); border-radius: 999px; cursor: pointer; white-space: nowrap; flex: 0 0 auto;
