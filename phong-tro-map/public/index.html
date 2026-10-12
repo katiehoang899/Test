@@ -34,12 +34,22 @@
     <select id="region" name="region_v2" aria-label="Tỉnh / thành phố">
       <option value="">Toàn quốc</option>
     </select>
-    <select id="area" name="area_v2" aria-label="Quận / huyện" disabled>
-      <option value="">Tất cả quận / huyện</option>
-    </select>
-    <select id="ward" name="ward" aria-label="Phường / xã" disabled>
-      <option value="">Tất cả phường / xã</option>
-    </select>
+    <details class="pop multi" id="areaPop" data-key="area_v2">
+      <summary><span>Quận / huyện</span> <b id="areaLabel"></b></summary>
+      <div class="pop-body">
+        <input type="search" class="filter-box" placeholder="Tìm quận / huyện…" aria-label="Tìm quận / huyện">
+        <div class="opts" id="areaOpts"></div>
+        <div class="pop-actions"><button type="button" data-none>Bỏ chọn</button><button type="button" data-done class="primary">Áp dụng</button></div>
+      </div>
+    </details>
+    <details class="pop multi" id="wardPop" data-key="ward">
+      <summary><span>Phường / xã</span> <b id="wardLabel"></b></summary>
+      <div class="pop-body">
+        <input type="search" class="filter-box" placeholder="Tìm phường / xã…" aria-label="Tìm phường / xã">
+        <div class="opts" id="wardOpts"></div>
+        <div class="pop-actions"><button type="button" data-none>Bỏ chọn</button><button type="button" data-done class="primary">Áp dụng</button></div>
+      </div>
+    </details>
 
     <details class="pop" id="pricePop">
       <summary><span>Giá thuê</span> <b id="priceLabel"></b></summary>

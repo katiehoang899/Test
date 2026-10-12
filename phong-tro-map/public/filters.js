@@ -8,16 +8,20 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale'];
 
+  // area_v2: danh sách mã quận / huyện (chọn nhiều).
+  // ward: danh sách "mãQuận:mãPhường" (chọn nhiều, nhớ phường thuộc quận nào).
   // nq: từ khoá loại trừ (cách nhau bằng dấu phẩy), nosale = '1': ẩn tin sale trọ.
-  // Hai bộ lọc này chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
-  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: '', ward: '', price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '' };
+  // Hai bộ lọc nq / nosale chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
+  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '' };
+  const LIST_FIELDS = ['area_v2', 'ward', 'furnishing_rent'];
+  const LIST_RE = { area_v2: /^\d{1,10}$/, ward: /^\d{1,10}:\d{1,10}$/, furnishing_rent: /^\d+$/ };
 
   // Sắp xếp phía máy chủ Chợ Tốt (tham số sp). Kết quả đã tải luôn được sắp xếp lại
   // phía trình duyệt, nên "Tải tất cả" cho thứ tự đúng kể cả khi sp bị bỏ qua.
   const SORT_TO_SP = { price_asc: '1', price_desc: '2' };
 
   function emptyState() {
-    return { ...DEFAULTS, furnishing_rent: [] };
+    return { ...DEFAULTS, area_v2: [], ward: [], furnishing_rent: [] };
   }
 
   // "1000000-3000000" → { min: 1000000, max: 3000000 }; "-15" → { min: null, max: 15 }
@@ -72,8 +76,14 @@
     const s = emptyState();
     for (const k of FIELDS) {
       if (!p.has(k)) continue;
-      if (k === 'furnishing_rent') s[k] = p.get(k).split(',').filter((x) => /^\d+$/.test(x));
+      if (LIST_FIELDS.includes(k)) s[k] = [...new Set(p.get(k).split(',').filter((x) => LIST_RE[k].test(x)))];
       else s[k] = p.get(k);
+    }
+    // Phường phải thuộc một quận đang chọn.
+    s.ward = s.ward.filter((w) => s.area_v2.includes(w.split(':')[0]));
+    if (!s.region_v2) {
+      s.area_v2 = [];
+      s.ward = [];
     }
     if (!['u', 'h', 'u,h'].includes(s.st)) s.st = DEFAULTS.st;
     if (!['', 'p', 'c'].includes(s.f)) s.f = '';
@@ -84,19 +94,41 @@
   function stateToSearch(state) {
     const p = new URLSearchParams();
     for (const k of FIELDS) {
-      const v = k === 'furnishing_rent' ? (state[k] || []).join(',') : state[k];
+      const v = LIST_FIELDS.includes(k) ? (state[k] || []).join(',') : state[k];
       if (v && v !== DEFAULTS[k]) p.set(k, v);
     }
     const s = p.toString();
     return s ? '?' + s : '';
   }
 
-  // Tham số gửi lên /api/ads (cùng tên với tham số trên URL nhatot.com).
-  function toApiParams(state, offset, limit) {
+  // Mã phường đang chọn của một quận.
+  function wardsOfArea(state, area) {
+    const prefix = String(area) + ':';
+    return (state.ward || []).filter((w) => w.startsWith(prefix)).map((w) => w.slice(prefix.length));
+  }
+
+  // API Nhà Tốt chỉ nhận một quận và một phường mỗi lần, nên mỗi nơi được chọn là một
+  // "nguồn" tải riêng: quận không chọn phường nào → cả quận, có chọn phường → từng phường.
+  function locationSources(state) {
+    const areas = state.area_v2 || [];
+    if (!areas.length) return [{}];
+    const out = [];
+    for (const a of areas) {
+      const ws = wardsOfArea(state, a);
+      if (!ws.length) out.push({ area_v2: a });
+      else for (const w of ws) out.push({ area_v2: a, ward: w });
+    }
+    return out;
+  }
+
+  // Tham số gửi lên /api/ads (cùng tên với tham số trên URL nhatot.com) cho một nguồn.
+  function toApiParams(state, offset, limit, source = {}) {
     const p = new URLSearchParams();
-    for (const k of ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'f']) {
+    for (const k of ['q', 'st', 'region_v2', 'price', 'size', 'f']) {
       if (state[k]) p.set(k, state[k]);
     }
+    if (source.area_v2) p.set('area_v2', source.area_v2);
+    if (source.ward) p.set('ward', source.ward);
     if (state.furnishing_rent && state.furnishing_rent.length) p.set('furnishing_rent', state.furnishing_rent.join(','));
     if (SORT_TO_SP[state.sort]) p.set('sp', SORT_TO_SP[state.sort]);
     p.set('o', String(offset || 0));
@@ -117,8 +149,12 @@
     if (!inRange(ad.price, state.price)) return false;
     if (!inRange(ad.size, state.size)) return false;
     if (state.region_v2 && ad.regionId != null && String(ad.regionId) !== String(state.region_v2)) return false;
-    if (state.area_v2 && ad.areaId != null && String(ad.areaId) !== String(state.area_v2)) return false;
-    if (state.ward && ad.wardId != null && String(ad.wardId) !== String(state.ward)) return false;
+    const areas = state.area_v2 || [];
+    if (areas.length && ad.areaId != null && !areas.includes(String(ad.areaId))) return false;
+    if (ad.areaId != null && ad.wardId != null) {
+      const ws = wardsOfArea(state, ad.areaId);
+      if (ws.length && !ws.includes(String(ad.wardId))) return false;
+    }
     if (state.f === 'p' && ad.isCompany) return false;
     if (state.f === 'c' && !ad.isCompany) return false;
     if (state.st && state.st !== 'u,h' && ad.type && ad.type !== state.st) return false;
@@ -252,6 +288,22 @@
     return list;
   }
 
+  // Link Google Maps (Maps URLs, không cần API key). Có toạ độ thì ghim đúng điểm,
+  // không thì tìm theo địa chỉ.
+  function googleMapsUrl(lat, lng, address) {
+    const q = lat != null && lng != null ? `${round6(lat)},${round6(lng)}` : String(address || '');
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  }
+
+  // Mở thẳng khung Street View tại điểm gần toạ độ nhất có ảnh đường phố.
+  function streetViewUrl(lat, lng) {
+    return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${round6(lat)},${round6(lng)}`;
+  }
+
+  function round6(v) {
+    return Number(Number(v).toFixed(6));
+  }
+
   // Các câu truy vấn geocode cho tin không có toạ độ, từ chi tiết (phường) tới thô (quận).
   function geoQueries(ad) {
     const out = [];
@@ -264,6 +316,7 @@
   return {
     FIELDS, DEFAULTS, SORT_TO_SP, emptyState, parseRange, formatRange, formatMoney, rangeLabel, fold,
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
+    wardsOfArea, locationSources, googleMapsUrl, streetViewUrl,
     splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };
 });

@@ -7,12 +7,15 @@ const LOAD_ALL_CAP = 5000; // "Tải tất cả" dừng ở đây để không g
 const RENDER_STEP = 60; // số thẻ tin thêm vào danh sách mỗi lần cuộn
 const AUTO_FILL_MIN = 20; // bộ lọc loại trừ ẩn nhiều tin: tự tải thêm trang cho đủ số tin này…
 const AUTO_FILL_PAGES = 8; // …nhưng không quá số trang này mỗi lần, sau đó chờ người dùng bấm "Xem thêm"
-const LOCAL_ONLY = ['nq', 'nosale']; // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
+const LOCAL_ONLY = ['nq', 'nosale'];
+const MAX_PARALLEL = 4; // chọn nhiều quận / phường: số nguồn tải song song mỗi lượt // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
 
 const $ = (s) => document.querySelector(s);
 const el = {
   form: $('#filters'), q: $('#q'), searchForm: $('#searchForm'),
-  st: $('#st'), region: $('#region'), area: $('#area'), ward: $('#ward'),
+  st: $('#st'), region: $('#region'),
+  areaPop: $('#areaPop'), wardPop: $('#wardPop'), areaOpts: $('#areaOpts'), wardOpts: $('#wardOpts'),
+  areaLabel: $('#areaLabel'), wardLabel: $('#wardLabel'),
   f: $('#f'), sort: $('#sort'), reset: $('#reset'),
   priceMin: $('#priceMin'), priceMax: $('#priceMax'), sizeMin: $('#sizeMin'), sizeMax: $('#sizeMax'),
   priceLabel: $('#priceLabel'), sizeLabel: $('#sizeLabel'), furnLabel: $('#furnLabel'),
@@ -23,9 +26,11 @@ const el = {
 
 let state = Filters.stateFromSearch(location.search);
 let regions = []; // [{ id, name, areas: [{ id, name }] }] từ API, rỗng nếu API khu vực không trả về
-const seenPlaces = { regions: new Map(), areas: new Map(), wards: new Map() }; // dự phòng: lấy từ tin đã tải
+// Dự phòng khi API khu vực không trả về: lấy tên từ tin đã tải. wards: mãQuận → (mãPhường → tên).
+const seenPlaces = { regions: new Map(), areas: new Map(), wards: new Map() };
 
-const store = { ads: new Map(), total: 0, offset: 0, done: false, loading: false, token: 0, error: '' };
+// sources: mỗi quận / phường được chọn là một nguồn tải riêng (xem Filters.locationSources).
+const store = { ads: new Map(), sources: [], total: 0, done: false, loading: false, token: 0, error: '' };
 let loadingAll = false;
 let visible = []; // tin đang hiển thị (sau lọc + sắp xếp)
 let rendered = 0;
@@ -81,7 +86,34 @@ function popupHtml(ad) {
     <div class="p">${esc(priceText(ad))}</div>
     <div class="m">${meta}</div>
     <div class="a">${esc(ad.address)}${ad.approx ? ' <em>(vị trí gần đúng)</em>' : ''}</div>
+    ${gmapsHtml(ad)}
     <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ↗</a>
+  </div>`;
+}
+
+// Nút mở Google Maps / Street View. Tin có toạ độ: đúng điểm đó. Tin vị trí gần đúng:
+// Google Maps tìm theo địa chỉ (thường chính xác hơn), Street View ở giữa phường.
+function gmapsHtml(ad) {
+  const exact = ad.lat != null;
+  const at = exact ? { lat: ad.lat, lng: ad.lng } : ad.approxAt;
+  const maps = exact ? Filters.googleMapsUrl(ad.lat, ad.lng) : Filters.googleMapsUrl(null, null, ad.address);
+  const links = [`<a href="${esc(maps)}" target="_blank" rel="noopener">📍 Google Maps</a>`];
+  if (at) {
+    links.push(`<a href="${esc(Filters.streetViewUrl(at.lat, at.lng))}" target="_blank" rel="noopener"${exact ? '' : ' title="Vị trí gần đúng: Street View ở khu vực phường / quận"'}>🚶 Street View</a>`);
+  }
+  return `<div class="gmaps">${links.join('')}</div>`;
+}
+
+// Click vào một điểm bất kỳ trên bản đồ → mở điểm đó trên Google Maps / Street View.
+function pointPopupHtml(lat, lng) {
+  const la = lat.toFixed(6);
+  const ln = lng.toFixed(6);
+  return `<div class="popup">
+    <div class="coords">${la}, ${ln}</div>
+    <div class="gmaps">
+      <a href="${esc(Filters.googleMapsUrl(la, ln))}" target="_blank" rel="noopener">📍 Google Maps</a>
+      <a href="${esc(Filters.streetViewUrl(la, ln))}" target="_blank" rel="noopener">🚶 Street View</a>
+    </div>
   </div>`;
 }
 
@@ -138,6 +170,17 @@ function highlightCard(id) {
     card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
+
+// Bấm ra ngoài khi đang mở popup chỉ để đóng popup, không mở popup điểm mới.
+let lastPopupClose = 0;
+map.on('popupclose', () => { lastPopupClose = Date.now(); });
+map.on('click', (e) => {
+  if (Date.now() - lastPopupClose < 400) return;
+  L.popup({ maxWidth: 260, minWidth: 200 })
+    .setLatLng(e.latlng)
+    .setContent(pointPopupHtml(e.latlng.lat, e.latlng.lng))
+    .openOn(map);
+});
 
 map.on('moveend', () => {
   if (el.inBounds.checked) renderList();
@@ -309,16 +352,30 @@ async function loadPage() {
   updateCount();
   const token = store.token;
   try {
-    const data = await api('/api/ads?' + Filters.toApiParams(state, store.offset, PAGE));
+    // Lấy trang kế tiếp của các nguồn tải ít nhất, tối đa MAX_PARALLEL nguồn một lượt.
+    const batch = store.sources.filter((s) => !s.done).sort((a, b) => a.offset - b.offset).slice(0, MAX_PARALLEL);
+    const results = await Promise.allSettled(batch.map((s) => api('/api/ads?' + Filters.toApiParams(state, s.offset, PAGE, s.src))));
     if (token !== store.token) return;
-    store.total = data.total || 0;
-    store.offset += PAGE;
-    for (const ad of data.ads) {
-      if (!store.ads.has(ad.id)) store.ads.set(ad.id, ad);
-      rememberPlaces(ad);
-    }
-    if (!data.ads.length || store.offset >= store.total) store.done = true;
-    queueGeocode(data.ads);
+    let failed = null;
+    results.forEach((r, i) => {
+      const s = batch[i];
+      if (r.status === 'rejected') {
+        failed = r.reason;
+        return;
+      }
+      const data = r.value;
+      s.total = data.total || 0;
+      s.offset += PAGE;
+      for (const ad of data.ads) {
+        if (!store.ads.has(ad.id)) store.ads.set(ad.id, ad);
+        rememberPlaces(ad);
+      }
+      if (!data.ads.length || s.offset >= s.total) s.done = true;
+      queueGeocode(data.ads);
+    });
+    store.total = store.sources.reduce((n, s) => n + s.total, 0);
+    store.done = store.sources.every((s) => s.done);
+    if (failed) throw failed;
   } catch (err) {
     if (token !== store.token) return;
     store.error = 'Không tải được tin: ' + err.message;
@@ -352,8 +409,8 @@ async function loadAll() {
 function restart() {
   store.token++;
   store.ads.clear();
+  store.sources = Filters.locationSources(state).map((src) => ({ src, offset: 0, total: 0, done: false }));
   store.total = 0;
-  store.offset = 0;
   store.done = false;
   store.loading = false;
   store.error = '';
@@ -432,15 +489,8 @@ function option(value, label, selected) {
   return o;
 }
 
-function fillSelect(select, firstLabel, items, selected) {
-  select.replaceChildren(option('', firstLabel, selected), ...items.map((it) => option(it.id, it.name, selected)));
-  // Giữ lựa chọn từ URL kể cả khi chưa có tên (danh sách chưa tải xong).
-  if (selected && !items.some((it) => String(it.id) === String(selected))) select.append(option(selected, `Mã ${selected}`, selected));
-  select.disabled = select !== el.region && !items.length && !selected;
-}
-
 function sortedPlaces(m) {
-  return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'vi', { numeric: true }));
 }
 
 function rememberPlaces(ad) {
@@ -451,34 +501,123 @@ function rememberPlaces(ad) {
     changed = true;
   };
   put(seenPlaces.regions, ad.regionId, ad.region);
-  if (!state.region_v2 || String(ad.regionId) === String(state.region_v2)) put(seenPlaces.areas, ad.areaId, ad.area);
-  if (state.area_v2 && String(ad.areaId) === String(state.area_v2)) put(seenPlaces.wards, ad.wardId, ad.ward);
+  if (String(ad.regionId) === String(state.region_v2)) put(seenPlaces.areas, ad.areaId, ad.area);
+  if (ad.areaId != null && state.area_v2.includes(String(ad.areaId))) {
+    const key = String(ad.areaId);
+    if (!seenPlaces.wards.has(key)) seenPlaces.wards.set(key, new Map());
+    put(seenPlaces.wards.get(key), ad.wardId, ad.ward);
+  }
   if (changed) {
     clearTimeout(rememberPlaces.t);
     rememberPlaces.t = setTimeout(fillPlaces, 300);
   }
 }
 
-let wardsFor = null;
-let wardsList = [];
-
-async function fillPlaces() {
-  const regionItems = regions.length ? regions : sortedPlaces(seenPlaces.regions);
-  fillSelect(el.region, 'Toàn quốc', regionItems, state.region_v2);
-
-  const region = regions.find((r) => String(r.id) === String(state.region_v2));
-  const areaItems = region ? region.areas : state.region_v2 ? sortedPlaces(seenPlaces.areas) : [];
-  fillSelect(el.area, 'Tất cả quận / huyện', areaItems, state.area_v2);
-
-  if (state.area_v2 && wardsFor !== state.area_v2) {
-    wardsFor = state.area_v2;
-    wardsList = [];
-    const area = state.area_v2;
-    const data = await api('/api/wards?area=' + encodeURIComponent(area)).catch(() => ({ wards: [] }));
-    if (wardsFor === area) wardsList = data.wards || [];
+// Danh sách phường của từng quận (từ API, lưu lại); rỗng nếu API không trả về.
+const wardCache = new Map();
+function fetchWards(area) {
+  if (!wardCache.has(area)) {
+    wardCache.set(area, api('/api/wards?area=' + encodeURIComponent(area)).then((d) => d.wards || []).catch(() => []));
   }
-  const wardItems = !state.area_v2 ? [] : wardsList.length ? wardsList : sortedPlaces(seenPlaces.wards);
-  fillSelect(el.ward, 'Tất cả phường / xã', wardItems, state.ward);
+  return wardCache.get(area);
+}
+
+function areaItems() {
+  const region = regions.find((r) => String(r.id) === String(state.region_v2));
+  const items = region && region.areas.length ? region.areas : sortedPlaces(seenPlaces.areas);
+  return items.map((a) => ({ id: String(a.id), name: a.name }));
+}
+
+function areaName(id) {
+  return areaItems().find((a) => a.id === String(id))?.name || `Mã ${id}`;
+}
+
+async function wardItems(area) {
+  const list = await fetchWards(area);
+  if (list.length) return list.map((w) => ({ id: String(w.id), name: w.name }));
+  return sortedPlaces(seenPlaces.wards.get(String(area)) || new Map());
+}
+
+// Ô đánh dấu đang được tick trong popup (giữ lựa chọn chưa áp dụng khi danh sách vẽ lại).
+function checkedIn(pop) {
+  return new Set([...pop.querySelectorAll('.opts input:checked')].map((c) => c.value));
+}
+
+function optHtml(value, name, checked) {
+  return `<label data-name="${esc(Filters.fold(name))}"><input type="checkbox" value="${esc(value)}"${checked.has(value) ? ' checked' : ''}> ${esc(name)}</label>`;
+}
+
+function applyFilterBox(pop) {
+  const q = Filters.fold(pop.querySelector('.filter-box').value.trim());
+  pop.querySelectorAll('.opts label').forEach((l) => { l.hidden = Boolean(q) && !l.dataset.name.includes(q); });
+}
+
+// 1–2 nơi tên ngắn: hiện tên ("Quận 7, Quận 3"); nhiều hơn: "5 đã chọn".
+function multiLabel(selected, nameOf) {
+  if (!selected.length) return '';
+  const names = selected.map(nameOf);
+  const joined = names.join(', ');
+  return names.length <= 2 && joined.length <= 24 ? joined : `${names.length} đã chọn`;
+}
+
+let placesRun = 0;
+async function fillPlaces() {
+  const run = ++placesRun;
+  const regionItems = regions.length ? regions : sortedPlaces(seenPlaces.regions);
+  el.region.replaceChildren(option('', 'Toàn quốc', state.region_v2), ...regionItems.map((r) => option(r.id, r.name, state.region_v2)));
+  if (state.region_v2 && !regionItems.some((r) => String(r.id) === String(state.region_v2))) {
+    el.region.append(option(state.region_v2, `Mã ${state.region_v2}`, state.region_v2));
+  }
+
+  // Quận / huyện
+  const areas = areaItems();
+  for (const id of state.area_v2) if (!areas.some((a) => a.id === id)) areas.push({ id, name: `Mã ${id}` });
+  const areaChecked = el.areaPop.open ? checkedIn(el.areaPop) : new Set(state.area_v2);
+  el.areaOpts.innerHTML = areas.length
+    ? areas.map((a) => optHtml(a.id, a.name, areaChecked)).join('')
+    : '<p class="none">Chọn tỉnh / thành trước.</p>';
+  applyFilterBox(el.areaPop);
+  el.areaPop.classList.toggle('disabled', !state.region_v2);
+  el.areaLabel.textContent = multiLabel(state.area_v2, areaName);
+
+  // Phường / xã, nhóm theo từng quận đang chọn
+  el.wardPop.classList.toggle('disabled', !state.area_v2.length);
+  const groups = await Promise.all(state.area_v2.map(async (a) => ({ area: a, wards: await wardItems(a) })));
+  if (run !== placesRun) return;
+  const wardChecked = el.wardPop.open ? checkedIn(el.wardPop) : new Set(state.ward);
+  const names = new Map();
+  el.wardOpts.innerHTML = groups.length
+    ? groups.map((g) => {
+      for (const w of g.wards) names.set(`${g.area}:${w.id}`, w.name);
+      const opts = g.wards.map((w) => optHtml(`${g.area}:${w.id}`, w.name, wardChecked)).join('');
+      return `<h4>${esc(areaName(g.area))}</h4>${opts || '<p class="none">Chưa có danh sách phường.</p>'}`;
+    }).join('')
+    : '<p class="none">Chọn quận / huyện trước.</p>';
+  applyFilterBox(el.wardPop);
+  el.wardLabel.textContent = multiLabel(state.ward, (w) => names.get(w) || `Mã ${w.split(':')[1]}`);
+  document.querySelectorAll('.pop').forEach((p) => p.classList.toggle('set', Boolean(p.querySelector('b').textContent)));
+}
+
+// Popup chọn nhiều: tick xong, bấm "Áp dụng" hoặc bấm ra ngoài thì mới lọc (một lần).
+for (const pop of [el.areaPop, el.wardPop]) {
+  pop.querySelector('.filter-box').addEventListener('input', () => applyFilterBox(pop));
+  pop.querySelector('[data-none]').addEventListener('click', () => {
+    pop.querySelectorAll('.opts input:checked').forEach((c) => { c.checked = false; });
+  });
+  pop.querySelector('[data-done]').addEventListener('click', () => { pop.open = false; });
+  pop.addEventListener('toggle', () => {
+    if (pop.open) {
+      pop.querySelector('.filter-box').value = '';
+      applyFilterBox(pop);
+      return;
+    }
+    const picked = [...checkedIn(pop)];
+    const key = pop.dataset.key;
+    const same = picked.length === state[key].length && picked.every((v) => state[key].includes(v));
+    if (same) return;
+    if (key === 'area_v2') update({ area_v2: picked, ward: state.ward.filter((w) => picked.includes(w.split(':')[0])) });
+    else update({ ward: picked });
+  });
 }
 
 function syncForm() {
@@ -591,13 +730,8 @@ el.sort.addEventListener('change', () => {
 el.region.addEventListener('change', () => {
   seenPlaces.areas.clear();
   seenPlaces.wards.clear();
-  update({ region_v2: el.region.value, area_v2: '', ward: '' });
+  update({ region_v2: el.region.value, area_v2: [], ward: [] });
 });
-el.area.addEventListener('change', () => {
-  seenPlaces.wards.clear();
-  update({ area_v2: el.area.value, ward: '' });
-});
-el.ward.addEventListener('change', () => update({ ward: el.ward.value }));
 
 el.form.addEventListener('click', (e) => {
   const preset = e.target.closest('.presets button');

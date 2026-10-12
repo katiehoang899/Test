@@ -47,7 +47,8 @@ test('matches filters loaded ads client-side', () => {
   assert.ok(F.matches(ad, s({ price: '2000000-3000000' })));
   assert.ok(!F.matches(ad, s({ price: '-2000000' })));
   assert.ok(!F.matches(ad, s({ size: '25-' })));
-  assert.ok(!F.matches(ad, s({ area_v2: '13096' })));
+  assert.ok(!F.matches(ad, s({ area_v2: ['13096'] })));
+  assert.ok(F.matches(ad, s({ area_v2: ['13096', '13102'] })), 'nhiều quận');
   assert.ok(!F.matches(ad, s({ f: 'c' })));
   assert.ok(!F.matches(ad, s({ st: 'h' })));
   assert.ok(F.matches(ad, s({ st: 'u,h' })));
@@ -116,4 +117,39 @@ test('hiddenReason combines keyword and sale filters', () => {
   assert.equal(st.nq, 'Giá từ 5, sale');
   assert.equal(st.nosale, '1');
   assert.equal(F.stateFromSearch('?nosale=yes').nosale, '');
+});
+
+test('multi-select districts / wards', () => {
+  const st = F.stateFromSearch('?region_v2=13000&area_v2=13102,13096,x,13102&ward=13102:9001,13102:9002,13000:5,9001');
+  assert.deepEqual(st.area_v2, ['13102', '13096']);
+  assert.deepEqual(st.ward, ['13102:9001', '13102:9002'], 'phường phải thuộc quận đang chọn');
+  assert.deepEqual(F.stateFromSearch(F.stateToSearch(st)), st);
+  assert.deepEqual(F.stateFromSearch('?area_v2=13102').area_v2, [], 'không có tỉnh thì bỏ quận');
+
+  assert.deepEqual(F.wardsOfArea(st, 13102), ['9001', '9002']);
+  assert.deepEqual(F.locationSources(st), [
+    { area_v2: '13102', ward: '9001' },
+    { area_v2: '13102', ward: '9002' },
+    { area_v2: '13096' },
+  ]);
+  assert.deepEqual(F.locationSources(F.emptyState()), [{}]);
+
+  const p = F.toApiParams(st, 0, 50, { area_v2: '13102', ward: '9001' });
+  assert.equal(p.get('region_v2'), '13000');
+  assert.equal(p.get('area_v2'), '13102');
+  assert.equal(p.get('ward'), '9001');
+  assert.equal(F.toApiParams(st, 0, 50).has('area_v2'), false);
+
+  const ad = (areaId, wardId) => ({ title: '', price: 1, size: 1, areaId, wardId });
+  assert.ok(F.matches(ad(13102, 9001), st));
+  assert.ok(!F.matches(ad(13102, 9003), st), 'phường khác trong quận đã chọn phường');
+  assert.ok(F.matches(ad(13096, 1234), st), 'quận không chọn phường → cả quận');
+  assert.ok(!F.matches(ad(13104, 1), st));
+});
+
+test('Google Maps / Street View links', () => {
+  assert.equal(F.googleMapsUrl(10.73, 106.7), 'https://www.google.com/maps/search/?api=1&query=10.73%2C106.7');
+  assert.equal(F.googleMapsUrl(null, null, 'Phường 1, Quận 3'), 'https://www.google.com/maps/search/?api=1&query=Ph%C6%B0%E1%BB%9Dng%201%2C%20Qu%E1%BA%ADn%203');
+  assert.equal(F.googleMapsUrl(10.810488259088473, 106.70604992971748), 'https://www.google.com/maps/search/?api=1&query=10.810488%2C106.70605');
+  assert.equal(F.streetViewUrl(10.73, 106.7), 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=10.73,106.7');
 });
