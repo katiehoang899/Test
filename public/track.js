@@ -664,7 +664,7 @@ $('#recStop').addEventListener('click', async () => {
   renderRec();
 });
 
-// ---------- ghi âm micro (phiên bật webcam + chọn ghi âm) ----------
+// ---------- ghi âm micro (phiên chọn ghi âm; có hay không có webcam) ----------
 
 let audioRec = null;
 

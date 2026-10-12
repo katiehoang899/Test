@@ -124,15 +124,9 @@ function fillConfig() {
   guideEditor.setHtml(sc.guide || '');
   $('#cfgEye').checked = sc.eyeTracking !== false;
   $('#cfgAudio').checked = !!sc.recordAudio;
-  $('#cfgAudio').disabled = !$('#cfgEye').checked;
   $('#cfgError').textContent = '';
   $('#overviewLink').href = '/__et/overview.html?scenario=' + encodeURIComponent(sc.id);
 }
-
-$('#cfgEye').addEventListener('change', () => {
-  $('#cfgAudio').disabled = !$('#cfgEye').checked;
-  if (!$('#cfgEye').checked) $('#cfgAudio').checked = false;
-});
 
 $('#configForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -145,7 +139,7 @@ $('#configForm').addEventListener('submit', async (e) => {
       instructions: $('#cfgInstructions').value,
       guide: guideEditor.getHtml(),
       eyeTracking: $('#cfgEye').checked,
-      recordAudio: $('#cfgEye').checked && $('#cfgAudio').checked,
+      recordAudio: $('#cfgAudio').checked, // độc lập với eye tracking
     });
     toast(t('settings.saved'));
     await load(true);

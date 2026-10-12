@@ -73,6 +73,8 @@ function renderSettings(settings) {
   $('#setLanguage').value = settings.language;
   $('#setEye').checked = settings.eyeTrackingEnabled;
   $('#setCamera').checked = !!settings.showCamera;
+  $('#setAudioDefault').checked = settings.recordAudioDefault !== false;
+  applyAudioDefault(settings);
   $('#cameraSetting').hidden = !settings.eyeTrackingEnabled;
   if (document.activeElement !== $('#setStorage')) $('#setStorage').value = settings.storagePath || '';
   $('#aiKeyState').textContent = settings.aiKey === 'settings' ? t('settings.ai_key_saved', { hint: settings.aiKeyHint })
@@ -80,7 +82,6 @@ function renderSettings(settings) {
   $('#aiKeyRemove').hidden = settings.aiKey !== 'settings';
   // Tắt eye tracking trong Cài đặt → ẩn hẳn tuỳ chọn webcam và cột Eye tracking
   $('#eyeOption').hidden = !settings.eyeTrackingEnabled;
-  renderAudioOption();
   document.body.classList.toggle('no-eye', !settings.eyeTrackingEnabled);
   if (isDesktop) {
     $('#url').placeholder = t('home.url_placeholder_desktop');
@@ -90,11 +91,14 @@ function renderSettings(settings) {
   }
 }
 
-// Ghi âm chỉ có khi bật eye tracking bằng webcam.
-function renderAudioOption() {
-  $('#audioOption').hidden = !I18N.settings.eyeTrackingEnabled || !$('#eyeTracking').checked;
+// Ghi âm độc lập với webcam; ô được tick sẵn theo cài đặt "Ghi âm mặc định khi tạo phiên mới".
+// Chỉ đặt lần đầu (và khi đổi cài đặt đó), không ghi đè lựa chọn người dùng vừa tick.
+let audioDefaultApplied = false;
+function applyAudioDefault(settings, force) {
+  if (audioDefaultApplied && !force) return;
+  audioDefaultApplied = true;
+  $('#recordAudio').checked = settings.recordAudioDefault !== false;
 }
-$('#eyeTracking').addEventListener('change', renderAudioOption);
 
 document.addEventListener('i18n:change', (e) => {
   renderSettings(e.detail);
@@ -111,6 +115,10 @@ $('#openSettings').addEventListener('click', () => {
 $('#setLanguage').addEventListener('change', (e) => I18N.save({ language: e.target.value }).then(saved));
 $('#setEye').addEventListener('change', (e) => I18N.save({ eyeTrackingEnabled: e.target.checked }).then(saved));
 $('#setCamera').addEventListener('change', (e) => I18N.save({ showCamera: e.target.checked }).then(saved));
+$('#setAudioDefault').addEventListener('change', (e) => I18N.save({ recordAudioDefault: e.target.checked }).then((st) => {
+  applyAudioDefault(st || { recordAudioDefault: e.target.checked }, true);
+  saved();
+}));
 
 // API key chỉ được gửi lên server cục bộ và lưu trong settings.json; trang không bao giờ đọc lại key.
 $('#aiKeySave').addEventListener('click', async () => {
@@ -375,7 +383,7 @@ $('#startForm').addEventListener('submit', async (e) => {
       url,
       participant: $('#participant').value,
       eyeTracking: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked,
-      recordAudio: I18N.settings.eyeTrackingEnabled && $('#eyeTracking').checked && $('#recordAudio').checked,
+      recordAudio: $('#recordAudio').checked,
       scenarioId: sc,
     });
     location.href = '/__et/track.html?id=' + data.id;

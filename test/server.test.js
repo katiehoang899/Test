@@ -653,3 +653,18 @@ test('ghi chú có định dạng: chỉ giữ thẻ an toàn, lưu thêm bản 
   assert.equal(cleared.noteFormat, undefined);
   await api('DELETE', `/api/sessions/${s.id}`);
 });
+
+test('ghi âm độc lập với eye tracking; cài đặt ghi âm mặc định khi tạo phiên mới', async () => {
+  assert.equal((await api('GET', '/api/settings')).body.recordAudioDefault, true);
+  const s = (await api('POST', '/api/sessions', { url: 'https://audio.test/', eyeTracking: false, recordAudio: true })).body;
+  assert.equal(s.eyeTracking, false);
+  assert.equal(s.recordAudio, true);
+  // tắt hẳn eye tracking trong cài đặt vẫn ghi âm được
+  await api('PUT', '/api/settings', { eyeTrackingEnabled: false, recordAudioDefault: false });
+  const s2 = (await api('POST', '/api/sessions', { url: 'https://audio.test/', eyeTracking: true, recordAudio: true })).body;
+  assert.equal(s2.eyeTracking, false);
+  assert.equal(s2.recordAudio, true);
+  assert.equal((await api('GET', '/api/settings')).body.recordAudioDefault, false);
+  await api('PUT', '/api/settings', { eyeTrackingEnabled: true, recordAudioDefault: true });
+  for (const x of [s, s2]) await api('DELETE', `/api/sessions/${x.id}`);
+});

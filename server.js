@@ -196,7 +196,7 @@ async function assertPublicHost(hostname) {
 // nên origin (và localStorage) đổi sau mỗi lần mở app.
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, storageDir: '', asrModel: 'onnx-community/whisper-small' };
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
 
 /** Cài đặt gửi cho trình duyệt: không bao giờ trả lại API key, chỉ cho biết đã có key hay chưa. */
@@ -530,6 +530,7 @@ async function updateSettings(patch) {
   if (patch && LANGUAGES.includes(patch.language)) next.language = patch.language;
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
+  if (patch && typeof patch.recordAudioDefault === 'boolean') next.recordAudioDefault = patch.recordAudioDefault;
   if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
   if (patch && typeof patch.anthropicApiKey === 'string') next.anthropicApiKey = patch.anthropicApiKey.trim().slice(0, 300);
   if (patch && typeof patch.storageDir === 'string') {
@@ -1429,7 +1430,7 @@ async function handleApi(req, res, url) {
         // tắt hẳn trong Cài đặt → không phiên nào bật webcam
         eyeTracking: !!body.eyeTracking && getSettings().eyeTrackingEnabled,
         // ghi âm micro: chỉ khi phiên bật webcam
-        recordAudio: !!body.recordAudio && !!body.eyeTracking && getSettings().eyeTrackingEnabled,
+        recordAudio: !!body.recordAudio, // ghi âm độc lập với webcam / eye tracking
         createdAt: new Date().toISOString(),
         endedAt: null,
         calibration: null,

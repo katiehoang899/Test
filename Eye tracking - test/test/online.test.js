@@ -85,7 +85,7 @@ test('chưa đăng nhập: trang về /login, API 401, proxy bị chặn, file c
   assert.equal(proxied.status, 401);
   // cài đặt công khai chỉ có ngôn ngữ
   const st = (await call('GET', '/__et/api/settings')).body;
-  assert.deepEqual(Object.keys(st).sort(), ['eyeTrackingEnabled', 'language', 'showCamera']);
+  assert.deepEqual(Object.keys(st).sort(), ['eyeTrackingEnabled', 'language', 'recordAudioDefault', 'showCamera']);
 });
 
 test('đăng nhập sai bị giới hạn số lần; cookie HttpOnly', async () => {
@@ -395,4 +395,28 @@ test('hướng dẫn nhiệm vụ: có định dạng, được làm sạch, gue
   const mc = (await login('phuc.mod', mod.password)).cookie;
   assert.equal((await call('PATCH', `/__et/api/scenarios/${sc.id}`, mc, { guide: '<p><br></p><ul><li></li></ul>' })).body.guide, undefined);
   assert.equal((await call('GET', '/__et/api/guest/scenarios', gc)).body[0].guide, '');
+});
+
+test('kịch bản: ghi âm độc lập với webcam, kịch bản mới theo cài đặt ghi âm mặc định', async () => {
+  const { getAuth } = require('../server');
+  const ac = (await login('admin', getAuth().resetAdmin('admin').password)).cookie;
+  const on = (await call('POST', '/__et/api/scenarios', ac, { name: 'Audio default on', url: siteBase + '/' })).body;
+  assert.equal(on.recordAudio, true);
+  const noEye = (await call('PATCH', `/__et/api/scenarios/${on.id}`, ac, { eyeTracking: false, recordAudio: true })).body;
+  assert.equal(noEye.eyeTracking, false);
+  assert.equal(noEye.recordAudio, true);
+  // guest: phiên không webcam nhưng có ghi âm
+  const [g] = (await call('POST', '/__et/api/users', ac, { names: ['Âm'], scenarioId: on.id })).body;
+  const gc = (await login(g.user.username, g.password)).cookie;
+  const list = (await call('GET', '/__et/api/guest/scenarios', gc)).body;
+  assert.equal(list[0].recordAudio, true);
+  assert.equal(list[0].eyeTracking, false);
+  const s = (await call('POST', '/__et/api/guest/sessions', gc, { scenarioId: on.id, consent: true })).body;
+  assert.equal(s.eyeTracking, false);
+  assert.equal(s.recordAudio, true);
+  // tắt "ghi âm mặc định" → kịch bản mới không ghi âm, trừ khi chọn rõ
+  await call('PUT', '/__et/api/settings', ac, { recordAudioDefault: false });
+  assert.equal((await call('POST', '/__et/api/scenarios', ac, { name: 'Audio default off' })).body.recordAudio, false);
+  assert.equal((await call('POST', '/__et/api/scenarios', ac, { name: 'Audio explicit', recordAudio: true })).body.recordAudio, true);
+  await call('PUT', '/__et/api/settings', ac, { recordAudioDefault: true });
 });

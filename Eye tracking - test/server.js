@@ -198,7 +198,7 @@ async function assertPublicHost(hostname) {
 // nên origin (và localStorage) đổi sau mỗi lần mở app.
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, storageDir: '', asrModel: 'onnx-community/whisper-small' };
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
 
 /** Cài đặt gửi cho trình duyệt: không bao giờ trả lại API key, chỉ cho biết đã có key hay chưa. */
@@ -532,6 +532,7 @@ async function updateSettings(patch) {
   if (patch && LANGUAGES.includes(patch.language)) next.language = patch.language;
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
+  if (patch && typeof patch.recordAudioDefault === 'boolean') next.recordAudioDefault = patch.recordAudioDefault;
   if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
   if (patch && typeof patch.anthropicApiKey === 'string') next.anthropicApiKey = patch.anthropicApiKey.trim().slice(0, 300);
   if (patch && typeof patch.storageDir === 'string') {
@@ -902,7 +903,8 @@ async function handleScenarios(req, res, parts) {
       const body = await readJson(req);
       const name = str(body.name, 120)?.trim();
       if (!name) return apiError(res, 400, 'scenario_name');
-      const probe = {};
+      // kịch bản mới: ghi âm theo cài đặt "Ghi âm mặc định khi tạo phiên mới" nếu không chọn rõ
+      const probe = { recordAudio: getSettings().recordAudioDefault !== false };
       const bad = applyScenarioConfig(probe, body);
       if (bad) return apiError(res, 400, bad);
       const sc = await withGlobalLock(async () => {
@@ -1532,7 +1534,7 @@ async function handleGuest(req, res, parts) {
       instructions: sc.instructions || '',
       guide: sc.guide || '',
       eyeTracking: sc.eyeTracking !== false && getSettings().eyeTrackingEnabled,
-      recordAudio: !!sc.recordAudio && sc.eyeTracking !== false && getSettings().eyeTrackingEnabled,
+      recordAudio: !!sc.recordAudio,
       sessions: mine.filter((m) => m.scenarioId === sc.id).map((m) => ({ id: m.id, createdAt: m.createdAt, endedAt: m.endedAt, durationMs: m.durationMs })),
     })));
   }
@@ -1548,7 +1550,7 @@ async function handleGuest(req, res, parts) {
       url: sc.url,
       participant: user.name,
       eyeTracking: eye,
-      recordAudio: eye && !!sc.recordAudio,
+      recordAudio: !!sc.recordAudio,
       scenarioId: sc.id,
     }, { guestId: user.id, consentAt: new Date().toISOString() });
     if (created.error) return apiError(res, 400, created.error);
@@ -1643,7 +1645,7 @@ async function handleApi(req, res, url) {
   // ngôn ngữ cho trang đăng nhập / trang guest: chỉ phần cài đặt không nhạy cảm
   if (parts[1] === 'settings' && parts.length === 2 && req.method === 'GET' && (!user || user.role === 'guest')) {
     const st0 = getSettings();
-    return sendJson(res, 200, { language: st0.language, eyeTrackingEnabled: st0.eyeTrackingEnabled, showCamera: st0.showCamera });
+    return sendJson(res, 200, { language: st0.language, eyeTrackingEnabled: st0.eyeTrackingEnabled, showCamera: st0.showCamera, recordAudioDefault: st0.recordAudioDefault });
   }
   if (!user) return apiError(res, 401, 'login_required');
   if (parts[1] === 'account' && parts[2] === 'password' && req.method === 'POST') {
@@ -1714,7 +1716,7 @@ async function createSessionRecord(req, body, extra = {}) {
         // tắt hẳn trong Cài đặt → không phiên nào bật webcam
         eyeTracking: !!body.eyeTracking && getSettings().eyeTrackingEnabled,
         // ghi âm micro: chỉ khi phiên bật webcam
-        recordAudio: !!body.recordAudio && !!body.eyeTracking && getSettings().eyeTrackingEnabled,
+        recordAudio: !!body.recordAudio, // ghi âm độc lập với webcam / eye tracking
         createdAt: new Date().toISOString(),
         endedAt: null,
         calibration: null,
