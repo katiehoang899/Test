@@ -151,8 +151,6 @@ test('Google Maps / Street View links', () => {
   assert.equal(F.googleMapsUrl(10.73, 106.7), 'https://www.google.com/maps/search/?api=1&query=10.73%2C106.7');
   assert.equal(F.googleMapsUrl(null, null, 'Phường 1, Quận 3'), 'https://www.google.com/maps/search/?api=1&query=Ph%C6%B0%E1%BB%9Dng%201%2C%20Qu%E1%BA%ADn%203');
   assert.equal(F.googleMapsUrl(10.810488259088473, 106.70604992971748), 'https://www.google.com/maps/search/?api=1&query=10.810488%2C106.70605');
-  assert.equal(F.panoUrl('PanoAbc', 87.6), 'https://www.google.com/maps/@?api=1&map_action=pano&pano=PanoAbc&heading=88');
-  assert.equal(F.panoUrl('PanoAbc', null), 'https://www.google.com/maps/@?api=1&map_action=pano&pano=PanoAbc');
   assert.equal(F.streetViewUrl(10.73, 106.7), 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=10.73,106.7');
 });
 

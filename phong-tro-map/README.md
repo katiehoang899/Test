@@ -30,7 +30,6 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - 🟢 ghim xanh: tin có toạ độ do người đăng chọn.
   - ⚪ ghim xám: tin **không có toạ độ** được đặt **gần đúng** theo phường (hoặc quận nếu không tìm thấy phường), dùng geocode của OpenStreetMap Nominatim. Có thể tắt bằng ô *Định vị gần đúng tin thiếu toạ độ*.
 - **Google Maps / Street View**: popup của mỗi tin có nút *📍 Google Maps* (mở Google Maps tại vị trí tin) và *🚶 Street View* (mở thẳng khung Street View ở đó). Click vào **bất kỳ điểm nào** trên bản đồ cũng hiện toạ độ và hai nút này. Với tin vị trí gần đúng, Google Maps tìm theo địa chỉ của tin, còn Street View mở ở khu vực phường.
-- **Xem trước Street View ngay trong popup** (tin có toạ độ): ô ảnh nhỏ hiện ảnh Street View mới nhất gần vị trí tin, kèm **ngày chụp** (ví dụ *📷 Tháng 11/2024*) và khoảng cách từ chỗ chụp tới vị trí tin. Camera tự quay về phía vị trí tin. Bấm vào ảnh để mở đúng ảnh đó trên Google Maps. Tính năng này cần Google Maps API key (xem bên dưới). Chưa có key thì popup hiện ô để dán key vào.
 - **♥ Yêu thích**: bấm *♡ Yêu thích* trên tin (trong danh sách hoặc popup bản đồ) để lưu lại. Nút **♥ Đã lưu** trên header mở tab *Yêu thích*: xem lại các tin đã lưu trên danh sách và bản đồ. Tool lưu kèm nội dung tin, nên vẫn xem được khi tin đã bị gỡ khỏi Nhà Tốt.
 - **✓ Không phù hợp**: tin đã xem mà không ưng thì bấm *✓ Không phù hợp*, tin sẽ bị ẩn khỏi kết quả từ đó về sau. Tắt ô **Ẩn tin đã đánh dấu** trên thanh lọc để hiện lại các tin này (làm mờ, có nhãn *Đã đánh dấu không phù hợp*). Tab *Đã ẩn* trong **♥ Đã lưu** liệt kê các tin đã ẩn, với nút *↺ Bỏ ẩn* cho từng tin và *Bỏ ẩn tất cả*.
   - Tin yêu thích và tin đã ẩn được lưu trên máy, trong file `saved.json` ở thư mục dữ liệu (bản web: `phong-tro-map/data/`, app: `~/Library/Application Support/Phong Tro Map/`). Tắt / mở lại tool vẫn còn, và dùng chung giữa các trình duyệt trên cùng máy.
@@ -95,7 +94,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 
 1. Chọn **Tp Hồ Chí Minh** (hoặc tỉnh khác) → **Quận / huyện** → tick vài quận → **Áp dụng**.
 2. Chọn **Giá thuê**, bật **Loại tin sale trọ**, thêm **Loại trừ từ khoá** nếu cần.
-3. Bấm một tin trong danh sách: bản đồ bay tới ghim của tin đó. Popup có ảnh Street View (cần API key, xem bên dưới) và nút **Google Maps / Street View**.
+3. Bấm một tin trong danh sách: bản đồ bay tới ghim của tin đó. Popup có nút **Google Maps / Street View**.
 4. Bấm **Tải tất cả** để lấy hết tin theo bộ lọc.
 
 ### Tắt
@@ -112,7 +111,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 | Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều (có thông báo trên bản đồ), hoặc tự đổi ở nút **🗺** góc trái bản đồ. Nếu cả hai đều trống: mạng công ty / VPN đang chặn, hoặc không vào được `cdnjs.cloudflare.com` |
 | Danh sách khu vực chỉ có vài tỉnh | API khu vực của Chợ Tốt không trả về; tool tự lấy tên tỉnh / quận từ các tin đã tải, càng tải nhiều càng đủ |
 
-Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, kể cả ô nhập API key).
+Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, xem và sửa được tin đã lưu, điểm ngập, điểm đỗ xe).
 
 Biến môi trường (không bắt buộc):
 
@@ -124,23 +123,13 @@ Biến môi trường (không bắt buộc):
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Dịch vụ geocode cho tin thiếu toạ độ |
 | `DATA_DIR` | `./data` | Nơi lưu cache geocode (`geocode-cache.json`) |
 
-| `GOOGLE_MAPS_API_KEY` | (trống) | Key cho ô xem trước Street View. Cũng có thể dán key ngay trong popup trên bản đồ, key được lưu ở `DATA_DIR/config.json` |
 | `OSRM_URL` | `https://router.project-osrm.org` | Dịch vụ chỉ đường để vẽ đoạn ngập A–B theo đường phố |
 
 Chạy test: `npm test`.
 
-### Lấy Google Maps API key (cho ô xem trước Street View)
-
-1. Vào [Google Cloud Console](https://console.cloud.google.com/), tạo project (cần gắn tài khoản thanh toán, Google có hạn mức dùng miễn phí hằng tháng).
-2. *APIs & Services → Library*, bật **Street View Static API**.
-3. *APIs & Services → Credentials → Create credentials → API key*. Nên giới hạn key chỉ dùng cho *Street View Static API*.
-4. Mở một ghim trên bản đồ, dán key vào ô trong popup rồi bấm **Lưu** (hoặc chạy với `GOOGLE_MAPS_API_KEY=… npm start`).
-
-Mỗi lần mở popup tốn 1 lượt tra metadata (Google không tính phí) và 1 lượt tải ảnh. Ảnh được lưu trong `DATA_DIR/streetview`, nên mở lại tin cũ không tốn thêm lượt. Key chỉ nằm trên server, trang web không đọc được. Không có key thì hai nút *Google Maps / Street View* vẫn dùng bình thường.
-
 ## Ứng dụng macOS (.dmg)
 
-Phòng trọ Map cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, API key, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
+Phòng trọ Map cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, điểm ngập, điểm đỗ xe, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
 
 **Tải bản build sẵn:** GitHub Actions (workflow *Build Phòng trọ Map (.dmg)*) build file `.dmg` trên máy macOS khi bấm *Actions → Build Phòng trọ Map (.dmg) → Run workflow*, hoặc khi `phong-tro-map/package.json` thay đổi (ví dụ tăng `version`). File nằm ở mục **Artifacts** cuối trang của lần chạy (tải về là file `.zip`, giải nén ra `.dmg`):
 

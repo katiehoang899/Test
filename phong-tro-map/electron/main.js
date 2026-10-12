@@ -6,7 +6,7 @@
 const path = require('node:path');
 const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
 
-// Cache geocode, ảnh Street View và API key lưu trong thư mục dữ liệu của app
+// Cache geocode, tin đã lưu, điểm ngập / đỗ xe lưu trong thư mục dữ liệu của app
 // (macOS: ~/Library/Application Support/Phong Tro Map).
 process.env.DATA_DIR = process.env.DATA_DIR || app.getPath('userData');
 
@@ -81,7 +81,7 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(isMac ? [{ role: 'appMenu' }] : []),
     { role: 'fileMenu' },
-    { role: 'editMenu' }, // cần cho Copy / Paste (vd. dán Google Maps API key)
+    { role: 'editMenu' }, // cần cho Copy / Paste (vd. ô tìm kiếm, ghi chú)
     {
       label: 'Xem',
       submenu: [
