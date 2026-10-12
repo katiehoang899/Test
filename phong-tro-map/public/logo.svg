@@ -1,1 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#0f8f7e" d="M16 2a10 10 0 0 0-10 10c0 7.5 10 18 10 18s10-10.5 10-18A10 10 0 0 0 16 2z"/><path fill="#fff" d="M16 7.5l-6 5v6.5h4v-4h4v4h4v-6.5z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2=".45" y2="1">
+      <stop offset="0" stop-color="#25b8a2"/>
+      <stop offset="1" stop-color="#0a6b5e"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="1" stop-color="#e6f4f1"/>
+    </linearGradient>
+    <clipPath id="tile"><rect width="64" height="64" rx="15"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
+  <!-- đường phố mờ phía sau -->
+  <g clip-path="url(#tile)" fill="none" stroke="#fff" stroke-opacity=".17" stroke-width="3.2" stroke-linecap="round">
+    <path d="M-2 24 66 17M-2 45 66 51M21-2 26 66M44-2 39 66"/>
+  </g>
+  <!-- bóng của ghim -->
+  <ellipse cx="32" cy="55.5" rx="8" ry="2.2" fill="#063f37" opacity=".35"/>
+  <!-- ghim định vị + ngôi nhà -->
+  <path d="M32 8.5c-9.7 0-17.5 7.6-17.5 17C14.5 38.3 32 55 32 55s17.5-16.7 17.5-29.5c0-9.4-7.8-17-17.5-17z" fill="url(#pin)"/>
+  <path d="M32 16.2 22.6 24v11.4h6.6v-7.1h5.6v7.1h6.6V24z" fill="#0f8f7e"/>
+</svg>
