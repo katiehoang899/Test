@@ -90,6 +90,14 @@ button, input, select { font: inherit; color: inherit; }
 }
 .presets button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .range { display: flex; gap: 8px; margin-top: 12px; }
+.pop-group { font-weight: 700; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin: 2px 0 8px; }
+.posted-body { width: 340px; }
+.posted-body .pop-actions { margin-top: 10px; }
+.posted-body .pop-group:not(:first-child) { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.posted-body .range.hours input { width: 56px; flex: none; }
+.posted-body .range.hours label:first-child { flex: none; }
+.posted-body .range.dates { flex-direction: column; gap: 6px; }
+.posted-body .range.dates label { display: grid; grid-template-columns: 64px 1fr; }
 .range label { flex: 1; display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
 .range input { width: 100%; min-width: 0; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
 .pop-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
@@ -138,7 +146,10 @@ button.link { border: 0; background: none; color: var(--accent); cursor: pointer
 /* ---------- bố cục ---------- */
 .main { flex: 1; display: grid; grid-template-columns: minmax(360px, 44%) minmax(0, 1fr); min-height: 0; }
 .list { overflow-y: auto; padding: 4px 12px 16px 16px; }
-.map-wrap { position: relative; min-height: 300px; overflow: hidden; } /* kể cả khi CSS của Leaflet không tải được */
+.map-wrap {
+  position: relative; min-height: 300px; overflow: hidden; /* kể cả khi CSS của Leaflet không tải được */
+  isolation: isolate; z-index: 0; /* nút / thông báo trên bản đồ không đè lên popup bộ lọc */
+}
 #map { position: absolute; inset: 0; }
 body[data-view="list"] .main { grid-template-columns: minmax(0, 1fr); }
 body[data-view="list"] .map-wrap { display: none; }

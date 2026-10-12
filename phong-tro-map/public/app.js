@@ -18,7 +18,7 @@ const el = {
   areaLabel: $('#areaLabel'), wardLabel: $('#wardLabel'),
   f: $('#f'), sort: $('#sort'), reset: $('#reset'),
   priceMin: $('#priceMin'), priceMax: $('#priceMax'), sizeMin: $('#sizeMin'), sizeMax: $('#sizeMax'),
-  priceLabel: $('#priceLabel'), sizeLabel: $('#sizeLabel'), furnLabel: $('#furnLabel'),
+  priceLabel: $('#priceLabel'), sizeLabel: $('#sizeLabel'), postedLabel: $('#postedLabel'), furnLabel: $('#furnLabel'),
   count: $('#count'), list: $('#list'), loadAll: $('#loadAll'), inBounds: $('#inBounds'), approx: $('#approx'),
   nqLabel: $('#nqLabel'), nqChips: $('#nqChips'), nqInput: $('#nqInput'), nqAdd: $('#nqAdd'), nqSuggest: $('#nqSuggest'),
   nosale: $('#nosale'), showHidden: $('#showHidden'), showHiddenWrap: $('#showHiddenWrap'),
@@ -611,7 +611,8 @@ el.list.addEventListener('click', async (e) => {
 function maybeAutoFill() {
   if (savedView || store.done || store.loading || store.error || loadingAll || el.inBounds.checked) return;
   if (visible.length >= AUTO_FILL_MIN || autoPages >= AUTO_FILL_PAGES) return;
-  if (!hiddenTotal()) return;
+  // Chỉ khi bộ lọc trên trình duyệt (loại trừ, thời gian đăng…) đã bỏ bớt tin đã tải.
+  if (!hiddenTotal() && visible.length >= store.ads.size) return;
   autoPages++;
   loadPage();
 }
@@ -710,6 +711,11 @@ async function loadPage() {
         rememberPlaces(ad);
       }
       if (!data.ads.length || s.offset >= s.total) s.done = true;
+      // Đang xếp tin mới nhất + lọc thời gian đăng: tin cuối trang (cũ nhất, tin đẩy lên đầu nằm
+      // ở đầu trang) đã cũ hơn khoảng chọn thì các trang sau còn cũ hơn, không cần tải tiếp.
+      const posted = Filters.postedRange(state.posted);
+      const last = data.ads[data.ads.length - 1];
+      if (posted && !state.sort && last && last.time != null && last.time < posted.from) s.done = true;
       queueGeocode(data.ads);
     });
     store.total = store.sources.reduce((n, s) => n + s.total, 0);
@@ -973,6 +979,8 @@ function syncForm() {
   el.sizeMax.value = sz.max ?? '';
   el.priceLabel.textContent = Filters.rangeLabel(state.price);
   el.sizeLabel.textContent = Filters.rangeLabel(state.size, 'm2');
+  el.postedLabel.textContent = Filters.postedLabel(state.posted);
+  syncPostedInputs();
   document.querySelectorAll('input[name="furnishing_rent"]').forEach((c) => { c.checked = state.furnishing_rent.includes(c.value); });
   const n = state.furnishing_rent.length;
   el.furnLabel.textContent = n ? `${n} mục` : '';
@@ -1048,6 +1056,49 @@ el.nqChips.addEventListener('click', (e) => {
 el.nosale.addEventListener('change', () => updateLocal({ nosale: el.nosale.checked ? '1' : '' }));
 el.hidemarked.addEventListener('change', () => updateLocal({ hidemarked: el.hidemarked.checked ? '1' : '0' }));
 
+// ---------- thời gian đăng ----------
+
+const postedInputs = {
+  hFrom: $('#postedHFrom'), hTo: $('#postedHTo'), dFrom: $('#postedDFrom'), dTo: $('#postedDTo'),
+};
+
+function isoDate(t) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
+}
+
+// Điền các ô tự nhập theo bộ lọc đang chọn; ngày mặc định là hôm nay để chọn nhanh.
+function syncPostedInputs() {
+  const p = state.posted || '';
+  const h = /^h(\d+)(?:-(\d+))?$/.exec(p);
+  postedInputs.hFrom.value = h ? (h[2] != null ? Math.min(h[1], h[2]) : 0) : '';
+  postedInputs.hTo.value = h ? (h[2] != null ? Math.max(h[1], h[2]) : h[1]) : '';
+  const d = /^(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2})$/.exec(p);
+  const today = isoDate(new Date());
+  postedInputs.dFrom.value = d ? d[1] : today;
+  postedInputs.dTo.value = d ? d[2] : today;
+  postedInputs.dFrom.max = today;
+  postedInputs.dTo.max = today;
+}
+
+// Giá trị bộ lọc từ các ô tự nhập; null nếu chưa nhập đủ / sai (ô sai được đánh dấu).
+function postedFromInputs(kind) {
+  if (kind === 'h') {
+    const a = Math.round(Number(postedInputs.hFrom.value || 0));
+    const b = Math.round(Number(postedInputs.hTo.value));
+    const ok = Number.isFinite(b) && b > 0 && a >= 0 && a !== b;
+    postedInputs.hTo.setCustomValidity(ok ? '' : 'Nhập số giờ lớn hơn ô "Từ"');
+    if (!ok) return postedInputs.hTo.reportValidity(), null;
+    const [lo, hi] = [a, b].sort((x, y) => x - y);
+    return lo === 0 ? `h${hi}` : `h${lo}-${hi}`;
+  }
+  const a = postedInputs.dFrom.value;
+  const b = postedInputs.dTo.value || a;
+  if (!a) return postedInputs.dFrom.reportValidity(), null;
+  const posted = a <= b ? `${a}~${b}` : `${b}~${a}`;
+  return Filters.postedRange(posted) ? posted : null;
+}
+
 function update(patch) {
   Object.assign(state, patch);
   syncForm();
@@ -1080,6 +1131,13 @@ el.form.addEventListener('click', (e) => {
     const key = preset.parentElement.dataset.target;
     preset.closest('details').open = false;
     return update({ [key]: state[key] === preset.dataset.v ? '' : preset.dataset.v });
+  }
+  const applyPosted = e.target.closest('[data-apply-posted]');
+  if (applyPosted) {
+    const posted = postedFromInputs(applyPosted.dataset.applyPosted);
+    if (posted === null) return;
+    applyPosted.closest('details').open = false;
+    return update({ posted });
   }
   const apply = e.target.closest('[data-apply]');
   if (apply) {

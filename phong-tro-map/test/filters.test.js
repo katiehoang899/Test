@@ -185,3 +185,40 @@ test('distance helpers', () => {
   assert.equal(F.formatDistance(345.6), '346 m');
   assert.equal(F.formatDistance(2224), '2,2 km');
 });
+
+test('posted time filter: hours, days, date range', () => {
+  const now = new Date(2026, 9, 12, 12, 0).getTime(); // 12/10/2026 12:00 giờ máy
+  const H = 3600 * 1000;
+  const r = (p) => F.postedRange(p, now);
+  assert.deepEqual(r('h4'), { from: now - 4 * H, to: now });
+  assert.deepEqual(r('h2-6'), { from: now - 6 * H, to: now - 2 * H });
+  assert.deepEqual(r('h6-2'), r('h2-6'), 'đảo ngược vẫn đúng');
+  assert.deepEqual(r('d2'), { from: now - 48 * H, to: now });
+  const days = r('2026-10-05~2026-10-01');
+  assert.equal(days.from, new Date(2026, 9, 1).getTime(), 'từ 0:00 ngày sớm hơn');
+  assert.equal(days.to, new Date(2026, 9, 6).getTime() - 1, 'tới hết ngày muộn hơn');
+  for (const bad of ['', 'h0', 'd0', 'x', '2026-02-31~2026-03-01', '2026-13-01~2026-10-01']) assert.equal(r(bad), null, bad);
+
+  assert.equal(F.postedLabel('h4'), 'Trong 4 giờ');
+  assert.equal(F.postedLabel('h2-6'), '2–6 giờ trước');
+  assert.equal(F.postedLabel('d1'), 'Trong 1 ngày');
+  assert.equal(F.postedLabel('2025-12-30~2026-01-02'), '30/12/2025 – 2/1/2026');
+  assert.equal(F.postedLabel('2026-02-31~2026-03-01'), '');
+
+  const st = F.stateFromSearch('?posted=h8');
+  assert.equal(st.posted, 'h8');
+  assert.equal(F.stateToSearch(st), '?posted=h8');
+  assert.equal(F.stateFromSearch('?posted=yesterday').posted, '');
+  assert.equal(F.toApiParams(st, 0, 50).has('posted'), false, 'API Nhà Tốt không có tham số này');
+
+  const ad = (hoursAgo) => ({ title: '', price: 1, size: 1, time: Date.now() - hoursAgo * H });
+  const s = (posted) => ({ ...F.emptyState(), posted });
+  assert.ok(F.matches(ad(3), s('h4')));
+  assert.ok(!F.matches(ad(5), s('h4')));
+  assert.ok(F.matches(ad(3), s('h2-6')));
+  assert.ok(!F.matches(ad(1), s('h2-6')));
+  assert.ok(F.matches(ad(30), s('d2')));
+  assert.ok(!F.matches(ad(50), s('d2')));
+  assert.ok(!F.matches({ title: '', price: 1, size: 1, time: null }, s('d2')), 'không rõ giờ đăng');
+  assert.ok(F.matches({ title: '', price: 1, size: 1, time: null }, s('')));
+});

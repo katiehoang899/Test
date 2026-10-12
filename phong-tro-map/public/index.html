@@ -101,6 +101,33 @@
       </div>
     </details>
 
+    <details class="pop" id="postedPop">
+      <summary><span>Thời gian đăng</span> <b id="postedLabel"></b></summary>
+      <div class="pop-body posted-body">
+        <div class="pop-group">Theo giờ</div>
+        <div class="presets" data-target="posted">
+          <button type="button" data-v="h4">Trong 4 giờ</button>
+          <button type="button" data-v="h8">Trong 8 giờ</button>
+        </div>
+        <div class="range hours">
+          <label>Từ <input type="number" id="postedHFrom" min="0" max="999" step="1" inputmode="numeric"></label>
+          <label>đến <input type="number" id="postedHTo" min="1" max="999" step="1" inputmode="numeric"> giờ trước</label>
+        </div>
+        <div class="pop-actions"><button type="button" data-apply-posted="h" class="primary">Áp dụng</button></div>
+
+        <div class="pop-group">Theo ngày</div>
+        <div class="presets" data-target="posted">
+          <button type="button" data-v="d1">Trong 1 ngày</button>
+          <button type="button" data-v="d2">Trong 2 ngày</button>
+        </div>
+        <div class="range dates">
+          <label>Từ ngày <input type="date" id="postedDFrom"></label>
+          <label>Đến ngày <input type="date" id="postedDTo"></label>
+        </div>
+        <div class="pop-actions"><button type="button" data-clear="posted">Xoá</button><button type="button" data-apply-posted="d" class="primary">Áp dụng</button></div>
+      </div>
+    </details>
+
     <details class="pop" id="furnPop">
       <summary><span>Nội thất</span> <b id="furnLabel"></b></summary>
       <div class="pop-body checks">

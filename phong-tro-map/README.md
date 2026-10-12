@@ -11,10 +11,12 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   | Tỉnh / thành → Quận / huyện → Phường / xã (**chọn nhiều** quận và phường) | `region_v2`, `area_v2`, `ward` |
   | Giá thuê (mốc có sẵn hoặc tự nhập, đơn vị triệu) | `price=min-max` |
   | Diện tích (mốc có sẵn hoặc tự nhập, m²) | `size=min-max` |
+  | Thời gian đăng: trong 4 / 8 giờ, từ X đến Y giờ trước, trong 1 / 2 ngày, từ ngày… đến ngày… | `posted` (lọc trên trình duyệt) |
   | Tình trạng nội thất (chọn nhiều) | `furnishing_rent=1,2,…` |
   | Đăng bởi: Cá nhân / Môi giới | `f=p` / `f=c` |
   | Từ khoá | `q` |
   | Sắp xếp: mới nhất, giá tăng / giảm, diện tích, giá / m² | `sp` + sắp xếp lại trên trình duyệt |
+- **Thời gian đăng**: *Theo giờ* (Trong 4 giờ, Trong 8 giờ, hoặc tự nhập "từ X đến Y giờ trước") và *Theo ngày* (Trong 1 ngày, Trong 2 ngày, hoặc chọn từ ngày… đến ngày… trên lịch). API Nhà Tốt không có tham số này nên tool lọc theo giờ đăng của từng tin. Khi đang xếp *Tin mới nhất*, tool tự tải thêm cho đủ tin và dừng ngay khi các trang sau chỉ còn tin cũ hơn khoảng đã chọn.
 - **Chọn nhiều quận / phường**: tick nhiều quận trong *Quận / huyện* (có ô tìm nhanh), rồi bấm *Áp dụng* hoặc bấm ra ngoài. *Phường / xã* liệt kê phường theo từng quận đã chọn. Quận nào có tick phường thì chỉ lấy các phường đó, quận nào không tick phường thì lấy cả quận. API Nhà Tốt chỉ nhận một quận / phường mỗi lần, nên tool gọi riêng cho từng nơi (tối đa 4 nơi song song) rồi gộp kết quả.
 - **Loại trừ từ khoá** (`nq`): nhập các từ khoá cách nhau bằng dấu phẩy, ví dụ `Giá từ 5, ở ghép`. Tin có chứa một trong các từ khoá đó (trong tiêu đề hoặc nội dung, không phân biệt hoa thường hay có dấu) sẽ bị ẩn. Có sẵn gợi ý: *giá từ, chỉ từ, ở ghép, ký túc xá, sleepbox, chung chủ*.
 - **Loại tin sale trọ** (`nosale=1`): ẩn tin của người dẫn khách, tức là một tin đăng cho nhiều phòng. Tin bị coi là sale nếu nội dung có:

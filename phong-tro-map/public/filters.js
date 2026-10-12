@@ -6,14 +6,16 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Filters = api;
 })(typeof self !== 'undefined' ? self : this, function () {
-  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale', 'hidemarked'];
+  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'posted', 'furnishing_rent', 'f', 'sort', 'nq', 'nosale', 'hidemarked'];
 
   // area_v2: danh sách mã quận / huyện (chọn nhiều).
   // ward: danh sách "mãQuận:mãPhường" (chọn nhiều, nhớ phường thuộc quận nào).
   // nq: từ khoá loại trừ (cách nhau bằng dấu phẩy), nosale = '1': ẩn tin sale trọ.
+  // posted: thời gian đăng, xem postedRange (h4 = trong 4 giờ, h2-6 = 2–6 giờ trước,
+  // d1 = trong 1 ngày, 2026-10-01~2026-10-05 = từ ngày đến ngày).
   // hidemarked = '1': ẩn tin bạn đã đánh dấu "không phù hợp" ('0' để hiện lại).
   // Các bộ lọc nq / nosale / hidemarked chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
-  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '', hidemarked: '1' };
+  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', posted: '', furnishing_rent: [], f: '', sort: '', nq: '', nosale: '', hidemarked: '1' };
   const LIST_FIELDS = ['area_v2', 'ward', 'furnishing_rent'];
   const LIST_RE = { area_v2: /^\d{1,10}$/, ward: /^\d{1,10}:\d{1,10}$/, furnishing_rent: /^\d+$/ };
 
@@ -90,6 +92,7 @@
     if (!['', 'p', 'c'].includes(s.f)) s.f = '';
     s.nosale = s.nosale === '1' ? '1' : '';
     s.hidemarked = s.hidemarked === '0' ? '0' : '1';
+    if (!postedRange(s.posted)) s.posted = '';
     return s;
   }
 
@@ -126,7 +129,7 @@
   // Tham số gửi lên /api/ads (cùng tên với tham số trên URL nhatot.com) cho một nguồn.
   function toApiParams(state, offset, limit, source = {}) {
     const p = new URLSearchParams();
-    for (const k of ['q', 'st', 'region_v2', 'price', 'size', 'f']) {
+    for (const k of ['q', 'st', 'region_v2', 'price', 'size', 'f']) { // posted lọc trên trình duyệt
       if (state[k]) p.set(k, state[k]);
     }
     if (source.area_v2) p.set('area_v2', source.area_v2);
@@ -136,6 +139,64 @@
     p.set('o', String(offset || 0));
     p.set('limit', String(limit || 50));
     return p;
+  }
+
+  // ---------- thời gian đăng ----------
+
+  const HOUR = 3600 * 1000;
+  const DAY = 24 * HOUR;
+  const POSTED_RE = /^(?:h(\d{1,3})(?:-(\d{1,3}))?|d(\d{1,2})|(\d{4})-(\d{2})-(\d{2})~(\d{4})-(\d{2})-(\d{2}))$/;
+
+  // Khoảng thời gian đăng { from, to } (ms) của bộ lọc, hoặc null nếu không lọc / sai định dạng.
+  function postedRange(posted, now = Date.now()) {
+    const m = POSTED_RE.exec(String(posted || ''));
+    if (!m) return null;
+    if (m[1]) {
+      const a = Number(m[1]);
+      if (m[2] == null) return a > 0 ? { from: now - a * HOUR, to: now } : null;
+      const lo = Math.min(a, Number(m[2]));
+      const hi = Math.max(a, Number(m[2]));
+      return hi > 0 ? { from: now - hi * HOUR, to: now - lo * HOUR } : null;
+    }
+    if (m[3]) return Number(m[3]) > 0 ? { from: now - Number(m[3]) * DAY, to: now } : null;
+    // Theo ngày (giờ máy): từ 0:00 ngày sớm hơn tới hết ngày muộn hơn.
+    const days = postedDays(m);
+    if (!days) return null;
+    const [a, b] = days;
+    return { from: a.getTime(), to: new Date(b.getFullYear(), b.getMonth(), b.getDate() + 1).getTime() - 1 };
+  }
+
+  // Ngày hợp lệ (vd. không có 31/2), hoặc null.
+  function localDate(y, mo, d) {
+    const t = new Date(y, mo - 1, d);
+    return t.getFullYear() === y && t.getMonth() === mo - 1 && t.getDate() === d ? t : null;
+  }
+
+  // Hai ngày của khoảng "từ ngày đến ngày", ngày sớm hơn đứng trước.
+  function postedDays(m) {
+    const a = localDate(+m[4], +m[5], +m[6]);
+    const b = localDate(+m[7], +m[8], +m[9]);
+    if (!a || !b) return null;
+    return a <= b ? [a, b] : [b, a];
+  }
+
+  function ddmm(t, withYear) {
+    return `${t.getDate()}/${t.getMonth() + 1}${withYear ? '/' + t.getFullYear() : ''}`;
+  }
+
+  function postedLabel(posted) {
+    const m = POSTED_RE.exec(String(posted || ''));
+    if (!m || !postedRange(posted)) return '';
+    if (m[1] && m[2] == null) return `Trong ${Number(m[1])} giờ`;
+    if (m[1]) {
+      const [lo, hi] = [Number(m[1]), Number(m[2])].sort((x, y) => x - y);
+      return lo === 0 ? `Trong ${hi} giờ` : `${lo}–${hi} giờ trước`;
+    }
+    if (m[3]) return `Trong ${Number(m[3])} ngày`;
+    const [a, b] = postedDays(m);
+    const thisYear = new Date().getFullYear();
+    const withYear = a.getFullYear() !== thisYear || b.getFullYear() !== thisYear;
+    return a.getTime() === b.getTime() ? ddmm(a, withYear) : `${ddmm(a, withYear)} – ${ddmm(b, withYear)}`;
   }
 
   function inRange(v, s) {
@@ -150,6 +211,8 @@
   function matches(ad, state) {
     if (!inRange(ad.price, state.price)) return false;
     if (!inRange(ad.size, state.size)) return false;
+    const posted = postedRange(state.posted);
+    if (posted && (ad.time == null || ad.time < posted.from || ad.time > posted.to)) return false;
     if (state.region_v2 && ad.regionId != null && String(ad.regionId) !== String(state.region_v2)) return false;
     const areas = state.area_v2 || [];
     if (areas.length && ad.areaId != null && !areas.includes(String(ad.areaId))) return false;
@@ -375,6 +438,7 @@
     stateFromSearch, stateToSearch, toApiParams, matches, sortAds, geoQueries,
     wardsOfArea, locationSources, googleMapsUrl, streetViewUrl,
     meters, pathLength, formatDistance,
+    postedRange, postedLabel,
     normalizePhone, extractPhones, formatPhone, zaloUrl,
     splitKeywords, joinKeywords, excludedKeyword, saleReasons, hiddenReason,
   };
