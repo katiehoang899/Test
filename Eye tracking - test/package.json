@@ -1,7 +1,7 @@
 {
   "name": "heatmap-online",
   "version": "1.0.0",
-  "author": "Katie Hoang Design",
+  "author": "Katie Design",
   "private": true,
   "description": "Heatmap online: admin dashboard and guest accounts for remote participants (based on Heatmap 4.1.0)",
   "license": "GPL-3.0-or-later",
