@@ -17,11 +17,12 @@ const USER_LAYERS = [
     lineTitle: 'Đoạn ngập',
     notePlaceholder: 'vd. ngập ~30 cm khi mưa lớn',
     zIndex: 450,
+    color: '#d92d2d', // mọi điểm / đoạn ngập màu đỏ; mức độ ngập ghi trong chữ (tooltip, popup, danh sách)
     levels: [
-      { id: 'frequent', label: 'Thường xuyên', color: '#d13b3b' },
-      { id: 'medium', label: 'Vừa', color: '#ec9f5b' },
-      { id: 'light', label: 'Nhẹ', color: '#efd25f' },
-      { id: 'unknown', label: 'Chưa phân loại', color: '#959ca6' },
+      { id: 'frequent', label: 'Thường xuyên' },
+      { id: 'medium', label: 'Vừa' },
+      { id: 'light', label: 'Nhẹ' },
+      { id: 'unknown', label: 'Chưa phân loại' },
     ],
   },
   {
@@ -34,13 +35,14 @@ const USER_LAYERS = [
     lineTitle: 'Đoạn đỗ xe hơi',
     notePlaceholder: 'vd. đỗ được sau 18h, 30k/lượt',
     zIndex: 460,
-    badge: 'P', // điểm vẽ dạng biển "P" xanh dương (chấm màu ở góc là loại chỗ đỗ)
+    color: '#1f9a4a', // mọi biển P / đoạn đỗ xe màu xanh lá; loại chỗ đỗ ghi trong chữ
+    badge: 'P', // điểm vẽ dạng biển "P"
     dash: '12 8', // đoạn A–B vẽ nét đứt để phân biệt với đoạn ngập
     levels: [
-      { id: 'free', label: 'Miễn phí', color: '#2e9d58' },
-      { id: 'paid', label: 'Có thu phí', color: '#e8871e' },
-      { id: 'limited', label: 'Giới hạn giờ', color: '#8e5bd0' },
-      { id: 'unknown', label: 'Chưa phân loại', color: '#959ca6' },
+      { id: 'free', label: 'Miễn phí' },
+      { id: 'paid', label: 'Có thu phí' },
+      { id: 'limited', label: 'Giới hạn giờ' },
+      { id: 'unknown', label: 'Chưa phân loại' },
     ],
   },
 ];
@@ -172,7 +174,7 @@ function createUserLayer(cfg) {
       add({ type: 'point', coords: p });
     } else if (!st.a) {
       st.a = p;
-      L.circleMarker(p, { ...VECTOR, radius: 7, color: '#fff', weight: 2, fillColor: levelOf(st.level).color, fillOpacity: 1 })
+      L.circleMarker(p, { ...VECTOR, radius: 7, color: '#fff', weight: 2, fillColor: cfg.color, fillOpacity: 1 })
         .bindTooltip('A', { permanent: true, direction: 'top', className: 'ul-ab' })
         .addTo(draft);
       hint('Bấm điểm B (cuối đoạn). Esc để huỷ.');
@@ -220,7 +222,7 @@ function createUserLayer(cfg) {
     const center = isLine ? f.path[Math.floor(f.path.length / 2)] : f.coords;
     const title = isLine ? `${cfg.lineTitle} · ${Filters.formatDistance(Filters.pathLength(f.path))}` : cfg.pointTitle;
     return `<div class="popup ul-pop" data-ul-item="${esc(f.id)}" data-ul-layer="${cfg.key}">
-      <div class="up-title"><i style="background:${levelOf(f.level).color}"></i> ${icon(cfg.icon)} ${esc(title)}</div>
+      <div class="up-title"><i style="background:${cfg.color}"></i> ${icon(cfg.icon)} ${esc(title)}</div>
       <label>${esc(cfg.legend)}
         <select data-ul-level>${cfg.levels.map((l) => `<option value="${l.id}"${l.id === f.level ? ' selected' : ''}>${esc(l.label)}</option>`).join('')}</select>
       </label>
@@ -234,13 +236,13 @@ function createUserLayer(cfg) {
     </div>`;
   }
 
-  function pointLayer(f, color) {
+  function pointLayer(f) {
     if (!cfg.badge) {
-      return L.circleMarker(f.coords, { ...VECTOR, bubblingMouseEvents: false, radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 });
+      return L.circleMarker(f.coords, { ...VECTOR, bubblingMouseEvents: false, radius: 9, color: '#fff', weight: 2, fillColor: cfg.color, fillOpacity: 0.95 });
     }
     const badgeIcon = L.divIcon({
       className: 'ul-badge',
-      html: `<span>${esc(cfg.badge)}<i style="background:${color}"></i></span>`,
+      html: `<span style="background:${cfg.color}">${esc(cfg.badge)}</span>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12],
       popupAnchor: [0, -12],
@@ -251,11 +253,10 @@ function createUserLayer(cfg) {
   function render() {
     group.clearLayers();
     for (const f of st.items) {
-      const color = levelOf(f.level).color;
       const isLine = f.type === 'line';
       const layer = isLine
-        ? L.polyline(f.path, { ...VECTOR, color, weight: 7, opacity: 0.85, dashArray: cfg.dash, lineCap: 'round', lineJoin: 'round', bubblingMouseEvents: false })
-        : pointLayer(f, color);
+        ? L.polyline(f.path, { ...VECTOR, color: cfg.color, weight: 7, opacity: 0.85, dashArray: cfg.dash, lineCap: 'round', lineJoin: 'round', bubblingMouseEvents: false })
+        : pointLayer(f);
       layer.itemId = f.id;
       layer.bindPopup(() => popupHtml(f), { minWidth: 220 });
       // Rê chuột: hiện tên lớp, mức độ / loại, ghi chú; làm nổi chấm / đường đang trỏ.
@@ -310,7 +311,7 @@ function renderLayerList() {
     const isLine = f.type === 'line';
     const kind = isLine ? `Đoạn A–B · ${Filters.formatDistance(Filters.pathLength(f.path))}` : 'Điểm';
     return `<li class="ul-row" data-ul-item="${esc(f.id)}" data-ul-layer="${cfg.key}">
-      <i class="ul-dot" style="background:${layer.levelOf(f.level).color}"></i>
+      <i class="ul-dot" style="background:${cfg.color}"></i>
       <div class="ul-row-main">
         <div class="ul-row-title">${icon(isLine ? 'route' : 'pin')} <span>${esc(kind)}</span>${f.at ? `<span class="ul-row-time">${esc(shortTime(f.at))}</span>` : ''}</div>
         <div class="ul-row-fields">
