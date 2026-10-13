@@ -15,6 +15,11 @@ const GATEWAY = (process.env.CHOTOT_GATEWAY || 'https://gateway.chotot.com').rep
 const NOMINATIM = (process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/+$/, '');
 // Dịch vụ chỉ đường OSRM (miễn phí) để vẽ đoạn ngập A–B bám theo đường phố.
 const OSRM = (process.env.OSRM_URL || 'https://router.project-osrm.org').replace(/\/+$/, '');
+// Overpass API: lấy công trình (bệnh viện, trường học…) từ dữ liệu OpenStreetMap. Máy chủ
+// chính hay bận nên có máy chủ dự phòng; đặt OVERPASS_URL thì chỉ dùng máy chủ đó.
+const OVERPASS = process.env.OVERPASS_URL
+  ? [process.env.OVERPASS_URL]
+  : ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const UA = 'Mozilla/5.0 (PhongTroMap; +https://github.com/katiehoang899/test)';
@@ -486,6 +491,98 @@ async function route(fromStr, toStr) {
   });
 }
 
+// ---------- công trình (OpenStreetMap / Overpass) ----------
+
+// Bản đồ chia thành ô 0,05° (~5,5 km). Trình duyệt hỏi theo ô để cache dùng lại được khi kéo bản đồ.
+const POI_CELL = 0.05;
+const POI_MAX = 4000;
+// [loại, khoá OSM, giá trị] — thứ tự là thứ tự ưu tiên khi một điểm có nhiều thẻ.
+const POI_TAGS = [
+  ['hospital', 'amenity', ['hospital', 'clinic', 'doctors']],
+  ['pharmacy', 'amenity', ['pharmacy']],
+  ['school', 'amenity', ['school', 'kindergarten', 'college', 'university']],
+  ['market', 'amenity', ['marketplace']],
+  ['market', 'shop', ['supermarket', 'mall', 'department_store']],
+  ['police', 'amenity', ['police']],
+  ['bank', 'amenity', ['bank', 'atm']],
+  ['bus', 'highway', ['bus_stop']],
+  ['park', 'leisure', ['park', 'playground']],
+];
+
+function poiCategory(tags = {}) {
+  for (const [cat, key, values] of POI_TAGS) if (values.includes(tags[key])) return cat;
+  return null;
+}
+
+function overpassQuery(s, w, n, e) {
+  const bbox = `(${s},${w},${n},${e})`;
+  const byKey = {};
+  for (const [, key, values] of POI_TAGS) (byKey[key] ||= []).push(...values);
+  const parts = Object.entries(byKey).map(([key, values]) => `nwr["${key}"~"^(${values.join('|')})$"]${bbox};`);
+  return `[out:json][timeout:40];(${parts.join('')});out center;`;
+}
+
+function normalizePois(data) {
+  const seen = new Set();
+  const out = [];
+  for (const el of data?.elements || []) {
+    const cat = poiCategory(el.tags);
+    const lat = Number(el.lat ?? el.center?.lat);
+    const lng = Number(el.lon ?? el.center?.lon);
+    const id = `${String(el.type || 'n')[0]}${el.id}`;
+    if (!cat || !validLatLng(lat, lng) || seen.has(id)) continue;
+    seen.add(id);
+    const name = str(el.tags['name:vi'] || el.tags.name || el.tags.brand || el.tags.operator || '', 120);
+    out.push({ id, cat, lat: +lat.toFixed(6), lng: +lng.toFixed(6), name });
+    if (out.length >= POI_MAX) break;
+  }
+  return out;
+}
+
+// Overpass giới hạn số truy vấn cùng lúc mỗi máy: gửi lần lượt từng truy vấn.
+let overpassChain = Promise.resolve();
+function overpassSerial(fn) {
+  const run = overpassChain.then(fn, fn);
+  overpassChain = run.catch(() => {});
+  return run;
+}
+
+async function fetchOverpass(query) {
+  let last;
+  for (const url of OVERPASS) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'User-Agent': UA, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(query),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (res.ok) return await res.json();
+      last = new Error(`Overpass ${res.status}`);
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw Object.assign(new Error('Không tải được công trình từ OpenStreetMap (Overpass đang bận hoặc bị chặn). Thử lại sau.'), { status: 502, cause: last });
+}
+
+const poiInflight = new Map();
+function pois(cellStr) {
+  const m = /^(-?\d{1,4}),(-?\d{1,4})$/.exec(String(cellStr || ''));
+  const i = m && Number(m[1]);
+  const j = m && Number(m[2]);
+  if (!m || i < -1800 || i >= 1800 || j < -3600 || j >= 3600) throw badRequest('Ô bản đồ không hợp lệ');
+  const key = `pois:${i},${j}`;
+  if (poiInflight.has(key)) return poiInflight.get(key);
+  const [s, w, n, e] = [i, j, i + 1, j + 1].map((k) => +(k * POI_CELL).toFixed(4));
+  const p = cached(key, 24 * 3600 * 1000, async () => ({
+    cell: `${i},${j}`,
+    pois: normalizePois(await overpassSerial(() => fetchOverpass(overpassQuery(s, w, n, e)))),
+  })).finally(() => poiInflight.delete(key));
+  poiInflight.set(key, p);
+  return p;
+}
+
 // ---------- HTTP ----------
 
 const MIME = {
@@ -545,6 +642,7 @@ function createServer() {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
+      if (u.pathname === '/api/pois') return sendJson(res, 200, await pois(u.searchParams.get('cell')));
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
       if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
       if (u.pathname === '/api/ads') return sendJson(res, 200, await listAds(u.searchParams));
@@ -577,4 +675,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, distance };
+module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, distance, poiCategory, normalizePois, overpassQuery };

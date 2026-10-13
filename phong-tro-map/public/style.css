@@ -401,11 +401,107 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .popup .go { display: inline-block; margin-top: 6px; font-weight: 600; }
 .leaflet-container { background: #e8e6e1; font: inherit; } /* màu đất của bản đồ, kể cả chế độ tối: ô chưa tải không bị đen */
 /* Bảng trên bản đồ luôn nền sáng: dùng ô chọn / radio kiểu sáng cả khi máy bật chế độ tối. */
-.leaflet-container .ul-ctl, .leaflet-container .leaflet-control-layers, .leaflet-popup { color-scheme: light; color: #1d2327; }
-/* Nút chọn lớp bản đồ: dùng emoji thay cho ảnh icon của Leaflet (không phụ thuộc CDN). */
-.leaflet-control-layers-toggle {
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%231d2327' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 4 8.5 4.3L12 12.6 3.5 8.3z'/%3E%3Cpath d='m3.5 12.2 8.5 4.3 8.5-4.3M3.5 16 12 20.3l8.5-4.3'/%3E%3C/svg%3E") no-repeat center !important;
+.leaflet-container .ul-ctl, .leaflet-container .ms-ctl, .leaflet-popup { color-scheme: light; color: #1d2327; }
+.leaflet-container.ms-dark { background: #2a2c2f; } /* nền tối: ô chưa tải không loé sáng */
+
+/* Bảng "Tuỳ chỉnh bản đồ": nền, màu nền, công trình */
+.ms-ctl { position: relative; }
+.ms-btn {
+  position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px;
+  background: #fff; color: #1d2327; box-shadow: 0 1px 5px rgba(0, 0, 0, .3); cursor: pointer;
 }
+.ms-btn .ic { width: 20px; height: 20px; }
+.ms-btn:hover, .ms-ctl.open .ms-btn { color: #1d6fdc; }
+.ms-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; box-sizing: border-box;
+  background: #1d6fdc; color: #fff; font-size: 10px; line-height: 16px; text-align: center; border: 1.5px solid #fff;
+}
+.ms-panel {
+  position: absolute; left: 44px; top: 0; width: min(300px, calc(100vw - 80px)); overflow: auto; overscroll-behavior: contain;
+  background: #fff; border-radius: 12px; box-shadow: 0 6px 24px rgba(0, 0, 0, .28); font-size: 13px;
+}
+.ms-head { display: flex; align-items: center; padding: 10px 8px 6px 14px; }
+.ms-head b { flex: 1; font-size: 14px; }
+.ms-close { display: grid; border: 0; background: none; color: #61707a; padding: 4px; border-radius: 6px; cursor: pointer; }
+.ms-close:hover { background: #f0f2f4; color: #1d2327; }
+.ms-close .ic { width: 18px; height: 18px; }
+.ms-tabs { display: flex; gap: 4px; margin: 0 10px; padding: 3px; border-radius: 9px; background: #f0f2f4; }
+.ms-tabs button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; border: 0; border-radius: 7px;
+  background: none; color: #4a5560; font: inherit; font-weight: 600; cursor: pointer;
+}
+.ms-tabs button .ic { width: 16px; height: 16px; }
+.ms-tabs button[aria-selected="true"] { background: #fff; color: #1d6fdc; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.ms-tabs button b { background: #1d6fdc; color: #fff; border-radius: 999px; padding: 0 6px; font-size: 11px; line-height: 16px; }
+.ms-pane { padding: 4px 14px 14px; }
+.ms-label { margin: 10px 0 6px; font-size: 12px; font-weight: 700; color: #61707a; }
+.ms-seg { display: flex; border: 1px solid #d0d7dc; border-radius: 8px; overflow: hidden; }
+.ms-seg button { flex: 1; height: 30px; border: 0; background: #fff; color: #1d2327; font: inherit; cursor: pointer; }
+.ms-seg button + button { border-left: 1px solid #d0d7dc; }
+.ms-seg button:hover { background: #f4f7fb; }
+.ms-seg button[aria-checked="true"] { background: #1d6fdc; color: #fff; font-weight: 600; }
+.ms-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ms-presets button {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px 4px 5px; border: 1.5px solid #e1e5e8; border-radius: 8px;
+  background: #fff; color: #1d2327; font: inherit; font-size: 12px; cursor: pointer;
+}
+.ms-presets button:hover { border-color: #aab4bc; }
+.ms-presets button[aria-checked="true"] { border-color: #1d6fdc; color: #1d6fdc; font-weight: 600; box-shadow: 0 0 0 2px rgba(29, 111, 220, .18); }
+/* Mảnh "bản đồ" giả: đất, nước, công viên, đường chính, đường nhỏ (màu OSM). */
+.ms-swatch {
+  display: block; height: 26px; border-radius: 5px;
+  background:
+    linear-gradient(90deg, transparent 58%, #fcd6a4 58% 66%, transparent 66%),
+    linear-gradient(0deg, transparent 40%, #fff 40% 48%, transparent 48%),
+    linear-gradient(135deg, #f2efe9 0 42%, #aad3df 42% 62%, #c8facc 62% 82%, #f2efe9 82%);
+}
+.ms-sliders { margin-top: 12px; display: grid; gap: 8px; }
+.ms-slider { display: grid; grid-template-columns: 1fr auto; row-gap: 2px; font-size: 12px; color: #4a5560; }
+.ms-slider output { font-variant-numeric: tabular-nums; color: #1d2327; font-weight: 600; }
+.ms-slider input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #1d6fdc; }
+.ms-check { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.ms-pane > .ms-check { margin-top: 10px; }
+.ms-check input { margin: 0; accent-color: #1d6fdc; }
+.ms-reset {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; padding: 5px 10px; border: 1px solid #d0d7dc; border-radius: 7px;
+  background: #fff; color: #1d2327; font: inherit; font-size: 12px; cursor: pointer;
+}
+.ms-reset .ic { width: 15px; height: 15px; }
+.ms-reset:hover:not(:disabled) { border-color: #1d6fdc; color: #1d6fdc; }
+.ms-reset:disabled { opacity: .45; cursor: default; }
+.ms-poi-tools { display: flex; gap: 6px; margin: 10px 0 6px; }
+.ms-poi-tools button {
+  flex: 1; height: 28px; border: 1px solid #d0d7dc; border-radius: 7px; background: #fff; color: #1d2327; font: inherit; font-size: 12px; cursor: pointer;
+}
+.ms-poi-tools button:hover { border-color: #1d6fdc; color: #1d6fdc; }
+.ms-poi { list-style: none; margin: 0; padding: 0; }
+.ms-poi li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.ms-poi li .ms-check { flex: 1; min-width: 0; }
+.ms-poi input[type="color"] {
+  flex: none; width: 26px; height: 26px; padding: 0; border: 1px solid #d0d7dc; border-radius: 7px; background: #fff; cursor: pointer;
+}
+.ms-poi input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+.ms-poi input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 4px; }
+.ms-poi input[type="color"]::-moz-color-swatch { border: 0; border-radius: 4px; }
+.ms-status { margin-top: 8px; padding: 6px 8px; border-radius: 7px; background: #f4f7fb; color: #4a5560; font-size: 12px; }
+.ms-status:empty { display: none; }
+.ms-status button { border: 0; background: none; color: #1d6fdc; font: inherit; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
+.ms-note { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: #61707a; }
+
+/* Công trình trên bản đồ: vòng tròn màu của loại + icon trắng */
+.poi-ic {
+  display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; box-sizing: border-box;
+  background: var(--c, #61707a); color: #fff; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+.poi-ic .ic { width: 13px; height: 13px; stroke-width: 2.1; }
+.ms-poi .poi-ic { box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
+.poi-mk .poi-ic { cursor: pointer; transition: transform .12s; }
+.poi-mk:hover .poi-ic { transform: scale(1.18); }
+.poi-pop .up-title { display: flex; align-items: center; gap: 7px; font-weight: 700; margin-bottom: 4px; }
+.poi-pop .up-title .poi-ic { width: 22px; height: 22px; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); }
+.poi-pop .poi-cat { color: #61707a; font-size: 12px; margin-bottom: 8px; }
+.poi-pop a { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.poi-pop a .ic { width: 15px; height: 15px; }
 .map-notice-close { border: 0; background: none; color: #fff; cursor: pointer; padding: 0 0 0 8px; vertical-align: middle; }
 .map-notice {
   position: absolute; z-index: 1000; left: 50%; top: 12px; transform: translateX(-50%); max-width: min(520px, calc(100% - 24px));

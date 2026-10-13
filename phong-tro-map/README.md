@@ -46,6 +46,11 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **loại chỗ đỗ** (Miễn phí, Có thu phí, Giới hạn giờ, Chưa phân loại); loại chỗ đỗ hiện khi rê chuột, trong popup và danh sách. Bấm vào biển P / đoạn đường để đổi loại, ghi chú (ví dụ "đỗ được sau 18h, 30k/lượt"), mở Google Maps hoặc xoá.
   - Nút **danh sách** cạnh tiêu đề bảng: xem, sửa loại / ghi chú, tới điểm trên bản đồ hoặc xoá các điểm / đoạn đỗ xe đã tạo.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
+- **🎨 Tuỳ chỉnh bản đồ** (nút bảng màu góc trên bên trái bản đồ, dưới nút phóng to / thu nhỏ):
+  - Tab **Nền & màu**: chọn nền **OpenStreetMap**, **CARTO** hoặc **Nhạt** (nền xám nhạt, gần như không có biểu tượng). Chọn nhanh kiểu màu *Mặc định, Nhạt, Xám, Ấm, Rực rỡ, Tối*, hoặc tự chỉnh **độ đậm màu, độ sáng, tương phản, tông ấm, xoay màu** và **đảo màu (nền tối)**. Chỉ ảnh nền đổi màu: ghim tin, điểm ngập, đỗ xe giữ nguyên màu. Nút *Khôi phục màu mặc định* để trở lại như cũ.
+  - Tab **Công trình**: bật / tắt từng loại **Bệnh viện, phòng khám · Nhà thuốc · Trường học · Chợ, siêu thị · Công an · Ngân hàng, ATM · Trạm xe buýt · Công viên**, và đổi màu từng loại bằng ô màu bên phải. Rê chuột vào biểu tượng để xem tên, bấm để mở popup có link Google Maps. Công trình hiện khi phóng to tới mức đường phố (mức 15 trở lên), dữ liệu lấy từ OpenStreetMap qua [Overpass API](https://overpass-api.de/) và được server cache 1 ngày.
+  - Ảnh nền OSM / CARTO là ảnh có sẵn nên **không ẩn được** biểu tượng in trên đó. Muốn chỉ thấy các loại công trình mình bật, chọn nền **Nhạt**.
+  - Mọi lựa chọn được nhớ cho lần mở sau.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):
   - **🌊** *Tra cứu điểm ngập qua VnExpress*: mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) (theo danh sách của Sở Xây dựng TP HCM) trong tab mới, cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
@@ -110,7 +115,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 | `Cổng 3100 đang được dùng` | Tool đã chạy sẵn: mở http://localhost:3100. Hoặc chạy ở cổng khác: `PORT=3200 npm start` (Windows: `set PORT=3200` rồi `npm start`) |
 | `node: command not found` / `'node' is not recognized` | Chưa cài Node.js hoặc chưa mở lại Terminal sau khi cài |
 | Danh sách báo *Không tải được tin: Upstream 403 / 429…* | Chợ Tốt chặn hoặc giới hạn tạm thời: đợi vài phút rồi tải lại trang. Nếu lỗi kéo dài, có thể API của Chợ Tốt đã đổi, hãy báo lại kèm thông báo lỗi |
-| Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều, hoặc tự đổi ở nút lớp bản đồ góc trái. Nếu cả hai đều không tải được, bản đồ hiện thông báo: máy đang mất mạng, hoặc mạng công ty / VPN / phần mềm chặn quảng cáo đang chặn `tile.openstreetmap.org` và `basemaps.cartocdn.com`. Ghim tin đăng vẫn hiện và dùng được |
+| Bản đồ có mảng trống / màu xám, không có đường phố | Máy chủ OpenStreetMap giới hạn hoặc mạng chặn `tile.openstreetmap.org`. Tool tự chuyển sang bản đồ dự phòng **CARTO** khi OSM lỗi nhiều, hoặc tự đổi ở nút **Tuỳ chỉnh bản đồ** góc trái. Nếu cả hai đều không tải được, bản đồ hiện thông báo: máy đang mất mạng, hoặc mạng công ty / VPN / phần mềm chặn quảng cáo đang chặn `tile.openstreetmap.org` và `basemaps.cartocdn.com`. Ghim tin đăng vẫn hiện và dùng được |
 | Danh sách khu vực chỉ có vài tỉnh | API khu vực của Chợ Tốt không trả về; tool tự lấy tên tỉnh / quận từ các tin đã tải, càng tải nhiều càng đủ |
 
 Mặc định tool chỉ mở được trên chính máy đang chạy. Muốn mở từ điện thoại cùng mạng Wi-Fi: chạy `HOST=0.0.0.0 npm start` rồi vào `http://<IP-máy-tính>:3100` (lúc này người khác cùng mạng cũng mở được, xem và sửa được tin đã lưu, điểm ngập, điểm đỗ xe).
@@ -124,8 +129,8 @@ Biến môi trường (không bắt buộc):
 | `CHOTOT_GATEWAY` | `https://gateway.chotot.com` | API của Chợ Tốt |
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | Dịch vụ geocode cho tin thiếu toạ độ |
 | `DATA_DIR` | `./data` | Nơi lưu cache geocode (`geocode-cache.json`) |
-
 | `OSRM_URL` | `https://router.project-osrm.org` | Dịch vụ chỉ đường để vẽ đoạn ngập A–B theo đường phố |
+| `OVERPASS_URL` | `overpass-api.de`, dự phòng `overpass.kumi.systems` | Overpass API lấy công trình (bệnh viện, trường học…) từ OpenStreetMap |
 
 Chạy test: `npm test`.
 

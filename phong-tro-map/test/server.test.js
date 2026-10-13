@@ -49,6 +49,26 @@ const upstream = http.createServer((req, res) => {
   }
   if (u.pathname === '/v2/public/chapy-pro/wards') return res.end(JSON.stringify({ wards: [{ id: 9001, name: 'Phường Tân Phong' }] }));
   if (u.pathname === '/search') return res.end(JSON.stringify([{ lat: '10.75', lon: '106.66' }]));
+  if (u.pathname === '/interpreter' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const query = decodeURIComponent(body.replace(/^data=/, ''));
+      hits.push({ overpass: query });
+      if (query.includes('(11,')) { // ô 220,2133 (từ vĩ độ 11): giả lập Overpass bận
+        res.statusCode = 504;
+        return res.end('{}');
+      }
+      res.end(JSON.stringify({ elements: [
+        { type: 'node', id: 1, lat: 10.7612, lon: 106.6801, tags: { amenity: 'hospital', name: 'Bệnh viện Chợ Rẫy' } },
+        { type: 'way', id: 2, center: { lat: 10.762, lon: 106.681 }, tags: { shop: 'supermarket', name: 'Co.opmart' } },
+        { type: 'node', id: 3, lat: 10.763, lon: 106.682, tags: { highway: 'bus_stop' } },
+        { type: 'node', id: 4, lat: 10.764, lon: 106.683, tags: { amenity: 'bench' } },
+        { type: 'node', id: 1, lat: 10.7612, lon: 106.6801, tags: { amenity: 'hospital' } },
+      ] }));
+    });
+    return;
+  }
   res.statusCode = 404;
   res.end('{}');
 });
@@ -62,6 +82,7 @@ before(async () => {
   process.env.CHOTOT_GATEWAY = up;
   process.env.NOMINATIM_URL = up;
   process.env.OSRM_URL = up;
+  process.env.OVERPASS_URL = `${up}/interpreter`;
   process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'phongtro-test-'));
   const { createServer } = require('../server');
   server = createServer();
@@ -252,4 +273,29 @@ test('static files: always revalidated, 304 when unchanged', async () => {
   assert.equal(ico.status, 200);
   assert.equal(ico.headers.get('content-type'), 'image/x-icon');
   assert.equal((await fetch(`${base}/vendor`)).status, 404, 'thư mục không phải file');
+});
+
+test('/api/pois: công trình OSM theo ô bản đồ, có cache', async () => {
+  const before = hits.filter((h) => h.overpass).length;
+  const res = await fetch(`${base}/api/pois?cell=215,2133`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.cell, '215,2133');
+  assert.deepEqual(data.pois.map((p) => [p.id, p.cat, p.name]), [
+    ['n1', 'hospital', 'Bệnh viện Chợ Rẫy'],
+    ['w2', 'market', 'Co.opmart'],
+    ['n3', 'bus', ''],
+  ]);
+  assert.deepEqual([data.pois[1].lat, data.pois[1].lng], [10.762, 106.681]);
+  const q = hits.filter((h) => h.overpass).at(-1).overpass;
+  assert.match(q, /\(10\.75,106\.65,10\.8,106\.7\)/);
+  assert.match(q, /"amenity"~"\^\(hospital\|clinic/);
+  await fetch(`${base}/api/pois?cell=215,2133`);
+  assert.equal(hits.filter((h) => h.overpass).length, before + 1, 'lần hai lấy từ cache');
+
+  assert.equal((await fetch(`${base}/api/pois?cell=abc`)).status, 400);
+  assert.equal((await fetch(`${base}/api/pois?cell=9999,1`)).status, 400);
+  const busy = await fetch(`${base}/api/pois?cell=220,2133`);
+  assert.equal(busy.status, 502);
+  assert.match((await busy.json()).error, /Overpass/);
 });

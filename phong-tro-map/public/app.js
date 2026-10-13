@@ -85,17 +85,28 @@ const BASEMAPS = {
     subdomains: 'abcd',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
   }),
+  // Nền nhạt, gần như không có biểu tượng công trình: hợp để chỉ hiện các loại công trình tự chọn.
+  light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+  }),
 };
 let basemap = 'osm';
-try { if (localStorage.getItem('phongtro.basemap') === 'carto') basemap = 'carto'; } catch { /* bỏ qua */ }
+try { const saved = localStorage.getItem('phongtro.basemap'); if (BASEMAPS[saved]) basemap = saved; } catch { /* bỏ qua */ }
 BASEMAPS[basemap].addTo(map);
-L.control.layers({ 'OpenStreetMap': BASEMAPS.osm, 'CARTO (dự phòng)': BASEMAPS.carto }, null, { position: 'topleft' }).addTo(map);
+
+// Đổi nền (bảng "Tuỳ chỉnh bản đồ" trong mapstyle.js). remember = false: tự chuyển, không lưu.
+function setBasemap(name, remember = true) {
+  if (!BASEMAPS[name] || name === basemap) return;
+  map.removeLayer(BASEMAPS[basemap]);
+  BASEMAPS[name].addTo(map);
+  basemap = name;
+  if (remember) try { localStorage.setItem('phongtro.basemap', name); } catch { /* bỏ qua */ }
+  map.fire('basemapchange', { name });
+}
 
 let autoSwitched = false;
-map.on('baselayerchange', (e) => {
-  basemap = e.layer === BASEMAPS.carto ? 'carto' : 'osm';
-  try { localStorage.setItem('phongtro.basemap', basemap); } catch { /* bỏ qua */ }
-});
 
 // OSM lỗi nhiều hơn tải được (ít nhất 6 ô) → tự chuyển sang CARTO, một lần mỗi lần mở trang.
 const osmTiles = { ok: 0, err: 0 };
@@ -104,22 +115,23 @@ BASEMAPS.osm.on('tileerror', () => {
   osmTiles.err++;
   if (autoSwitched || basemap !== 'osm' || osmTiles.err < 6 || osmTiles.err <= osmTiles.ok) return;
   autoSwitched = true;
-  map.removeLayer(BASEMAPS.osm);
-  BASEMAPS.carto.addTo(map); // control lớp bản đồ tự cập nhật lựa chọn
-  basemap = 'carto';
-  mapNotice('Không tải được bản đồ OpenStreetMap, đã chuyển sang bản đồ dự phòng CARTO. Đổi lại ở nút lớp bản đồ góc trái.');
+  setBasemap('carto', false);
+  mapNotice('Không tải được bản đồ OpenStreetMap, đã chuyển sang bản đồ dự phòng CARTO. Đổi lại ở nút Tuỳ chỉnh bản đồ góc trái.');
 });
 
 // CARTO cũng lỗi (không có ô nào tải được): báo rõ, không để bản đồ trống mà không biết vì sao.
 const cartoTiles = { ok: 0, err: 0 };
 let noTilesShown = false;
-BASEMAPS.carto.on('tileload', () => { cartoTiles.ok++; });
-BASEMAPS.carto.on('tileerror', () => {
+const onCartoError = () => {
   cartoTiles.err++;
   if (noTilesShown || cartoTiles.ok || osmTiles.ok || cartoTiles.err < 6) return;
   noTilesShown = true;
   mapNotice('Không tải được ảnh nền bản đồ từ OpenStreetMap và CARTO. Máy đang mất mạng, hoặc mạng công ty / VPN / phần mềm chặn quảng cáo đang chặn tile.openstreetmap.org và basemaps.cartocdn.com. Tin đăng và ghim vẫn dùng được.', 0);
-});
+};
+for (const layer of [BASEMAPS.carto, BASEMAPS.light]) {
+  layer.on('tileload', () => { cartoTiles.ok++; });
+  layer.on('tileerror', onCartoError);
+}
 
 // ms = 0: thông báo ở lại tới khi bấm ×.
 function mapNotice(text, ms = 9000) {
