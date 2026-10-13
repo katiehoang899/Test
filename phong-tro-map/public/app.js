@@ -1200,6 +1200,23 @@ document.addEventListener('click', (e) => {
   });
 });
 
+// ---------- màu cụm tin (Đậm / Xanh dương / Viền) ----------
+
+const CLUSTER_STYLES = ['bold', 'blue', 'outline'];
+
+function setClusterStyle(style) {
+  if (!CLUSTER_STYLES.includes(style)) style = 'bold';
+  document.body.dataset.cluster = style;
+  document.querySelectorAll('.cluster-style [data-cluster]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.cluster === style)));
+  try { localStorage.setItem('phongtro.cluster', style); } catch { /* không bắt buộc */ }
+}
+
+document.querySelector('.cluster-style').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cluster]');
+  if (b) setClusterStyle(b.dataset.cluster);
+});
+try { setClusterStyle(localStorage.getItem('phongtro.cluster')); } catch { setClusterStyle('bold'); }
+
 // ---------- chế độ xem ----------
 
 function setView(v) {

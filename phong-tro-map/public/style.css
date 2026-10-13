@@ -455,17 +455,50 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .ul-tip { font-size: 12px; line-height: 1.4; width: max-content; max-width: 240px; white-space: normal; }
 .ul-tip .ic { color: #1d6fdc; }
 
-/* Cụm ghim (MarkerCluster): đậm, rõ trên nền bản đồ thay cho màu nhạt 60% mặc định. */
-.marker-cluster-small { background-color: rgba(30, 150, 70, .38); }
-.marker-cluster-small div { background-color: #1f9a4a; }
-.marker-cluster-medium { background-color: rgba(220, 150, 0, .38); }
-.marker-cluster-medium div { background-color: #e29a00; }
-.marker-cluster-large { background-color: rgba(220, 80, 20, .38); }
-.marker-cluster-large div { background-color: #e0561a; }
-.marker-cluster div {
-  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); box-sizing: border-box;
+/* Cụm ghim (MarkerCluster): 3 kiểu màu, chọn ở dòng "Màu cụm" trong ô chú thích bản đồ.
+   Mỗi kiểu chỉ đặt biến màu cho cụm nhỏ (s, < 10 tin), vừa (m, < 100) và lớn (l);
+   hình xem trước trong bộ chọn dùng chung các biến này. */
+body, [data-cluster="bold"] { /* Đậm (mặc định) */
+  --cl-halo-s: rgba(30, 150, 70, .38); --cl-fill-s: #1f9a4a; --cl-ring-s: #fff; --cl-text-s: #fff;
+  --cl-halo-m: rgba(220, 150, 0, .38); --cl-fill-m: #e29a00; --cl-ring-m: #fff; --cl-text-m: #fff;
+  --cl-halo-l: rgba(220, 80, 20, .38); --cl-fill-l: #e0561a; --cl-ring-l: #fff; --cl-text-l: #fff;
+  --cl-shadow: 0 1px 1px rgba(0, 0, 0, .25);
 }
+[data-cluster="blue"] { /* Xanh dương: đậm dần theo số tin */
+  --cl-halo-s: rgba(59, 130, 246, .32); --cl-fill-s: #3b82f6; --cl-ring-s: #fff; --cl-text-s: #fff;
+  --cl-halo-m: rgba(29, 111, 220, .36); --cl-fill-m: #1d6fdc; --cl-ring-m: #fff; --cl-text-m: #fff;
+  --cl-halo-l: rgba(14, 62, 150, .38); --cl-fill-l: #0e3e96; --cl-ring-l: #fff; --cl-text-l: #fff;
+  --cl-shadow: 0 1px 1px rgba(0, 0, 0, .25);
+}
+[data-cluster="outline"] { /* Viền: lõi trắng, viền + số có màu */
+  --cl-halo-s: rgba(31, 154, 74, .18); --cl-fill-s: #fff; --cl-ring-s: #1f9a4a; --cl-text-s: #17803c;
+  --cl-halo-m: rgba(226, 154, 0, .2); --cl-fill-m: #fff; --cl-ring-m: #e29a00; --cl-text-m: #a86f00;
+  --cl-halo-l: rgba(224, 86, 26, .2); --cl-fill-l: #fff; --cl-ring-l: #e0561a; --cl-text-l: #b8400d;
+  --cl-shadow: none;
+}
+.marker-cluster-small { background-color: var(--cl-halo-s); }
+.marker-cluster-small div { background-color: var(--cl-fill-s); border-color: var(--cl-ring-s); color: var(--cl-text-s); }
+.marker-cluster-medium { background-color: var(--cl-halo-m); }
+.marker-cluster-medium div { background-color: var(--cl-fill-m); border-color: var(--cl-ring-m); color: var(--cl-text-m); }
+.marker-cluster-large { background-color: var(--cl-halo-l); }
+.marker-cluster-large div { background-color: var(--cl-fill-l); border-color: var(--cl-ring-l); color: var(--cl-text-l); }
+.marker-cluster div { border: 2.5px solid; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); box-sizing: border-box; }
 .marker-cluster span {
-  color: #fff; font: 700 13px/26px system-ui, -apple-system, "Segoe UI", sans-serif; text-shadow: 0 1px 1px rgba(0, 0, 0, .25);
+  color: inherit; font: 700 13px/25px system-ui, -apple-system, "Segoe UI", sans-serif; text-shadow: var(--cl-shadow);
 }
-.marker-cluster:hover div { filter: brightness(1.08); }
+.marker-cluster:hover div { filter: brightness(1.06); }
+
+/* Bộ chọn "Màu cụm" trong ô chú thích */
+.cluster-style { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding-top: 5px; border-top: 1px solid var(--line); }
+.cluster-style > span { margin-right: 2px; }
+.cluster-style button {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel); cursor: pointer;
+}
+.cluster-style button[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.cluster-style button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cs-dot { display: block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
+.cs-dot.s { background: var(--cl-fill-s); border-color: var(--cl-ring-s); box-shadow: 0 0 0 2px var(--cl-halo-s); }
+.cs-dot.m { background: var(--cl-fill-m); border-color: var(--cl-ring-m); box-shadow: 0 0 0 2px var(--cl-halo-m); }
+.cs-dot.l { background: var(--cl-fill-l); border-color: var(--cl-ring-l); box-shadow: 0 0 0 2px var(--cl-halo-l); }
+.cluster-style [data-cluster="bold"] .cs-dot, .cluster-style [data-cluster="blue"] .cs-dot { border-color: rgba(255, 255, 255, .9); }
