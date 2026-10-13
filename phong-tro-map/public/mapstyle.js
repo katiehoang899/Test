@@ -2,7 +2,7 @@
 
 // Bảng "Tuỳ chỉnh bản đồ" (góc trên bên trái):
 //   - Lớp bản đồ: chọn lớp nền như bảng "Map Layers" của openstreetmap.org (ô xem trước là ảnh thật
-//     của lớp đó tại chỗ đang xem). Lớp cần API key thì nhập key ngay trong bảng.
+//     của lớp đó tại chỗ đang xem). Chỉ các lớp miễn phí, không cần API key.
 //   - Màu: chỉnh màu ảnh nền bằng bộ lọc CSS (chỉ ảnh nền đổi màu; ghim tin, điểm ngập, đỗ xe giữ nguyên màu).
 //   - Công trình: bật / tắt từng loại (bệnh viện, trường học…) lấy từ OpenStreetMap qua Overpass,
 //     đổi màu từng loại. Ảnh nền là ảnh có sẵn nên không ẩn được biểu tượng in trên đó; nền "Nhạt"
@@ -100,9 +100,8 @@
     </li>`;
 
   const layerHtml = (d) => `<button type="button" role="radio" class="ms-layer" data-base="${d.id}"
-      title="${esc(d.name)}: ${esc(d.desc)}${d.key ? ' (cần API key ' + esc(TILE_KEY_INFO[d.key].name) + ')' : ''}">
+      title="${esc(d.name)}: ${esc(d.desc)}">
       <i class="ms-thumb"></i><span class="ms-layer-name">${esc(d.name)}</span>
-      ${d.key ? `<span class="ms-lock">${icon('key')}<span class="ms-lock-tx">Cần API key</span></span>` : ''}
     </button>`;
 
   let ui = null;
@@ -126,15 +125,6 @@
           <section class="ms-pane" data-pane="layers">
             <div class="ms-layers" role="radiogroup" aria-label="Lớp bản đồ">${BASEMAP_DEFS.map(layerHtml).join('')}</div>
             <div class="ms-layer-info" data-layer-info></div>
-            <details class="ms-keys" data-keys>
-              <summary>${icon('chevronDown')} API key cho lớp cần key</summary>
-              ${Object.entries(TILE_KEY_INFO).map(([id, k]) => `<label class="ms-key">
-                <span>${esc(k.name)} <small>(${esc(BASEMAP_DEFS.filter((d) => d.key === id).map((d) => d.name).join(', '))})</small></span>
-                <input type="text" data-key="${id}" placeholder="Dán API key" autocomplete="off" spellcheck="false">
-                <a href="${esc(k.signup)}" target="_blank" rel="noopener">Đăng ký key miễn phí ${icon('external')}</a>
-              </label>`).join('')}
-              <p class="ms-note">Key chỉ lưu trên máy này.</p>
-            </details>
           </section>
           <section class="ms-pane" data-pane="tone" hidden>
             <div class="ms-label">Kiểu màu</div>
@@ -173,7 +163,6 @@
     panes: $$('[data-pane]'),
     layers: $$('[data-base]'),
     layerInfo: $('[data-layer-info]'),
-    keys: $('[data-keys]'),
     presets: $$('[data-preset]'),
     sliders: Object.fromEntries($$('[data-tone]').map((el) => [el.dataset.tone, el])),
     values: Object.fromEntries($$('[data-val]').map((el) => [el.dataset.val, el])),
@@ -215,14 +204,9 @@
   // ---------- lớp bản đồ ----------
 
   function syncLayers() {
-    for (const b of ui.layers) {
-      const ready = basemapReady(b.dataset.base);
-      b.setAttribute('aria-checked', String(b.dataset.base === basemap));
-      b.classList.toggle('locked', !ready);
-    }
+    ui.layers.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.base === basemap)));
     const d = basemapDef(basemap);
     ui.layerInfo.innerHTML = `Đang dùng <b>${esc(d.name)}</b>: ${esc(d.desc)}.`;
-    for (const el of root.querySelectorAll('[data-key]')) if (document.activeElement !== el) el.value = tileKeys[el.dataset.key] || '';
   }
 
   // Ô xem trước: ảnh ô bản đồ của từng lớp ở đúng chỗ đang xem, căn giữa vào tâm bản đồ.
@@ -232,7 +216,6 @@
     const z = Math.max(map.getZoom(), 12); // xa quá thì ô xem trước toàn biển / rừng, không thấy khác nhau
     for (const b of ui.layers) {
       const img = b.querySelector('.ms-thumb');
-      if (!basemapReady(b.dataset.base)) { img.style.backgroundImage = ''; continue; } // chưa có key: không tải (máy chủ trả lỗi)
       const tiles = basemapTiles(b.dataset.base, c.lat, c.lng, z);
       img.style.backgroundImage = tiles.map((t) => `url("${t.url}")`).join(', ');
       img.style.backgroundPosition = tiles.map((t) => `calc(50% + ${t.ox}px) calc(50% + ${t.oy}px)`).join(', ');
@@ -241,30 +224,7 @@
   map.on('moveend', updateThumbs);
   ui.tabs.forEach((t) => t.addEventListener('click', updateThumbs));
 
-  ui.layers.forEach((b) => b.addEventListener('click', () => {
-    const id = b.dataset.base;
-    if (setBasemap(id) === false) {
-      // Lớp cần API key mà chưa có: mở ô nhập key của dịch vụ đó.
-      const d = basemapDef(id);
-      ui.keys.open = true;
-      const input = root.querySelector(`[data-key="${d.key}"]`);
-      input.focus();
-      input.dataset.pending = id;
-      ui.layerInfo.innerHTML = `<b>${esc(d.name)}</b> cần API key ${esc(TILE_KEY_INFO[d.key].name)}: dán key vào ô bên dưới (đăng ký miễn phí cho cá nhân).`;
-      return;
-    }
-    syncLayers();
-  }));
-  for (const el of root.querySelectorAll('[data-key]')) {
-    el.addEventListener('change', () => {
-      setTileKey(el.dataset.key, el.value);
-      const pending = el.dataset.pending;
-      delete el.dataset.pending;
-      if (pending && basemapReady(pending)) setBasemap(pending);
-      syncLayers();
-      updateThumbs();
-    });
-  }
+  ui.layers.forEach((b) => b.addEventListener('click', () => { setBasemap(b.dataset.base); syncLayers(); }));
   map.on('basemapchange', syncLayers);
   syncLayers();
 
