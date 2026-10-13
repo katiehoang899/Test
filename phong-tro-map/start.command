@@ -25,7 +25,7 @@ if [ "$MAJOR" -lt 18 ]; then
 fi
 
 # Đã chạy rồi thì chỉ mở trình duyệt.
-if curl -fs "$URL/api/config" >/dev/null 2>&1; then
+if curl -fs "$URL/api/saved" >/dev/null 2>&1; then
   echo "Phòng trọ Map đang chạy sẵn, mở $URL"
   [ -n "$OPEN" ] && "$OPEN" "$URL"
   exit 0
@@ -35,7 +35,7 @@ fi
 (
   for _ in $(seq 1 50); do
     sleep 0.2
-    if curl -fs "$URL/api/config" >/dev/null 2>&1; then
+    if curl -fs "$URL/api/saved" >/dev/null 2>&1; then
       [ -n "$OPEN" ] && "$OPEN" "$URL"
       break
     fi
