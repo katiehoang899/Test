@@ -73,37 +73,129 @@ async function api(path) {
 
 const map = L.map('map', { zoomControl: true, preferCanvas: true }).setView([16.0, 106.5], 6);
 
-// Nền bản đồ: OpenStreetMap, dự phòng CARTO (cùng dữ liệu OSM, máy chủ khác) khi ô bản đồ OSM
-// không tải được (máy chủ OSM giới hạn / chặn, mạng chặn…) để không còn mảng trống.
-const BASEMAPS = {
-  osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
-  }),
-  carto: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-  }),
+// Lớp nền bản đồ (ảnh ô bản đồ), giống bảng "Map Layers" của openstreetmap.org cộng thêm vài
+// nền miễn phí khác. OpenStreetMap là mặc định, CARTO là dự phòng khi ô OSM không tải được.
+// key: lớp cần API key của dịch vụ đó (người dùng nhập trong bảng Tuỳ chỉnh bản đồ).
+// native: mức phóng to lớn nhất máy chủ có ảnh; phóng to hơn thì phóng ảnh lên (không bị trống).
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+const CARTO_ATTR = `${OSM_ATTR} &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>`;
+const OSMFR_ATTR = 'ô bản đồ <a href="https://openstreetmap.fr/" target="_blank" rel="noopener">OSM France</a>';
+const TF_ATTR = `${OSM_ATTR} · ô bản đồ <a href="https://www.thunderforest.com/" target="_blank" rel="noopener">Thunderforest</a>`;
+const BASEMAP_DEFS = [
+  { id: 'osm', name: 'Standard', desc: 'Bản đồ chuẩn của OpenStreetMap', native: 19,
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: OSM_ATTR },
+  { id: 'cyclosm', name: 'CyclOSM', desc: 'Nhiều chi tiết: hẻm, đường xe đạp, công trình', native: 20, subdomains: 'abc',
+    url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+    attribution: `${OSM_ATTR} · <a href="https://www.cyclosm.org/" target="_blank" rel="noopener">CyclOSM</a>, ${OSMFR_ATTR}` },
+  { id: 'cycle', name: 'Cycle Map', desc: 'Bản đồ xe đạp của Thunderforest', native: 22, key: 'thunderforest',
+    url: 'https://tile.thunderforest.com/cycle/{z}/{x}/{y}{ratio}.png?apikey={apikey}', attribution: TF_ATTR },
+  { id: 'transport', name: 'Transport Map', desc: 'Giao thông công cộng: tuyến xe buýt, metro', native: 22, key: 'thunderforest',
+    url: 'https://tile.thunderforest.com/transport/{z}/{x}/{y}{ratio}.png?apikey={apikey}', attribution: TF_ATTR },
+  { id: 'tracestrack', name: 'Tracestrack Topo', desc: 'Địa hình kèm đường phố, nhãn rõ', native: 19, key: 'tracestrack',
+    url: 'https://tile.tracestrack.com/topo__/{z}/{x}/{y}.webp?key={apikey}',
+    attribution: `${OSM_ATTR} · ô bản đồ <a href="https://www.tracestrack.com/" target="_blank" rel="noopener">Tracestrack</a>` },
+  { id: 'hot', name: 'Humanitarian', desc: 'Kiểu nhân đạo (HOT): làm nổi nhà cửa, công trình thiết yếu', native: 20, subdomains: 'abc',
+    url: 'https://tile-{s}.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    attribution: `${OSM_ATTR} · <a href="https://www.hotosm.org/" target="_blank" rel="noopener">HOT</a>, ${OSMFR_ATTR}` },
+  { id: 'carto', name: 'CARTO Voyager', desc: 'Màu dịu, chữ rõ (nền dự phòng khi OpenStreetMap lỗi)', native: 20, subdomains: 'abcd',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', attribution: CARTO_ATTR },
   // Nền nhạt, gần như không có biểu tượng công trình: hợp để chỉ hiện các loại công trình tự chọn.
-  light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
-  }),
+  { id: 'light', name: 'CARTO Nhạt', desc: 'Nền xám nhạt, gần như không có biểu tượng', native: 20, subdomains: 'abcd',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attribution: CARTO_ATTR },
+  { id: 'dark', name: 'CARTO Tối', desc: 'Nền tối, đỡ chói khi xem buổi tối', native: 20, subdomains: 'abcd',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: CARTO_ATTR },
+  { id: 'topo', name: 'OpenTopoMap', desc: 'Địa hình, đường đồng mức', native: 17, subdomains: 'abc',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: `${OSM_ATTR}, SRTM · kiểu <a href="https://opentopomap.org/" target="_blank" rel="noopener">OpenTopoMap</a> (CC-BY-SA)` },
+  { id: 'satellite', name: 'Vệ tinh', desc: 'Ảnh vệ tinh Esri World Imagery: xem mái nhà, hẻm, bãi đỗ xe', native: 19,
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Ảnh vệ tinh &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics' },
+];
+const TILE_KEY_INFO = {
+  thunderforest: { name: 'Thunderforest', signup: 'https://manage.thunderforest.com/' },
+  tracestrack: { name: 'Tracestrack', signup: 'https://console.tracestrack.com/' },
 };
+let tileKeys = {};
+try { tileKeys = JSON.parse(localStorage.getItem('phongtro.tilekeys')) || {}; } catch { /* bỏ qua */ }
+
+const BASEMAPS = {};
+for (const d of BASEMAP_DEFS) {
+  BASEMAPS[d.id] = L.tileLayer(d.url, {
+    maxZoom: 20,
+    maxNativeZoom: d.native,
+    subdomains: d.subdomains || 'abc',
+    attribution: d.attribution,
+    ratio: L.Browser.retina ? '@2x' : '',
+    apikey: d.key ? tileKeys[d.key] || '' : '',
+  });
+}
+const basemapDef = (id) => BASEMAP_DEFS.find((d) => d.id === id);
+const basemapReady = (id) => Boolean(basemapDef(id) && (!basemapDef(id).key || tileKeys[basemapDef(id).key]));
+
+// Ảnh xem trước của lớp tại toạ độ: 4 ô bản đồ quanh điểm đó (đủ phủ một thẻ nhỏ), mỗi ô kèm
+// độ lệch tâm ô so với điểm (px) để căn điểm vào giữa thẻ.
+function basemapTiles(id, lat, lng, zoom) {
+  const d = basemapDef(id);
+  const z = Math.max(2, Math.min(Math.round(zoom), d.native));
+  const p = map.options.crs.latLngToPoint(L.latLng(lat, lng), z);
+  const x = Math.floor(p.x / 256);
+  const y = Math.floor(p.y / 256);
+  const px = p.x - x * 256;
+  const py = p.y - y * 256;
+  const dx = px < 128 ? -1 : 1;
+  const dy = py < 128 ? -1 : 1;
+  const o = BASEMAPS[id].options;
+  return [[x, y], [x + dx, y], [x, y + dy], [x + dx, y + dy]].map(([tx, ty]) => ({
+    url: L.Util.template(d.url, { ...o, s: o.subdomains[Math.abs(tx + ty) % o.subdomains.length], x: tx, y: ty, z, r: '', ratio: '' }),
+    ox: Math.round((tx - x) * 256 + 128 - px),
+    oy: Math.round((ty - y) * 256 + 128 - py),
+  }));
+}
+
+// Lưu API key; lớp đang dùng key đó tải lại ảnh.
+function setTileKey(service, key) {
+  tileKeys = { ...tileKeys, [service]: String(key || '').trim() };
+  if (!tileKeys[service]) delete tileKeys[service];
+  try { localStorage.setItem('phongtro.tilekeys', JSON.stringify(tileKeys)); } catch { /* bỏ qua */ }
+  for (const d of BASEMAP_DEFS) {
+    if (d.key !== service) continue;
+    BASEMAPS[d.id].options.apikey = tileKeys[service] || '';
+    tileStats[d.id] = { ok: 0, err: 0, told: false };
+    if (map.hasLayer(BASEMAPS[d.id])) BASEMAPS[d.id].redraw();
+  }
+  if (!basemapReady(basemap)) setBasemap('osm');
+}
+
 let basemap = 'osm';
-try { const saved = localStorage.getItem('phongtro.basemap'); if (BASEMAPS[saved]) basemap = saved; } catch { /* bỏ qua */ }
+try { const saved = localStorage.getItem('phongtro.basemap'); if (basemapReady(saved)) basemap = saved; } catch { /* bỏ qua */ }
 BASEMAPS[basemap].addTo(map);
 
 // Đổi nền (bảng "Tuỳ chỉnh bản đồ" trong mapstyle.js). remember = false: tự chuyển, không lưu.
+// Lớp cần API key mà chưa có key thì không đổi (trả về false).
 function setBasemap(name, remember = true) {
-  if (!BASEMAPS[name] || name === basemap) return;
+  if (!basemapReady(name)) return false;
+  if (name === basemap) return true;
   map.removeLayer(BASEMAPS[basemap]);
   BASEMAPS[name].addTo(map);
   basemap = name;
   if (remember) try { localStorage.setItem('phongtro.basemap', name); } catch { /* bỏ qua */ }
   map.fire('basemapchange', { name });
+  return true;
+}
+
+// Lớp khác (không phải OSM / CARTO) không tải được ô nào: báo một lần (sai key, máy chủ chặn…).
+const tileStats = {};
+for (const d of BASEMAP_DEFS) {
+  if (['osm', 'carto', 'light'].includes(d.id)) continue; // có cách xử lý riêng bên dưới
+  tileStats[d.id] = { ok: 0, err: 0, told: false };
+  BASEMAPS[d.id].on('tileload', () => { tileStats[d.id].ok++; });
+  BASEMAPS[d.id].on('tileerror', () => {
+    const st = tileStats[d.id];
+    st.err++;
+    if (st.told || st.ok || st.err < 6) return;
+    st.told = true;
+    mapNotice(`Không tải được lớp bản đồ “${d.name}”${d.key ? ': kiểm tra lại API key ' + TILE_KEY_INFO[d.key].name : ''}. Đổi lớp khác ở nút Tuỳ chỉnh bản đồ góc trái.`, 0);
+  });
 }
 
 let autoSwitched = false;

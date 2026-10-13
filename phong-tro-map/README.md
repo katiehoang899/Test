@@ -47,9 +47,13 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Nút **danh sách** cạnh tiêu đề bảng: xem, sửa loại / ghi chú, tới điểm trên bản đồ hoặc xoá các điểm / đoạn đỗ xe đã tạo.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **🎨 Tuỳ chỉnh bản đồ** (nút bảng màu góc trên bên trái bản đồ, dưới nút phóng to / thu nhỏ):
-  - Tab **Nền & màu**: chọn nền **OpenStreetMap**, **CARTO** hoặc **Nhạt** (nền xám nhạt, gần như không có biểu tượng). Chọn nhanh kiểu màu *Mặc định, Nhạt, Xám, Ấm, Rực rỡ, Tối*, hoặc tự chỉnh **độ đậm màu, độ sáng, tương phản, tông ấm, xoay màu** và **đảo màu (nền tối)**. Chỉ ảnh nền đổi màu: ghim tin, điểm ngập, đỗ xe giữ nguyên màu. Nút *Khôi phục màu mặc định* để trở lại như cũ.
+  - Tab **Lớp**: chọn lớp bản đồ giống bảng *Map Layers* của openstreetmap.org. Mỗi lớp có ảnh xem trước ngay tại chỗ đang xem:
+    - Không cần key: **Standard** (OpenStreetMap), **CyclOSM** (nhiều chi tiết hẻm, công trình), **Humanitarian** (HOT), **CARTO Voyager**, **CARTO Nhạt** (gần như không có biểu tượng), **CARTO Tối**, **OpenTopoMap** (địa hình), **Vệ tinh** (ảnh Esri World Imagery, xem mái nhà, hẻm, chỗ đỗ xe).
+    - Cần API key (miễn phí cho cá nhân): **Cycle Map** và **Transport Map** (key [Thunderforest](https://manage.thunderforest.com/)), **Tracestrack Topo** (key [Tracestrack](https://console.tracestrack.com/)). Bấm vào thẻ có nhãn *Cần API key* để mở ô dán key; key chỉ lưu trên máy này. Key sai thì bản đồ báo lỗi.
+    - *Shortbread* và *MapTiler OMT* trên openstreetmap.org là bản đồ vector (cần bộ vẽ bản đồ khác) nên chưa có.
+  - Tab **Màu**: chọn nhanh kiểu màu *Mặc định, Nhạt, Xám, Ấm, Rực rỡ, Tối*, hoặc tự chỉnh **độ đậm màu, độ sáng, tương phản, tông ấm, xoay màu** và **đảo màu (nền tối)**. Áp dụng cho mọi lớp; chỉ ảnh nền đổi màu, ghim tin, điểm ngập, đỗ xe giữ nguyên màu. Nút *Khôi phục màu mặc định* để trở lại như cũ.
   - Tab **Công trình**: bật / tắt từng loại **Bệnh viện, phòng khám · Nhà thuốc · Trường học · Chợ, siêu thị · Công an · Ngân hàng, ATM · Trạm xe buýt · Công viên**, và đổi màu từng loại bằng ô màu bên phải. Rê chuột vào biểu tượng để xem tên, bấm để mở popup có link Google Maps. Công trình hiện khi phóng to tới mức đường phố (mức 15 trở lên), dữ liệu lấy từ OpenStreetMap qua [Overpass API](https://overpass-api.de/) và được server cache 1 ngày.
-  - Ảnh nền OSM / CARTO là ảnh có sẵn nên **không ẩn được** biểu tượng in trên đó. Muốn chỉ thấy các loại công trình mình bật, chọn nền **Nhạt**.
+  - Ảnh nền OSM / CARTO là ảnh có sẵn nên **không ẩn được** biểu tượng in trên đó. Muốn chỉ thấy các loại công trình mình bật, chọn lớp **CARTO Nhạt**.
   - Mọi lựa chọn được nhớ cho lần mở sau.
 - **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):

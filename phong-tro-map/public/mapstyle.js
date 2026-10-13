@@ -1,8 +1,9 @@
 'use strict';
 
 // Bảng "Tuỳ chỉnh bản đồ" (góc trên bên trái):
-//   - Nền & màu: chọn nền (OpenStreetMap / CARTO / Nhạt) và chỉnh màu ảnh nền bằng bộ lọc CSS
-//     (chỉ ảnh nền đổi màu; ghim tin, điểm ngập, đỗ xe giữ nguyên màu).
+//   - Lớp bản đồ: chọn lớp nền như bảng "Map Layers" của openstreetmap.org (ô xem trước là ảnh thật
+//     của lớp đó tại chỗ đang xem). Lớp cần API key thì nhập key ngay trong bảng.
+//   - Màu: chỉnh màu ảnh nền bằng bộ lọc CSS (chỉ ảnh nền đổi màu; ghim tin, điểm ngập, đỗ xe giữ nguyên màu).
 //   - Công trình: bật / tắt từng loại (bệnh viện, trường học…) lấy từ OpenStreetMap qua Overpass,
 //     đổi màu từng loại. Ảnh nền là ảnh có sẵn nên không ẩn được biểu tượng in trên đó; nền "Nhạt"
 //     gần như không có biểu tượng, hợp để chỉ hiện các loại tự chọn.
@@ -19,7 +20,6 @@
     { id: 'park', label: 'Công viên', icon: 'tree', color: '#5c940d' },
   ];
   const CAT = Object.fromEntries(POI_CATS.map((c) => [c.id, c]));
-  const BASES = [['osm', 'OpenStreetMap'], ['carto', 'CARTO'], ['light', 'Nhạt']];
 
   const TONE0 = { sat: 100, bri: 100, con: 100, warm: 0, hue: 0, dark: false };
   const PRESETS = [
@@ -99,6 +99,12 @@
       <input type="color" data-poi-color="${c.id}" title="Đổi màu ${esc(c.label.toLowerCase())}" aria-label="Màu ${esc(c.label.toLowerCase())}">
     </li>`;
 
+  const layerHtml = (d) => `<button type="button" role="radio" class="ms-layer" data-base="${d.id}"
+      title="${esc(d.name)}: ${esc(d.desc)}${d.key ? ' (cần API key ' + esc(TILE_KEY_INFO[d.key].name) + ')' : ''}">
+      <i class="ms-thumb"></i><span class="ms-layer-name">${esc(d.name)}</span>
+      ${d.key ? `<span class="ms-lock">${icon('key')}<span class="ms-lock-tx">Cần API key</span></span>` : ''}
+    </button>`;
+
   let ui = null;
   const Control = L.Control.extend({
     options: { position: 'topleft' },
@@ -113,14 +119,24 @@
             <button type="button" class="ms-close" data-ms-close aria-label="Đóng">${icon('close')}</button>
           </div>
           <div class="ms-tabs" role="tablist">
-            <button type="button" role="tab" data-tab="base" aria-selected="true">${icon('palette')} <span class="tx">Nền &amp; màu</span></button>
+            <button type="button" role="tab" data-tab="layers" aria-selected="true">${icon('layers')} <span class="tx">Lớp</span></button>
+            <button type="button" role="tab" data-tab="tone" aria-selected="false">${icon('palette')} <span class="tx">Màu</span></button>
             <button type="button" role="tab" data-tab="poi" aria-selected="false">${icon('hospital')} <span class="tx">Công trình</span> <b data-ms-count hidden></b></button>
           </div>
-          <section class="ms-pane" data-pane="base">
-            <div class="ms-label">Nền bản đồ</div>
-            <div class="ms-seg" role="radiogroup" aria-label="Nền bản đồ">
-              ${BASES.map(([id, label]) => `<button type="button" role="radio" data-base="${id}">${esc(label)}</button>`).join('')}
-            </div>
+          <section class="ms-pane" data-pane="layers">
+            <div class="ms-layers" role="radiogroup" aria-label="Lớp bản đồ">${BASEMAP_DEFS.map(layerHtml).join('')}</div>
+            <div class="ms-layer-info" data-layer-info></div>
+            <details class="ms-keys" data-keys>
+              <summary>${icon('chevronDown')} API key cho lớp cần key</summary>
+              ${Object.entries(TILE_KEY_INFO).map(([id, k]) => `<label class="ms-key">
+                <span>${esc(k.name)} <small>(${esc(BASEMAP_DEFS.filter((d) => d.key === id).map((d) => d.name).join(', '))})</small></span>
+                <input type="text" data-key="${id}" placeholder="Dán API key" autocomplete="off" spellcheck="false">
+                <a href="${esc(k.signup)}" target="_blank" rel="noopener">Đăng ký key miễn phí ${icon('external')}</a>
+              </label>`).join('')}
+              <p class="ms-note">Key chỉ lưu trên máy này.</p>
+            </details>
+          </section>
+          <section class="ms-pane" data-pane="tone" hidden>
             <div class="ms-label">Kiểu màu</div>
             <div class="ms-presets" role="radiogroup" aria-label="Kiểu màu nền">${PRESETS.map(presetHtml).join('')}</div>
             <div class="ms-sliders">${SLIDERS.map(sliderHtml).join('')}</div>
@@ -134,7 +150,7 @@
             </div>
             <ul class="ms-poi">${POI_CATS.map(poiRowHtml).join('')}</ul>
             <div class="ms-status" data-ms-status role="status"></div>
-            <p class="ms-note">Dữ liệu từ OpenStreetMap. Biểu tượng in sẵn trên ảnh nền không ẩn được: chọn nền <b>Nhạt</b> để chỉ còn các loại bạn bật.</p>
+            <p class="ms-note">Dữ liệu từ OpenStreetMap. Biểu tượng in sẵn trên ảnh nền không ẩn được: chọn lớp <b>CARTO Nhạt</b> để chỉ còn các loại bạn bật.</p>
           </section>
         </div>`;
       L.DomEvent.disableClickPropagation(div);
@@ -155,7 +171,9 @@
     status: $('[data-ms-status]'),
     tabs: $$('[data-tab]'),
     panes: $$('[data-pane]'),
-    bases: $$('[data-base]'),
+    layers: $$('[data-base]'),
+    layerInfo: $('[data-layer-info]'),
+    keys: $('[data-keys]'),
     presets: $$('[data-preset]'),
     sliders: Object.fromEntries($$('[data-tone]').map((el) => [el.dataset.tone, el])),
     values: Object.fromEntries($$('[data-val]').map((el) => [el.dataset.val, el])),
@@ -168,7 +186,7 @@
     ui.toggle.setAttribute('aria-expanded', String(open));
     root.classList.toggle('open', open);
     root.parentElement.style.zIndex = open ? '1001' : ''; // nổi trên bảng điểm ngập / đỗ xe góc phải (màn hình hẹp)
-    if (open) fitPanel();
+    if (open) { fitPanel(); updateThumbs(); }
   }
   // Bảng không cao quá phần bản đồ còn trống bên dưới nút.
   function fitPanel() {
@@ -189,13 +207,66 @@
     try { localStorage.setItem('phongtro.mapstyle.tab', id); } catch { /* không bắt buộc */ }
   }
   ui.tabs.forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
-  try { if (localStorage.getItem('phongtro.mapstyle.tab') === 'poi') setTab('poi'); } catch { /* bỏ qua */ }
+  try {
+    const tab = localStorage.getItem('phongtro.mapstyle.tab');
+    if (tab === 'tone' || tab === 'poi') setTab(tab);
+  } catch { /* bỏ qua */ }
 
-  // Nền
-  const syncBase = () => ui.bases.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.base === basemap)));
-  ui.bases.forEach((b) => b.addEventListener('click', () => { setBasemap(b.dataset.base); syncBase(); }));
-  map.on('basemapchange', syncBase);
-  syncBase();
+  // ---------- lớp bản đồ ----------
+
+  function syncLayers() {
+    for (const b of ui.layers) {
+      const ready = basemapReady(b.dataset.base);
+      b.setAttribute('aria-checked', String(b.dataset.base === basemap));
+      b.classList.toggle('locked', !ready);
+    }
+    const d = basemapDef(basemap);
+    ui.layerInfo.innerHTML = `Đang dùng <b>${esc(d.name)}</b>: ${esc(d.desc)}.`;
+    for (const el of root.querySelectorAll('[data-key]')) if (document.activeElement !== el) el.value = tileKeys[el.dataset.key] || '';
+  }
+
+  // Ô xem trước: ảnh ô bản đồ của từng lớp ở đúng chỗ đang xem, căn giữa vào tâm bản đồ.
+  function updateThumbs() {
+    if (ui.panel.hidden || $('[data-pane="layers"]').hidden) return;
+    const c = map.getCenter();
+    const z = Math.max(map.getZoom(), 12); // xa quá thì ô xem trước toàn biển / rừng, không thấy khác nhau
+    for (const b of ui.layers) {
+      const img = b.querySelector('.ms-thumb');
+      if (!basemapReady(b.dataset.base)) { img.style.backgroundImage = ''; continue; } // chưa có key: không tải (máy chủ trả lỗi)
+      const tiles = basemapTiles(b.dataset.base, c.lat, c.lng, z);
+      img.style.backgroundImage = tiles.map((t) => `url("${t.url}")`).join(', ');
+      img.style.backgroundPosition = tiles.map((t) => `calc(50% + ${t.ox}px) calc(50% + ${t.oy}px)`).join(', ');
+    }
+  }
+  map.on('moveend', updateThumbs);
+  ui.tabs.forEach((t) => t.addEventListener('click', updateThumbs));
+
+  ui.layers.forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.base;
+    if (setBasemap(id) === false) {
+      // Lớp cần API key mà chưa có: mở ô nhập key của dịch vụ đó.
+      const d = basemapDef(id);
+      ui.keys.open = true;
+      const input = root.querySelector(`[data-key="${d.key}"]`);
+      input.focus();
+      input.dataset.pending = id;
+      ui.layerInfo.innerHTML = `<b>${esc(d.name)}</b> cần API key ${esc(TILE_KEY_INFO[d.key].name)}: dán key vào ô bên dưới (đăng ký miễn phí cho cá nhân).`;
+      return;
+    }
+    syncLayers();
+  }));
+  for (const el of root.querySelectorAll('[data-key]')) {
+    el.addEventListener('change', () => {
+      setTileKey(el.dataset.key, el.value);
+      const pending = el.dataset.pending;
+      delete el.dataset.pending;
+      if (pending && basemapReady(pending)) setBasemap(pending);
+      syncLayers();
+      updateThumbs();
+    });
+  }
+  map.on('basemapchange', syncLayers);
+  syncLayers();
 
   // Màu nền
   ui.presets.forEach((b) => b.addEventListener('click', () => {
