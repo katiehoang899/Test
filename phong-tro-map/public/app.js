@@ -542,18 +542,28 @@ function sellerHtml(ad) {
   return `<div class="seller"${ad.sellerOid ? ` data-seller="${esc(ad.sellerOid)}"` : ''}>${link}<div class="seller-stats"></div></div>`;
 }
 
+// Thời gian trên Nhà Tốt: "8 năm", "6 tháng", "mới tham gia".
 function memberText(ms) {
   const days = (Date.now() - ms) / 86400000;
-  if (days >= 365) return `${Math.floor(days / 365)} năm trên Nhà Tốt`;
-  if (days >= 30) return `${Math.floor(days / 30)} tháng trên Nhà Tốt`;
-  return 'Mới tham gia Nhà Tốt';
+  if (days >= 365) return `${Math.floor(days / 365)} năm`;
+  if (days >= 30) return `${Math.floor(days / 30)} tháng`;
+  return 'mới tham gia';
 }
 
 function sellerStatsHtml(s) {
   const rows = [];
   if (s.responseRate != null) rows.push(`<span>Phản hồi: <b>${s.responseRate}%</b></span>`);
-  if (s.adCount != null) rows.push(`<span>${s.adCount.toLocaleString('vi-VN')} tin đăng</span>`);
-  if (s.joinedAt) rows.push(`<span>${esc(memberText(s.joinedAt))}</span>`);
+  // Một dòng: [icon] số tin • thời gian trên Nhà Tốt (rê chuột để xem chú thích).
+  const more = [];
+  if (s.adCount != null) {
+    const n = s.adCount.toLocaleString('vi-VN');
+    more.push(`<span title="${n} tin đang đăng">${icon('list')}${n}</span>`);
+  }
+  if (s.joinedAt) {
+    const t = memberText(s.joinedAt);
+    more.push(`<span title="${esc(t === 'mới tham gia' ? 'Mới tham gia Nhà Tốt' : t + ' trên Nhà Tốt')}">${esc(t)}</span>`);
+  }
+  if (more.length) rows.push(`<span class="seller-more">${more.join('<i class="sep">•</i>')}</span>`);
   return rows.join('');
 }
 
