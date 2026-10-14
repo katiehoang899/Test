@@ -1,5 +1,5 @@
 @echo off
-rem Bam dup file nay (Windows) de chay Phong tro Map va mo trinh duyet.
+rem Bam dup file nay (Windows) de chay RentMAPs va mo trinh duyet.
 cd /d "%~dp0"
 if "%PORT%"=="" set PORT=3100
 where node >nul 2>nul

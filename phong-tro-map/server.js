@@ -1,6 +1,6 @@
 'use strict';
 
-// Phòng trọ Map: hiển thị tin cho thuê phòng trọ của Nhà Tốt (nhatot.com / Chợ Tốt)
+// RentMAPs: hiển thị tin cho thuê phòng trọ của Nhà Tốt (nhatot.com / Chợ Tốt)
 // dạng danh sách + bản đồ. Server này chỉ làm proxy tới API công khai của Chợ Tốt
 // (gateway.chotot.com) để trình duyệt không bị chặn CORS, kèm cache và geocode.
 
@@ -21,7 +21,7 @@ const OVERPASS = process.env.OVERPASS_URL
   : ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const UA = 'Mozilla/5.0 (PhongTroMap; +https://github.com/katiehoang899/test)';
+const UA = 'Mozilla/5.0 (RentMAPs; +https://github.com/katiehoang899/test)';
 
 // Danh mục "Phòng trọ" trên Nhà Tốt.
 const CATEGORY_ROOM = '1050';
@@ -804,7 +804,7 @@ if (require.main === module) {
   const server = createServer();
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      console.error(`Cổng ${PORT} đang được dùng (có thể Phòng trọ Map đã chạy rồi: mở http://localhost:${PORT}).`);
+      console.error(`Cổng ${PORT} đang được dùng (có thể RentMAPs đã chạy rồi: mở http://localhost:${PORT}).`);
       console.error(`Muốn chạy ở cổng khác: PORT=3200 npm start`);
     } else {
       console.error(err.message);
@@ -812,7 +812,7 @@ if (require.main === module) {
     process.exit(1);
   });
   server.listen(PORT, HOST, () => {
-    console.log(`Phòng trọ Map đang chạy: http://localhost:${PORT}`);
+    console.log(`RentMAPs đang chạy: http://localhost:${PORT}`);
     console.log('Nhấn Ctrl+C (hoặc đóng cửa sổ này) để tắt.');
   });
 }

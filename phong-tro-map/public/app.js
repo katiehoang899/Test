@@ -1267,6 +1267,24 @@ function markSetPops() {
   });
 }
 
+// Ô chọn trên thanh lọc: rộng vừa chữ của mục đang chọn (mặc định trình duyệt lấy theo mục dài nhất,
+// thừa khoảng trống trước mũi tên).
+const fitCanvas = document.createElement('canvas').getContext('2d');
+function fitSelect(sel) {
+  const cs = getComputedStyle(sel);
+  if (cs.display === 'none') return;
+  fitCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const text = sel.selectedOptions[0]?.textContent || '';
+  const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+  sel.style.width = Math.ceil(fitCanvas.measureText(text).width + pad + 2) + 'px';
+}
+const fitSelects = () => document.querySelectorAll('.filters select').forEach(fitSelect);
+document.querySelectorAll('.filters select').forEach((sel) => {
+  sel.addEventListener('change', () => fitSelect(sel));
+  new MutationObserver(() => fitSelect(sel)).observe(sel, { childList: true, subtree: true }); // danh sách tỉnh tải xong…
+});
+document.fonts?.ready.then(fitSelects);
+
 function syncForm() {
   el.hidemarked.checked = state.hidemarked !== '0';
   el.q.value = state.q;
@@ -1292,6 +1310,7 @@ function syncForm() {
   el.nosale.checked = state.nosale === '1';
   syncKeywords();
   markSetPops();
+  fitSelects();
 }
 
 // Đổi bộ lọc chỉ chạy trên trình duyệt: lọc lại tin đã tải, không gọi lại API.

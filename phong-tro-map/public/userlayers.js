@@ -372,11 +372,11 @@ function dateStamp(d = new Date()) {
 function exportLayer(layer) {
   const { cfg } = layer;
   const items = layer.items();
-  const data = { app: 'phong-tro-map', layer: cfg.key, name: cfg.title, version: 1, exportedAt: new Date().toISOString(), count: items.length, items };
+  const data = { app: 'rentmaps', layer: cfg.key, name: cfg.title, version: 1, exportedAt: new Date().toISOString(), count: items.length, items };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `phong-tro-map-${cfg.file}-${dateStamp()}.json`;
+  a.download = `rentmaps-${cfg.file}-${dateStamp()}.json`;
   document.body.append(a);
   a.click();
   a.remove();

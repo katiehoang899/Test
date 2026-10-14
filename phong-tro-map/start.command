@@ -1,5 +1,5 @@
 #!/bin/bash
-# Bấm đúp file này (macOS) để chạy Phòng trọ Map và mở trình duyệt.
+# Bấm đúp file này (macOS) để chạy RentMAPs và mở trình duyệt.
 cd "$(dirname "$0")" || exit 1
 PORT="${PORT:-3100}"
 URL="http://localhost:$PORT"
@@ -26,7 +26,7 @@ fi
 
 # Đã chạy rồi thì chỉ mở trình duyệt.
 if curl -fs "$URL/api/saved" >/dev/null 2>&1; then
-  echo "Phòng trọ Map đang chạy sẵn, mở $URL"
+  echo "RentMAPs đang chạy sẵn, mở $URL"
   [ -n "$OPEN" ] && "$OPEN" "$URL"
   exit 0
 fi

@@ -1,4 +1,4 @@
-# Phòng trọ Map
+# RentMAPs
 
 Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](https://www.nhatot.com/thue-phong-tro) (Chợ Tốt) dạng **danh sách** và **bản đồ**, giữ các bộ lọc của trang.
 
@@ -47,7 +47,7 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Nút **danh sách** cạnh tiêu đề bảng: xem, sửa loại / ghi chú, tới điểm trên bản đồ hoặc xoá các điểm / đoạn đỗ xe đã tạo.
   - Ô **🚗 Đỗ xe hơi** bật / tắt riêng lớp này. Dữ liệu lưu ở `parking.json` trong thư mục dữ liệu.
 - **💾 Sao lưu / khôi phục điểm ngập và đỗ xe hơi**: trong popup danh sách của mỗi lớp (nút danh sách cạnh tiêu đề bảng):
-  - **Sao lưu ra file**: lưu cả danh sách thành một file `.json` riêng cho từng lớp, ví dụ `phong-tro-map-diem-ngap-2026-10-14.json` và `phong-tro-map-do-xe-hoi-2026-10-14.json` (thư mục Tải về của máy). Cất file này ở nơi an toàn (Google Drive, iCloud, USB…) phòng khi mất dữ liệu hoặc đổi máy.
+  - **Sao lưu ra file**: lưu cả danh sách thành một file `.json` riêng cho từng lớp, ví dụ `rentmaps-diem-ngap-2026-10-14.json` và `rentmaps-do-xe-hoi-2026-10-14.json` (thư mục Tải về của máy). Cất file này ở nơi an toàn (Google Drive, iCloud, USB…) phòng khi mất dữ liệu hoặc đổi máy.
   - **Mở file sao lưu**: chọn file đã lưu, rồi chọn **Gộp vào danh sách** (thêm điểm mới trong file, điểm đã có thì cập nhật theo file, không xoá điểm nào; mở lại cùng file không bị trùng) hoặc **Thay thế toàn bộ** (danh sách trở về đúng như trong file). Mở nhầm file của lớp kia hoặc file hỏng thì tool báo lỗi và giữ nguyên danh sách.
 - **📍 Vị trí của tôi** (nút ⌖ dưới nút Tuỳ chỉnh bản đồ, góc trên bên trái): bấm để lấy vị trí hiện tại (lần đầu trình duyệt hỏi quyền Vị trí, bấm *Cho phép*), bản đồ bay tới đó và hiện chấm xanh kèm vòng độ chính xác. Chỉ chạy khi mở tool bằng `http://localhost` (hoặc https). Lỡ bấm *Chặn* thì bật lại quyền Vị trí ở biểu tượng cạnh thanh địa chỉ; trên macOS bật thêm ở *Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Dịch vụ định vị* cho trình duyệt.
 - **🎨 Tuỳ chỉnh bản đồ** (nút bảng màu góc trên bên trái bản đồ, dưới nút phóng to / thu nhỏ):
@@ -144,7 +144,7 @@ Chạy test: `npm test`.
 
 ## Ứng dụng macOS (.dmg)
 
-Phòng trọ Map cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, điểm ngập, điểm đỗ xe, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
+RentMAPs cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, điểm ngập, điểm đỗ xe, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
 
 **Tải bản build sẵn:** GitHub Actions (workflow *Build Phòng trọ Map (.dmg)*) build file `.dmg` trên máy macOS khi bấm *Actions → Build Phòng trọ Map (.dmg) → Run workflow*, hoặc khi `phong-tro-map/package.json` thay đổi (ví dụ tăng `version`). File nằm ở mục **Artifacts** cuối trang của lần chạy (tải về là file `.zip`, giải nén ra `.dmg`):
 

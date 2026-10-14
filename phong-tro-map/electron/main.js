@@ -1,6 +1,6 @@
 'use strict';
 
-// Ứng dụng desktop: chạy server của Phòng trọ Map ngay trong tiến trình Electron
+// Ứng dụng desktop: chạy server của RentMAPs ngay trong tiến trình Electron
 // rồi mở cửa sổ trỏ vào http://127.0.0.1:<cổng>/.
 
 const path = require('node:path');
@@ -49,7 +49,7 @@ function createWindow() {
     height: 900,
     minWidth: 380,
     minHeight: 500,
-    title: 'Phòng trọ Map',
+    title: 'RentMAPs',
     backgroundColor: '#f5f6f7',
     webPreferences: { contextIsolation: true, sandbox: true },
   });
@@ -116,7 +116,7 @@ if (!app.requestSingleInstanceLock()) {
       const port = await startServer();
       baseUrl = `http://127.0.0.1:${port}/`;
     } catch (err) {
-      dialog.showErrorBox('Không khởi động được Phòng trọ Map', String(err && err.message ? err.message : err));
+      dialog.showErrorBox('Không khởi động được RentMAPs', String(err && err.message ? err.message : err));
       app.quit();
       return;
     }

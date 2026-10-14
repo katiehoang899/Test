@@ -154,7 +154,7 @@ test('/api/geocode caches results', async () => {
 test('static files, no path traversal', async () => {
   const home = await fetch(`${base}/`);
   assert.equal(home.status, 200);
-  assert.match(await home.text(), /Phòng trọ Map/);
+  assert.match(await home.text(), /RentMAPs/);
   const evil = await fetch(`${base}/..%2fserver.js`);
   assert.notEqual(evil.status, 200);
 });
