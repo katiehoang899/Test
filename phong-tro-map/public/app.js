@@ -498,7 +498,7 @@ function syncActs(root = document) {
 }
 
 const SNAP_KEYS = ['id', 'title', 'price', 'priceText', 'size', 'deposit', 'furnishingText', 'region', 'area', 'ward', 'street',
-  'address', 'lat', 'lng', 'approxAt', 'thumb', 'imageCount', 'date', 'time', 'isCompany', 'seller', 'sellerOid', 'type', 'url'];
+  'address', 'lat', 'lng', 'approxAt', 'thumb', 'imageCount', 'date', 'time', 'isCompany', 'seller', 'sellerOid', 'sellerId', 'type', 'url'];
 
 function findAd(id) {
   return store.ads.get(id) || myAds.fav.get(id)?.ad || myAds.hidden.get(id)?.ad || null;
@@ -707,17 +707,20 @@ document.addEventListener('click', async (e) => {
 
 // ---------- người đăng tin (dưới ảnh của thẻ tin) ----------
 
-// Tên có sẵn trong tin; ảnh đại diện, phản hồi, số tin, thời gian trên Nhà Tốt tải sau
-// (/api/seller) khi thẻ cuộn tới, mỗi người đăng một lần.
+// Tên có sẵn trong tin; ảnh đại diện và thời gian trên Nhà Tốt (dưới tên) tải sau từ
+// /api/seller khi thẻ cuộn tới, mỗi người đăng một lần.
 function sellerHtml(ad) {
-  if (!ad.seller && !ad.sellerOid) return '';
+  if (!ad.seller && !ad.sellerOid && !ad.sellerId) return '';
   const name = esc(ad.seller || 'Người đăng');
   // Chưa có ảnh đại diện: chữ cái đầu của tên.
   const avatar = `<span class="seller-avatar" aria-hidden="true">${esc((ad.seller || '?').trim().charAt(0).toUpperCase())}</span>`;
+  const text = `<span class="seller-text"><span class="seller-title">${name}</span><span class="seller-since" hidden></span></span>`;
   const link = ad.sellerOid
-    ? `<a class="seller-name" href="https://www.chotot.com/user/${encodeURIComponent(ad.sellerOid)}" target="_blank" rel="noopener" title="${name} · xem trang người đăng trên Chợ Tốt">${avatar}<span>${name}</span></a>`
-    : `<span class="seller-name" title="${name}">${avatar}<span>${name}</span></span>`;
-  return `<div class="seller"${ad.sellerOid ? ` data-seller="${esc(ad.sellerOid)}"` : ''}>${link}<div class="seller-stats"></div></div>`;
+    ? `<a class="seller-name" href="https://www.chotot.com/user/${encodeURIComponent(ad.sellerOid)}" target="_blank" rel="noopener" title="${name} · xem trang người đăng trên Chợ Tốt">${avatar}${text}</a>`
+    : `<span class="seller-name" title="${name}">${avatar}${text}</span>`;
+  // Hỏi hồ sơ theo account_oid, tin không có thì theo account_id.
+  const key = ad.sellerOid ? `oid=${encodeURIComponent(ad.sellerOid)}` : ad.sellerId ? `id=${encodeURIComponent(ad.sellerId)}` : '';
+  return `<div class="seller"${key ? ` data-seller="${esc(key)}"` : ''}>${link}</div>`;
 }
 
 // Thời gian trên Nhà Tốt: "8 năm", "6 tháng", "mới tham gia".
@@ -728,31 +731,20 @@ function memberText(ms) {
   return 'mới tham gia';
 }
 
-function sellerStatsHtml(s) {
-  const rows = [];
-  if (s.responseRate != null) rows.push(`<span>Phản hồi: <b>${s.responseRate}%</b></span>`);
-  // Một dòng: [icon] số tin • thời gian trên Nhà Tốt (rê chuột để xem chú thích).
-  const more = [];
-  if (s.adCount != null) {
-    const n = s.adCount.toLocaleString('vi-VN');
-    more.push(`<span title="${n} tin đang đăng">${icon('list')}${n}</span>`);
-  }
-  if (s.joinedAt) {
-    const t = memberText(s.joinedAt);
-    more.push(`<span title="${esc(t === 'mới tham gia' ? 'Mới tham gia Nhà Tốt' : t + ' trên Nhà Tốt')}">${esc(t)}</span>`);
-  }
-  if (more.length) rows.push(`<span class="seller-more">${more.join('<i class="sep">•</i>')}</span>`);
-  return rows.join('');
-}
-
-const sellerCache = new Map(); // oid → hồ sơ (null nếu không lấy được)
+const sellerCache = new Map(); // "oid=…" / "id=…" → hồ sơ (null nếu không lấy được)
 const sellerQueue = [];
 let sellerBusy = 0;
 
 function fillSeller(box, data) {
   box.dataset.ready = '1';
   if (!data) return;
-  box.querySelector('.seller-stats').innerHTML = sellerStatsHtml(data);
+  const since = box.querySelector('.seller-since');
+  if (data.joinedAt && since) {
+    const t = memberText(data.joinedAt);
+    since.textContent = t;
+    since.title = t === 'mới tham gia' ? 'Mới tham gia Nhà Tốt' : `${t} trên Nhà Tốt`;
+    since.hidden = false;
+  }
   const av = box.querySelector('.seller-avatar');
   if (data.avatar && av && !av.querySelector('img')) {
     const img = new Image();
@@ -761,21 +753,21 @@ function fillSeller(box, data) {
     img.onload = () => av.replaceChildren(img); // ảnh lỗi thì giữ chữ cái đầu
     img.src = data.avatar;
   }
-  const nameEl = box.querySelector('.seller-name > span:last-child');
+  const nameEl = box.querySelector('.seller-title');
   if (data.name && nameEl && nameEl.textContent === 'Người đăng') nameEl.textContent = data.name;
 }
 
 function pumpSellers() {
   while (sellerBusy < 3 && sellerQueue.length) {
-    const oid = sellerQueue.shift();
-    if (sellerCache.has(oid)) continue;
+    const key = sellerQueue.shift();
+    if (sellerCache.has(key)) continue;
     sellerBusy++;
-    sellerCache.set(oid, undefined); // đang tải
-    api('/api/seller?oid=' + encodeURIComponent(oid))
+    sellerCache.set(key, undefined); // đang tải
+    api('/api/seller?' + key)
       .then((d) => d, () => null)
       .then((d) => {
-        sellerCache.set(oid, d);
-        document.querySelectorAll(`.seller[data-seller="${CSS.escape(oid)}"]`).forEach((box) => fillSeller(box, d));
+        sellerCache.set(key, d);
+        document.querySelectorAll(`.seller[data-seller="${CSS.escape(key)}"]`).forEach((box) => fillSeller(box, d));
       })
       .finally(() => { sellerBusy--; pumpSellers(); });
   }
@@ -785,9 +777,9 @@ const sellerIO = new IntersectionObserver((entries) => {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
     sellerIO.unobserve(e.target);
-    const oid = e.target.dataset.seller;
-    if (sellerCache.get(oid) !== undefined) fillSeller(e.target, sellerCache.get(oid));
-    else if (!sellerCache.has(oid) && !sellerQueue.includes(oid)) { sellerQueue.push(oid); pumpSellers(); }
+    const key = e.target.dataset.seller;
+    if (sellerCache.get(key) !== undefined) fillSeller(e.target, sellerCache.get(key));
+    else if (!sellerCache.has(key) && !sellerQueue.includes(key)) { sellerQueue.push(key); pumpSellers(); }
   }
 }, { rootMargin: '200px' });
 

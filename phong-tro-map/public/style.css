@@ -200,23 +200,18 @@ body[data-view="map"] .list { display: none; }
 .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
 .card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .side { flex: 0 0 132px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-/* Người đăng tin: ảnh đại diện + tên, phản hồi, số tin, thời gian trên Nhà Tốt */
-.seller { display: grid; gap: 4px; font-size: 11.5px; line-height: 1.35; color: var(--muted); }
-.seller-name { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text); font-weight: 600; font-size: 12.5px; text-decoration: none; }
-.seller-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-a.seller-name:hover { color: var(--accent); }
+.seller { font-size: 12.5px; line-height: 1.35; }
+/* Người đăng tin: ảnh đại diện, bên phải là tên và thời gian trên Nhà Tốt (dòng dưới) */
+.seller-name { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--text); text-decoration: none; }
+.seller-text { display: grid; min-width: 0; }
+.seller-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seller-since { color: var(--muted); font-size: 11.5px; }
+a.seller-name:hover .seller-title { color: var(--accent); }
 .seller-avatar {
-  flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; overflow: hidden;
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; overflow: hidden;
   background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 700; box-shadow: 0 0 0 1px var(--line);
 }
 .seller-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.seller-stats { display: grid; gap: 2px; }
-.seller-stats:empty { display: none; }
-.seller-stats b { color: var(--text); }
-.seller-more { display: flex; align-items: center; flex-wrap: wrap; }
-.seller-more > span { display: inline-flex; align-items: center; gap: 3px; }
-.seller-more .ic { width: 13px; height: 13px; }
-.seller-more .sep { margin: 0 6px; font-style: normal; }
 .thumb { position: relative; height: 108px; border-radius: 8px; overflow: hidden; background: var(--bg); display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .thumb .imgs { position: absolute; right: 4px; bottom: 4px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; }

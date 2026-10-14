@@ -124,6 +124,7 @@ function normalizeAd(ad) {
     date: ad.date || '',
     seller: ad.account_name || ad.full_name || '',
     sellerOid: OID_RE.test(String(ad.account_oid || '')) ? String(ad.account_oid) : null,
+    sellerId: /^\d{1,15}$/.test(String(ad.account_id ?? '')) ? String(ad.account_id) : null,
     isCompany: Boolean(ad.company_ad),
     type: ad.type || null,
     url: `https://www.nhatot.com/${encodeURIComponent(String(listId))}.htm`,
@@ -340,6 +341,7 @@ function snapshotAd(ad, id) {
     isCompany: Boolean(ad.isCompany),
     seller: str(ad.seller, 100),
     sellerOid: OID_RE.test(String(ad.sellerOid || '')) ? String(ad.sellerOid) : null,
+    sellerId: /^\d{1,15}$/.test(String(ad.sellerId ?? '')) ? String(ad.sellerId) : null,
     type: ad.type === 'h' ? 'h' : 'u',
     url: url.startsWith('https://www.nhatot.com/') ? url : `https://www.nhatot.com/${encodeURIComponent(id)}.htm`,
   };
@@ -423,49 +425,71 @@ function toMs(v) {
   return Number.isFinite(t) ? t : null;
 }
 
-// 0.92 / 92 / "92%" → 92
-function toPercent(v) {
-  const n = parseFloat(String(v).replace('%', ''));
-  if (!Number.isFinite(n) || n < 0) return null;
-  const pct = n <= 1 && !String(v).includes('%') ? n * 100 : n;
-  return pct <= 100 ? Math.round(pct) : null;
-}
+// Tên trường có thể có (API không có tài liệu): thêm vào đây khi biết tên thật.
+const SELLER_FIELDS = {
+  name: ['full_name', 'account_name', 'display_name', 'shop_name', 'name'],
+  avatar: ['avatar', 'avatar_url', 'avatar_image', 'profile_image'],
+  joined: ['create_time', 'created_time', 'created_at', 'start_time', 'join_time', 'joined_at', 'joined_date', 'register_time',
+    'registered_at', 'member_since', 'createdAt'],
+};
 
-function normalizeSeller(oid, profile, listing) {
+function normalizeSeller(key, profile) {
   const p = profile || {};
-  const now = Date.now();
-  const joinedAt = toMs(deepPick(p, ['create_time', 'created_time', 'created_at', 'start_time', 'join_time', 'joined_at', 'register_time', 'createdAt']));
-  const rate = deepPick(p, ['response_rate', 'chat_response_rate', 'reply_rate', 'chat_reply_rate', 'responseRate', 'replyRate']);
-  // Tổng số tin từ ad-listing?account_oid=…: chỉ tin khi tin trả về đúng là của người này
-  // (nếu API bỏ qua tham số thì total là số tin của cả trang).
-  const ownListing = listing?.ads?.length && String(listing.ads[0].account_oid) === oid;
-  const adCount = Number(deepPick(p, ['total_ads', 'live_ads', 'total_live_ads', 'num_ads', 'ad_count', 'total_listing', 'totalAds']) ?? (ownListing ? listing.total : NaN));
+  const joinedAt = toMs(deepPick(p, SELLER_FIELDS.joined));
+  const avatar = String(deepPick(p, SELLER_FIELDS.avatar) || '');
   return {
-    oid,
-    name: str(deepPick(p, ['full_name', 'account_name', 'display_name', 'name']) || '', 100),
-    avatar: /^https:\/\//.test(String(deepPick(p, ['avatar', 'avatar_url']) || '')) ? str(deepPick(p, ['avatar', 'avatar_url']), 500) : null,
-    joinedAt: joinedAt && joinedAt < now ? joinedAt : null,
-    responseRate: rate != null ? toPercent(rate) : null,
-    adCount: Number.isFinite(adCount) && adCount > 0 ? adCount : null,
-    url: `https://www.chotot.com/user/${encodeURIComponent(oid)}`,
+    name: str(deepPick(p, SELLER_FIELDS.name) || '', 100),
+    avatar: /^https:\/\//.test(avatar) ? str(avatar, 500) : null,
+    joinedAt: joinedAt && joinedAt < Date.now() ? joinedAt : null,
+    url: key.oid ? `https://www.chotot.com/user/${encodeURIComponent(key.oid)}` : null,
   };
 }
 
-// Hồ sơ người đăng: tên, ảnh đại diện, thời gian tham gia, tỉ lệ phản hồi, số tin đang đăng.
-// debug = true: trả kèm dữ liệu gốc của Chợ Tốt (để dò tên trường nếu API đổi).
-async function seller(oid, debug) {
-  if (!OID_RE.test(String(oid || ''))) throw badRequest('Mã người đăng không hợp lệ');
-  const raw = await cached('seller:' + oid, 15 * 60 * 1000, async () => {
-    const [profile, listing] = await Promise.all([
-      getJson(`${GATEWAY}/v1/public/profile/${encodeURIComponent(oid)}`).catch((err) => ({ __error: err.message })),
-      getJson(`${GATEWAY}/v1/public/ad-listing?account_oid=${encodeURIComponent(oid)}&limit=1`).catch((err) => ({ __error: err.message })),
-    ]);
-    if (profile.__error && listing.__error) throw Object.assign(new Error('Không kết nối được Chợ Tốt'), { status: 502 });
-    return { profile, listing };
-  });
-  const out = normalizeSeller(oid, raw.profile.__error ? null : raw.profile, raw.listing.__error ? null : raw.listing);
-  if (debug) out.raw = { profile: raw.profile, listingTotal: raw.listing.total ?? raw.listing.__error };
-  return out;
+// key: { oid } hoặc { id } (account_oid / account_id của Chợ Tốt).
+function sellerKey(oid, id) {
+  if (oid != null && oid !== '') {
+    if (!OID_RE.test(String(oid))) throw badRequest('Mã người đăng không hợp lệ');
+    return { oid: String(oid) };
+  }
+  if (!/^\d{1,15}$/.test(String(id ?? ''))) throw badRequest('Mã người đăng không hợp lệ');
+  return { id: String(id) };
+}
+
+// Hồ sơ người đăng (/v1/public/profile): tên, ảnh đại diện, thời gian tham gia Nhà Tốt.
+async function seller(oid, id) {
+  const key = sellerKey(oid, id);
+  const ref = key.oid || key.id;
+  const profile = await cached('seller:' + ref, 15 * 60 * 1000, () => getJson(`${GATEWAY}/v1/public/profile/${encodeURIComponent(ref)}`));
+  return normalizeSeller(key, profile);
+}
+
+// Trang kiểm tra (mở bằng trình duyệt): dữ liệu gốc Chợ Tốt trả về về người đăng của một tin,
+// để biết đúng tên trường khi ảnh đại diện / thời gian tham gia không hiện. /api/debug/seller?ad=<mã tin>
+async function sellerDebug(adId) {
+  if (!/^\d{1,15}$/.test(String(adId || ''))) throw badRequest('Mã tin không hợp lệ (là dãy số trong link tin trên Nhà Tốt)');
+  const probe = async (url) => {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+      const text = await res.text();
+      return { url: url.replace(GATEWAY, ''), status: res.status, body: text.length > 4000 ? text.slice(0, 4000) + '…' : text };
+    } catch (err) {
+      return { url: url.replace(GATEWAY, ''), error: err.message };
+    }
+  };
+  const detail = await probe(`${GATEWAY}/v1/public/ad-listing/${adId}`);
+  let ad = {};
+  try { const d = JSON.parse(detail.body); ad = d.ad || d.data || {}; } catch { /* để nguyên */ }
+  const related = {};
+  for (const [k, v] of Object.entries(ad)) {
+    if (/account|seller|shop|owner|name|avatar|join|since|create/i.test(k)) related[k] = v;
+  }
+  const tries = [ad.account_oid, ad.account_id].filter((x) => x != null && x !== '').map((x) => `${GATEWAY}/v1/public/profile/${encodeURIComponent(x)}`);
+  return {
+    note: 'Copy toàn bộ trang này gửi lại để chỉnh phần thông tin người đăng.',
+    ad: adId,
+    detail: { status: detail.status, error: detail.error, keys: Object.keys(ad), seller: related },
+    probes: await Promise.all(tries.map(probe)),
+  };
 }
 
 // ---------- lớp bản đồ do người dùng thêm (điểm ngập, chỗ đỗ xe hơi) ----------
@@ -712,7 +736,12 @@ function createServer() {
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
       if (u.pathname === '/api/detail') return sendJson(res, 200, await adDetail(u.searchParams.get('id')));
-      if (u.pathname === '/api/seller') return sendJson(res, 200, await seller(u.searchParams.get('oid'), u.searchParams.get('debug') === '1'));
+      if (u.pathname === '/api/seller') return sendJson(res, 200, await seller(u.searchParams.get('oid'), u.searchParams.get('id')));
+      if (u.pathname === '/api/debug/seller') {
+        const report = await sellerDebug(u.searchParams.get('ad')); // lỗi (mã tin sai…) → khối catch bên dưới
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify(report, null, 2)); // xuống dòng cho dễ đọc / copy
+      }
       if (u.pathname === '/api/pois') return sendJson(res, 200, await pois(u.searchParams.get('cell')));
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
       if (u.pathname === '/api/ads') return sendJson(res, 200, await listAds(u.searchParams));

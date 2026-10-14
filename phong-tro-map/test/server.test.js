@@ -12,15 +12,10 @@ const upstream = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   hits.push(u);
   res.setHeader('Content-Type', 'application/json');
-  if (u.pathname === '/v1/public/ad-listing' && u.searchParams.get('account_oid')) {
-    const oid = u.searchParams.get('account_oid');
-    if (oid === 'ignored99') return res.end(JSON.stringify({ total: 98765, ads: [{ account_oid: 'someoneElse' }] })); // API bỏ qua tham số
-    return res.end(JSON.stringify(oid === 'oidLan123' ? { total: 12, ads: [{ account_oid: oid }] } : { total: 0, ads: [] }));
-  }
+  if (u.pathname === '/v1/public/profile/777') return res.end(JSON.stringify({ data: { display_name: 'Anh Minh', joined_date: '2020-01-15' } }));
   if (u.pathname === '/v1/public/profile/oidLan123') {
     return res.end(JSON.stringify({
       account_oid: 'oidLan123', full_name: 'Chị Lan', avatar: 'https://cdn/lan.jpg', create_time: Math.floor(Date.now() / 1000) - 8 * 365 * 86400,
-      chat: { response_rate: 0.92, last_active: Date.now() - 3 * 60000 },
     }));
   }
   if (u.pathname === '/v1/public/ad-listing') {
@@ -32,7 +27,7 @@ const upstream = http.createServer((req, res) => {
           size: 25, region_v2: 13000, region_name: 'Tp Hồ Chí Minh', area_v2: 13102, area_name: 'Quận 7',
           ward: 9001, ward_name: 'Phường Tân Phong', latitude: 10.73, longitude: 106.7, image: 'https://img/1.jpg',
           list_time: 1700000000000, date: '2 giờ trước', company_ad: false, furnishing_rent: 2, type: 'u',
-          account_name: 'Chị Lan', account_oid: 'oidLan123',
+          account_name: 'Chị Lan', account_oid: 'oidLan123', account_id: 42,
         },
         { list_id: 222, subject: 'Phòng không toạ độ', price: 2000000, size: 15, latitude: 0, longitude: 0, company_ad: true },
       ],
@@ -40,6 +35,9 @@ const upstream = http.createServer((req, res) => {
   }
   if (u.pathname === '/v1/public/ad-listing/555') {
     return res.end(JSON.stringify({ ad: { body: 'Phòng rộng\nCó gác, máy lạnh', images: ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/1.jpg', 'http://insecure/3.jpg', { url: 'https://cdn/4.jpg' }] } }));
+  }
+  if (u.pathname === '/v1/public/ad-listing/666') {
+    return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'dài', account_oid: 'oidLan123', account_id: 42, account_name: 'Chị Lan', price: 1 } }));
   }
   if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Không ảnh' } }));
   if (u.pathname.startsWith('/route/v1/driving/')) {
@@ -299,26 +297,36 @@ test('/api/pois: công trình OSM theo ô bản đồ, có cache', async () => {
   assert.match((await busy.json()).error, /Overpass/);
 });
 
-test('/api/seller: hồ sơ người đăng (tên, số tin, phản hồi, thời gian trên Nhà Tốt)', async () => {
+test('/api/seller: hồ sơ người đăng (tên, ảnh đại diện, thời gian trên Nhà Tốt)', async () => {
   const ads = await (await fetch(`${base}/api/ads?region_v2=13000`)).json();
   const ad = ads.ads.find((a) => a.id === '111');
   assert.equal(ad.seller, 'Chị Lan');
   assert.equal(ad.sellerOid, 'oidLan123');
+  assert.equal(ad.sellerId, '42');
 
   const s = await (await fetch(`${base}/api/seller?oid=oidLan123`)).json();
   assert.equal(s.name, 'Chị Lan');
-  assert.equal(s.adCount, 12);
-  assert.equal(s.responseRate, 92, 'tỉ lệ 0.92 trong object con');
   assert.equal(s.avatar, 'https://cdn/lan.jpg');
   assert.ok(Math.abs((Date.now() - s.joinedAt) / (365 * 86400000) - 8) < 0.01, 'create_time tính bằng giây');
   assert.equal(s.url, 'https://www.chotot.com/user/oidLan123');
-  assert.equal(s.raw, undefined);
-  assert.ok((await (await fetch(`${base}/api/seller?oid=oidLan123&debug=1`)).json()).raw.profile.full_name);
+  assert.deepEqual(Object.keys(s).sort(), ['avatar', 'joinedAt', 'name', 'url']);
 
-  const unknown = await (await fetch(`${base}/api/seller?oid=nobody99`)).json();
-  assert.deepEqual([unknown.name, unknown.adCount, unknown.responseRate, unknown.joinedAt], ['', null, null, null]);
-  assert.equal((await (await fetch(`${base}/api/seller?oid=ignored99`)).json()).adCount, null, 'không lấy tổng số tin của cả trang');
+  const byId = await (await fetch(`${base}/api/seller?id=777`)).json();
+  assert.deepEqual([byId.name, new Date(byId.joinedAt).getFullYear(), byId.url], ['Anh Minh', 2020, null], 'không có account_oid: hỏi theo account_id, tên trường khác');
+
+  assert.equal((await fetch(`${base}/api/seller?oid=nobody99`)).status, 502);
   assert.equal((await fetch(`${base}/api/seller?oid=../x`)).status, 400);
+  assert.equal((await fetch(`${base}/api/seller`)).status, 400);
+});
+
+test('/api/debug/seller: dữ liệu gốc về người đăng của một tin', async () => {
+  const d = await (await fetch(`${base}/api/debug/seller?ad=666`)).json();
+  assert.equal(d.detail.status, 200);
+  assert.equal(d.detail.seller.account_oid, 'oidLan123');
+  assert.ok(!('body' in d.detail.seller), 'chỉ các trường liên quan người đăng');
+  assert.deepEqual(d.probes.map((p) => [p.url, p.status]), [['/v1/public/profile/oidLan123', 200], ['/v1/public/profile/42', 404]]);
+  assert.match(d.probes[0].body, /Chị Lan/);
+  assert.equal((await fetch(`${base}/api/debug/seller?ad=x`)).status, 400);
 });
 
 test('/api/detail: đủ ảnh và mô tả đầy đủ của tin', async () => {
