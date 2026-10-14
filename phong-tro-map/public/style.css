@@ -645,6 +645,45 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .poi-pop .poi-cat { color: #61707a; font-size: 12px; margin-bottom: 8px; }
 .poi-pop a { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
 .poi-pop a .ic { width: 15px; height: 15px; }
+/* Bộ lọc vùng vẽ trên bản đồ (zones.js) */
+#zonePop .pop-body { width: 320px; }
+.zone-list { list-style: none; margin: 0 0 4px; padding: 0; }
+.zone-list:empty { display: none; }
+.zone-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.zone-name { flex: 1; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.zone-name .ic { color: var(--accent); }
+.zone-name small { color: var(--muted); font-weight: 400; }
+.zone-list button {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.zone-list button .ic { width: 14px; height: 14px; }
+.zone-list button:hover { border-color: var(--accent); color: var(--accent); }
+.zone-list button.danger { color: #b03a2e; }
+.zone-list button.danger:hover { border-color: #b03a2e; color: #b03a2e; }
+#zonePop .pop-actions .primary { display: inline-flex; align-items: center; gap: 4px; }
+.pop-actions .primary:disabled { opacity: .5; cursor: default; }
+.zone-label span {
+  display: inline-block; transform: translate(-50%, -50%); padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  background: rgba(29, 111, 220, .9); color: #fff; font: 600 11.5px/1.4 system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+.zone-bar {
+  /* Cạnh dưới bản đồ (chú thích đã ẩn khi vẽ): không che nút phóng to và thông báo ở trên. */
+  position: absolute; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); width: max-content; max-width: min(480px, calc(100% - 24px));
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 8px 10px 8px 14px;
+  background: #fff; color: #1d2327; border-radius: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25); font-size: 13px; color-scheme: light;
+}
+.zone-bar-acts { display: flex; gap: 6px; }
+body.zone-drawing .ul-ctl, body.zone-drawing .legend { display: none; }
+.zone-bar button {
+  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border: 1px solid #d0d7dc; border-radius: 8px;
+  background: #fff; color: #1d2327; font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.zone-bar button .ic { width: 15px; height: 15px; }
+.zone-bar button:hover:not(:disabled) { border-color: #1d6fdc; color: #1d6fdc; }
+.zone-bar button.primary { background: #1d6fdc; border-color: #1d6fdc; color: #fff; font-weight: 600; }
+.zone-bar button.primary:hover:not(:disabled) { color: #fff; filter: brightness(1.08); }
+.zone-bar button:disabled { opacity: .45; cursor: default; }
 .map-notice-close { border: 0; background: none; color: #fff; cursor: pointer; padding: 0 0 0 8px; vertical-align: middle; }
 .map-notice {
   position: absolute; z-index: 1000; left: 50%; top: 12px; transform: translateX(-50%); max-width: min(520px, calc(100% - 24px));

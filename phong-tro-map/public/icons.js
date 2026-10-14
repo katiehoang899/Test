@@ -41,6 +41,7 @@
     themeAuto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none"/>',
     sun: '<circle cx="12" cy="12" r="3.8"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
     moon: '<path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1z"/>',
+    polygon: '<path d="M6 5.5 17 4l3.5 9-6 6.5L4 16z"/><path d="M6 5.5h.01M17 4h.01M20.5 13h.01M14.5 19.5h.01M4 16h.01" stroke-width="3.2"/>',
     locate: '<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>',
     palette: '<path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.1 0 1.7-.7 1.7-1.6 0-1.2-1-1.5-1-2.5 0-.9.7-1.4 1.6-1.4h2.2a4 4 0 0 0 4-4c0-4.2-3.8-7.5-8.5-7.5z"/><path d="M7.6 12h.01M9.3 7.9h.01M14.2 7.4h.01M17 10.8h.01" stroke-width="2.6"/>',
     hospital: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',

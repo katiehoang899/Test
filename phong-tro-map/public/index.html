@@ -73,6 +73,18 @@
       </div>
     </details>
 
+    <details class="pop zone-pop" id="zonePop">
+      <summary title="Vẽ vùng trên bản đồ, chỉ hiện tin nằm trong vùng"><span data-zone-title>Thêm vùng</span> <b id="zoneLabel"></b></summary>
+      <div class="pop-body">
+        <p class="hint">Chỉ hiện tin có vị trí nằm trong các vùng bạn vẽ trên bản đồ.</p>
+        <ul class="zone-list" data-zone-list></ul>
+        <div class="pop-actions">
+          <button type="button" class="primary" data-zone-draw data-icon="plus">Vẽ thêm vùng</button>
+          <button type="button" data-clear="zone">Xoá hết</button>
+        </div>
+      </div>
+    </details>
+
     <details class="pop" id="pricePop">
       <summary><span>Giá thuê</span> <b id="priceLabel"></b></summary>
       <div class="pop-body">
@@ -267,5 +279,6 @@
   <script src="app.js"></script>
   <script src="userlayers.js"></script>
   <script src="mapstyle.js"></script>
+  <script src="zones.js"></script>
 </body>
 </html>

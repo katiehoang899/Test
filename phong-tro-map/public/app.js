@@ -7,7 +7,7 @@ const LOAD_ALL_CAP = 5000; // "Tải tất cả" dừng ở đây để không g
 const RENDER_STEP = 60; // số thẻ tin thêm vào danh sách mỗi lần cuộn
 const AUTO_FILL_MIN = 20; // bộ lọc loại trừ ẩn nhiều tin: tự tải thêm trang cho đủ số tin này…
 const AUTO_FILL_PAGES = 8; // …nhưng không quá số trang này mỗi lần, sau đó chờ người dùng bấm "Xem thêm"
-const LOCAL_ONLY = ['kw', 'kwmode', 'nq', 'nosale', 'hidemarked'];
+const LOCAL_ONLY = ['kw', 'kwmode', 'nq', 'nosale', 'hidemarked', 'zone'];
 const MAX_PARALLEL = 4; // chọn nhiều quận / phường: số nguồn tải song song mỗi lượt // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
 
 const $ = (s) => document.querySelector(s);
@@ -441,11 +441,23 @@ function saleOf(ad) {
 
 // Tin khớp bộ lọc, đã sắp xếp. Tin bị bộ lọc từ khoá / sale trọ / đánh dấu được đếm
 // vào hiddenCount và chỉ trả về khi withHidden (ad.hidden ghi lý do).
+// Vùng vẽ trên bản đồ (zones.js) đang lọc: đọc lại khi state.zone đổi.
+let zoneCache = { str: null, zones: [] };
+function activeZones() {
+  if (zoneCache.str !== state.zone) zoneCache = { str: state.zone, zones: Filters.parseZones(state.zone) };
+  return zoneCache.zones;
+}
+
 function filteredAds({ withHidden = false } = {}) {
   for (const k of Object.keys(hiddenCount)) hiddenCount[k] = 0;
+  const zones = activeZones();
   const out = [];
   for (const ad of store.ads.values()) {
     if (!Filters.matches(ad, state)) continue;
+    if (zones.length) { // chỉ tin có vị trí nằm trong vùng đã vẽ
+      const ll = adLatLng(ad);
+      if (!ll || !Filters.inZones(ll[0], ll[1], zones)) continue;
+    }
     ad.hidden = Filters.hiddenReason(ad, state, saleOf(ad), myAds.hidden.has(ad.id));
     if (ad.hidden) {
       hiddenCount[ad.hidden.kind]++;
@@ -969,6 +981,8 @@ function updateCount() {
     if (hiddenCount.keyword) parts.push(`${hiddenCount.keyword.toLocaleString('vi-VN')} tin có từ khoá loại trừ`);
     if (hiddenCount.marked) parts.push(`${hiddenCount.marked.toLocaleString('vi-VN')} tin bạn đánh dấu không phù hợp`);
     if (parts.length) text += ` · đã ẩn ${parts.join(', ')}`;
+    const z = activeZones().length;
+    if (z) text += ` · chỉ tin trong ${z > 1 ? z + ' vùng' : 'vùng'} đã vẽ`;
   }
   el.count.textContent = text;
   el.showHiddenWrap.hidden = savedView || (!hiddenTotal() && !el.showHidden.checked);
@@ -1303,6 +1317,7 @@ function syncForm() {
   });
   el.nosale.checked = state.nosale === '1';
   syncKeywords();
+  window.syncZones?.(); // zones.js: vẽ lại vùng, cập nhật nút Thêm vùng
   markSetPops();
   syncSelects();
 }

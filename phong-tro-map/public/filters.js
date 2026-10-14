@@ -6,7 +6,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.Filters = api;
 })(typeof self !== 'undefined' ? self : this, function () {
-  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'posted', 'furnishing_rent', 'f', 'sort', 'kw', 'kwmode', 'nq', 'nosale', 'hidemarked'];
+  const FIELDS = ['q', 'st', 'region_v2', 'area_v2', 'ward', 'price', 'size', 'posted', 'furnishing_rent', 'f', 'sort', 'kw', 'kwmode', 'nq', 'nosale', 'hidemarked', 'zone'];
 
   // area_v2: danh sách mã quận / huyện (chọn nhiều).
   // ward: danh sách "mãQuận:mãPhường" (chọn nhiều, nhớ phường thuộc quận nào).
@@ -16,8 +16,9 @@
   // posted: thời gian đăng, xem postedRange (h4 = trong 4 giờ, h2-6 = 2–6 giờ trước,
   // d1 = trong 1 ngày, 2026-10-01~2026-10-05 = từ ngày đến ngày).
   // hidemarked = '1': ẩn tin bạn đã đánh dấu "không phù hợp" ('0' để hiện lại).
-  // Các bộ lọc kw / nq / nosale / hidemarked chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
-  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', posted: '', furnishing_rent: [], f: '', sort: '', kw: '', kwmode: '', nq: '', nosale: '', hidemarked: '1' };
+  // zone: các vùng vẽ trên bản đồ, chỉ hiện tin nằm trong vùng: "lat,lng;lat,lng;…|vùng 2…" (xem parseZones).
+  // Các bộ lọc kw / nq / nosale / hidemarked / zone chỉ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ.
+  const DEFAULTS = { q: '', st: 'u', region_v2: '', area_v2: [], ward: [], price: '', size: '', posted: '', furnishing_rent: [], f: '', sort: '', kw: '', kwmode: '', nq: '', nosale: '', hidemarked: '1', zone: '' };
   const LIST_FIELDS = ['area_v2', 'ward', 'furnishing_rent'];
   const LIST_RE = { area_v2: /^\d{1,10}$/, ward: /^\d{1,10}:\d{1,10}$/, furnishing_rent: /^\d+$/ };
 
@@ -92,6 +93,7 @@
     }
     if (!['u', 'h', 'u,h'].includes(s.st)) s.st = DEFAULTS.st;
     if (s.kwmode !== 'any') s.kwmode = '';
+    s.zone = formatZones(parseZones(s.zone)); // bỏ vùng sai, làm tròn toạ độ
     if (!['', 'p', 'c'].includes(s.f)) s.f = '';
     s.nosale = s.nosale === '1' ? '1' : '';
     s.hidemarked = s.hidemarked === '0' ? '0' : '1';
@@ -108,6 +110,47 @@
     const s = p.toString();
     return s ? '?' + s : '';
   }
+
+  // ---------- vùng vẽ trên bản đồ ----------
+
+  const MAX_ZONES = 10;
+  const MAX_ZONE_POINTS = 100;
+
+  // "10.7,106.6;10.71,106.62;10.69,106.63|…" → [[[10.7, 106.6], …], …]. Bỏ điểm / vùng sai,
+  // vùng phải có ít nhất 3 điểm.
+  function parseZones(str) {
+    const zones = [];
+    for (const part of String(str || '').split('|')) {
+      const pts = [];
+      for (const p of part.split(';')) {
+        const [lat, lng] = p.split(',').map(Number);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 85 && Math.abs(lng) <= 180) pts.push([lat, lng]);
+        if (pts.length >= MAX_ZONE_POINTS) break;
+      }
+      if (pts.length >= 3) zones.push(pts);
+      if (zones.length >= MAX_ZONES) break;
+    }
+    return zones;
+  }
+
+  // Toạ độ làm tròn 5 chữ số (~1 m) cho URL ngắn.
+  function formatZones(zones) {
+    const r = (v) => Number(Number(v).toFixed(5));
+    return zones.filter((z) => z.length >= 3).map((z) => z.map(([lat, lng]) => `${r(lat)},${r(lng)}`).join(';')).join('|');
+  }
+
+  // Điểm có nằm trong đa giác không (tia ngang, đủ chính xác cho vùng cỡ thành phố).
+  function inPolygon(lat, lng, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [yi, xi] = poly[i];
+      const [yj, xj] = poly[j];
+      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  const inZones = (lat, lng, zones) => zones.some((z) => inPolygon(lat, lng, z));
 
   // Mã phường đang chọn của một quận.
   function wardsOfArea(state, area) {
@@ -419,6 +462,7 @@
     wardsOfArea, locationSources, googleMapsUrl, streetViewUrl,
     meters, pathLength, formatDistance,
     postedRange, postedLabel,
+    parseZones, formatZones, inPolygon, inZones, MAX_ZONES, MAX_ZONE_POINTS,
     splitKeywords, joinKeywords, missingKeyword, excludedKeyword, saleReasons, hiddenReason,
   };
 });

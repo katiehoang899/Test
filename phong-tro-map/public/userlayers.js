@@ -122,6 +122,7 @@ function createUserLayer(cfg) {
   }
 
   function setMode(mode) {
+    if (mode) window.cancelZoneDraw?.(); // đang vẽ vùng lọc tin (zones.js) thì thôi
     if (mode && activeLayer && activeLayer !== api_) activeLayer.setMode(null);
     activeLayer = mode ? api_ : (activeLayer === api_ ? null : activeLayer);
     st.mode = mode;

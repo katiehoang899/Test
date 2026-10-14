@@ -226,3 +226,25 @@ test('posted time filter: hours, days, date range', () => {
   assert.ok(!F.matches({ title: '', price: 1, size: 1, time: null }, s('d2')), 'không rõ giờ đăng');
   assert.ok(F.matches({ title: '', price: 1, size: 1, time: null }, s('')));
 });
+
+test('vùng vẽ trên bản đồ: đọc / ghi URL, điểm trong vùng', () => {
+  const sq = [[10.70, 106.60], [10.70, 106.70], [10.80, 106.70], [10.80, 106.60]];
+  const tri = [[10.0, 106.0], [10.0, 106.2], [10.2, 106.1]];
+  const str = F.formatZones([sq, tri]);
+  assert.equal(str, '10.7,106.6;10.7,106.7;10.8,106.7;10.8,106.6|10,106;10,106.2;10.2,106.1');
+  assert.deepEqual(F.parseZones(str), [sq, tri]);
+  assert.equal(F.formatZones([[[10.123456789, 106.987654321], [1, 2], [3, 4]]]), '10.12346,106.98765;1,2;3,4', 'làm tròn 5 chữ số');
+  assert.deepEqual(F.parseZones('1,2;3,4|x;y;z|10,106;10,107;11,106;abc'), [[[10, 106], [10, 107], [11, 106]]], 'bỏ vùng < 3 điểm và điểm sai');
+  assert.ok(F.inZones(10.75, 106.65, [sq, tri]));
+  assert.ok(F.inZones(10.05, 106.1, [sq, tri]));
+  assert.ok(!F.inZones(10.75, 106.75, [sq, tri]));
+  assert.ok(!F.inZones(10.19, 106.01, [sq, tri]), 'ngoài cạnh xiên của tam giác');
+  // Đa giác lõm (hình chữ L): điểm trong phần khuyết là ngoài vùng.
+  const L = [[0, 0], [0, 2], [1, 2], [1, 1], [2, 1], [2, 0]];
+  assert.ok(F.inPolygon(0.5, 1.5, L));
+  assert.ok(!F.inPolygon(1.5, 1.5, L));
+  const st = F.stateFromSearch('?zone=' + encodeURIComponent('10.7,106.6;10.7,106.7;10.8,106.7;bad|1,1'));
+  assert.equal(st.zone, '10.7,106.6;10.7,106.7;10.8,106.7');
+  assert.equal(F.stateToSearch({ ...F.emptyState(), zone: st.zone }), '?zone=' + encodeURIComponent(st.zone).replace(/%20/g, '+'));
+  assert.equal(F.parseZones(Array.from({ length: 12 }, () => '1,1;1,2;2,2').join('|')).length, F.MAX_ZONES);
+});
