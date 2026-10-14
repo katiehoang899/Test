@@ -22,6 +22,7 @@
     close: '<path d="M7 7l10 10M17 7 7 17"/>',
     arrowLeft: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.2"/><path d="M12 7.8h.01" stroke-width="2.6"/>',
     chevronLeft: '<path d="m15 6-6 6 6 6"/>',
     chevronRight: '<path d="m9 6 6 6-6 6"/>',
     external: '<path d="M14 4h6v6M20 4l-8.5 8.5"/><path d="M18 14v3a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3h3"/>',

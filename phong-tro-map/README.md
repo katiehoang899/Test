@@ -53,7 +53,8 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - Ảnh nền OSM / CARTO là ảnh có sẵn nên **không ẩn được** biểu tượng in trên đó. Muốn chỉ thấy các loại công trình mình bật, chọn lớp **CARTO Nhạt**.
   - Mọi lựa chọn được nhớ cho lần mở sau.
 - **Người đăng tin** (dưới ảnh mỗi tin): **ảnh đại diện** và tên người đăng (bấm để mở trang người đăng trên Chợ Tốt), **tỉ lệ phản hồi**, **số tin đang đăng** và **thời gian trên Nhà Tốt**. Tên có sẵn trong tin; phần còn lại tải khi tin cuộn tới (mỗi người đăng một lần, server cache 15 phút). Thông tin nào Chợ Tốt không trả về thì không hiện. API hồ sơ của Chợ Tốt không có tài liệu: nếu thiếu thông tin, mở `http://localhost:3100/api/seller?oid=<mã người đăng>&debug=1` để xem dữ liệu gốc (mã người đăng là phần cuối link trang người đăng).
-- **Địa chỉ trên mỗi tin**: dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
+- **Mô tả chi tiết**: nút **(i)** sau diện tích / nội thất của mỗi tin. Rê chuột vào để xem toàn bộ mô tả (rê vào khung để cuộn đọc), hoặc bấm để giữ khung mở; bấm lần nữa, bấm ra ngoài hoặc Esc để đóng. Mô tả đầy đủ lấy từ trang chi tiết tin.
+- **Địa chỉ trên mỗi tin** (tối đa 2 dòng): dòng *Địa chỉ* kèm nút **copy** (copy địa chỉ để dán vào Zalo, Google…) và nút **📍** mở vị trí trên Google Maps (tin có toạ độ: đúng điểm, không có thì tìm theo địa chỉ).
 - **Nút tra cứu nhanh** trên header (chỉ có icon, rê chuột để xem tên):
   - **🌊** *Tra cứu điểm ngập qua VnExpress*: mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) (theo danh sách của Sở Xây dựng TP HCM) trong tab mới, cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
   - **✓** *Kiểm tra phòng trọ minh bạch nhaminhbach.com*: mở [nhaminhbach.com](https://nhaminhbach.com/) trong tab mới.

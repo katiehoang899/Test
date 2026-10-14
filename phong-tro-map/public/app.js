@@ -219,18 +219,20 @@ const icons = {
 
 // ---------- ảnh trong popup: bấm ‹ ›, vuốt hoặc phím ← → để xem lần lượt ----------
 
-const adImageLists = new Map(); // mã tin → Promise<danh sách ảnh>
+const adDetails = new Map(); // mã tin → Promise<{ images, body }> (null nếu không lấy được)
 
-// Danh sách tin thường chỉ có ảnh đầu: tin có nhiều ảnh hơn thì hỏi /api/images (mỗi tin một lần).
+// Chi tiết tin (đủ ảnh, mô tả đầy đủ) từ /api/detail, mỗi tin hỏi một lần.
+function adDetail(id) {
+  if (!adDetails.has(id)) adDetails.set(id, api('/api/detail?id=' + encodeURIComponent(id)).catch(() => null));
+  return adDetails.get(id);
+}
+
+// Danh sách tin thường chỉ có ảnh đầu: tin có nhiều ảnh hơn thì lấy đủ ảnh từ chi tiết tin.
 function adImageList(ad) {
   const have = (ad.images || []).filter(Boolean);
   const base = have.length ? have : [ad.thumb].filter(Boolean);
   if (!(ad.imageCount > base.length)) return Promise.resolve(base);
-  if (!adImageLists.has(ad.id)) {
-    adImageLists.set(ad.id, api('/api/images?id=' + encodeURIComponent(ad.id))
-      .then((d) => (d.images?.length ? d.images : base), () => base));
-  }
-  return adImageLists.get(ad.id);
+  return adDetail(ad.id).then((d) => (d?.images?.length ? d.images : base));
 }
 
 function galleryHtml(ad) {
@@ -569,6 +571,93 @@ document.addEventListener('click', (e) => {
 const ICON_COPY = icon('copy');
 const ICON_CHECK = icon('check');
 const ICON_MAP = icon('pin');
+const ICON_INFO = icon('info');
+
+// ---------- mô tả chi tiết: rê chuột (hoặc bấm) vào nút (i) trên thẻ tin ----------
+
+const descPop = document.createElement('div');
+descPop.className = 'desc-pop';
+descPop.setAttribute('role', 'dialog');
+descPop.setAttribute('aria-label', 'Mô tả chi tiết');
+descPop.hidden = true;
+document.body.append(descPop);
+let descBtn = null;
+let descHideTimer = 0;
+let descPinned = false; // mở bằng bấm: giữ nguyên khi rê chuột ra ngoài
+
+function placeDesc(btn) {
+  const r = btn.getBoundingClientRect();
+  const w = Math.min(440, window.innerWidth - 24);
+  descPop.style.width = w + 'px';
+  descPop.style.left = Math.max(12, Math.min(r.left - 16, window.innerWidth - w - 12)) + 'px';
+  const below = window.innerHeight - r.bottom - 16;
+  const above = r.top - 16;
+  // Bên dưới nút nếu đủ chỗ, không thì bên trên.
+  if (below >= 220 || below >= above) {
+    descPop.style.top = r.bottom + 8 + 'px';
+    descPop.style.bottom = '';
+    descPop.style.maxHeight = Math.min(420, below) + 'px';
+  } else {
+    descPop.style.top = '';
+    descPop.style.bottom = window.innerHeight - r.top + 8 + 'px';
+    descPop.style.maxHeight = Math.min(420, above) + 'px';
+  }
+}
+
+function descBody(text) {
+  return text ? `<div class="desc-text">${esc(text.trim())}</div>` : '<div class="desc-text muted">Tin không có mô tả.</div>';
+}
+
+function showDesc(btn) {
+  clearTimeout(descHideTimer);
+  if (descBtn === btn && !descPop.hidden) return;
+  descPinned = false;
+  descBtn?.setAttribute('aria-expanded', 'false');
+  descBtn = btn;
+  btn.setAttribute('aria-expanded', 'true');
+  const ad = findAd(btn.dataset.desc);
+  descPop.innerHTML = `<div class="desc-head">${ICON_INFO}<b>Mô tả chi tiết</b></div>${ad?.body ? descBody(ad.body) : '<div class="desc-text muted">Đang tải mô tả…</div>'}`;
+  descPop.hidden = false;
+  placeDesc(btn);
+  // Mô tả trong danh sách có thể bị cắt ngắn / thiếu (tin đã lưu): lấy bản đầy đủ của tin.
+  adDetail(btn.dataset.desc).then((d) => {
+    if (descBtn !== btn || descPop.hidden) return;
+    const full = d?.body || ad?.body || '';
+    if (full && full !== ad?.body || !ad?.body) {
+      descPop.querySelector('.desc-text').outerHTML = descBody(full);
+      placeDesc(btn);
+    }
+  });
+}
+
+function hideDesc() {
+  clearTimeout(descHideTimer);
+  descPinned = false;
+  descPop.hidden = true;
+  descBtn?.setAttribute('aria-expanded', 'false');
+  descBtn = null;
+}
+const hideDescSoon = () => { clearTimeout(descHideTimer); descHideTimer = setTimeout(hideDesc, 180); };
+
+document.addEventListener('mouseover', (e) => {
+  const btn = e.target.closest('.info-btn');
+  if (btn) showDesc(btn);
+  else if (descPop.contains(e.target)) clearTimeout(descHideTimer); // rê vào khung mô tả để đọc / cuộn
+  else if (!descPop.hidden && !descPinned) hideDescSoon();
+});
+// Bấm (cả trên màn hình cảm ứng): mở và giữ khung mô tả; bấm lần nữa, bấm ra ngoài hoặc Esc thì đóng.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.info-btn');
+  if (btn) {
+    e.stopPropagation();
+    if (descPinned && descBtn === btn) return hideDesc();
+    showDesc(btn);
+    descPinned = true;
+  } else if (!descPop.contains(e.target)) hideDesc();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !descPop.hidden) hideDesc(); });
+el.list.addEventListener('scroll', () => { if (!descPop.hidden) hideDesc(); }, { passive: true });
+window.addEventListener('resize', () => { if (!descPop.hidden) hideDesc(); });
 
 // Địa chỉ bất động sản + nút copy + nút mở vị trí trên Google Maps.
 function addressHtml(ad, fallback) {
@@ -731,7 +820,8 @@ function cardHtml(ad) {
     <div class="info">
       <a class="title" href="${esc(ad.url)}" target="_blank" rel="noopener">${esc(ad.title)}</a>
       <div class="price">${esc(priceText(ad))}</div>
-      <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
+      <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}<button type="button" class="info-btn" data-desc="${esc(ad.id)}"
+        aria-label="Mô tả chi tiết" aria-haspopup="dialog">${ICON_INFO}</button></div>
       ${addressHtml(ad, where)}
       <div class="meta">
         <span>${esc(ad.date)}</span>

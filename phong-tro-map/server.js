@@ -373,18 +373,22 @@ async function updateSaved(req) {
   return saved;
 }
 
-// ---------- ảnh của tin ----------
+// ---------- chi tiết tin: đủ ảnh + mô tả đầy đủ ----------
 
-// Danh sách tin thường chỉ có ảnh đầu: lấy đủ ảnh từ trang chi tiết tin (khi mở popup xem ảnh).
-async function adImages(id) {
+// Danh sách tin thường chỉ có ảnh đầu (và có thể cắt ngắn mô tả): lấy từ trang chi tiết tin
+// khi mở popup xem ảnh / xem mô tả.
+async function adDetail(id) {
   if (!/^\d{1,15}$/.test(String(id || ''))) throw badRequest('Mã tin không hợp lệ');
-  return cached('images:' + id, 3600 * 1000, async () => {
+  return cached('detail:' + id, 3600 * 1000, async () => {
     const data = await getJson(`${GATEWAY}/v1/public/ad-listing/${id}`);
     const ad = data.ad || data.data || {};
     const list = (Array.isArray(ad.images) ? ad.images : [ad.image])
       .map((x) => (typeof x === 'string' ? x : x?.url || x?.image))
       .filter((u) => /^https:\/\//.test(String(u || '')));
-    return { images: [...new Set(list)].slice(0, 30) };
+    return {
+      images: [...new Set(list)].slice(0, 30),
+      body: typeof ad.body === 'string' ? ad.body.slice(0, 10000) : '',
+    };
   });
 }
 
@@ -707,7 +711,7 @@ function createServer() {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
-      if (u.pathname === '/api/images') return sendJson(res, 200, await adImages(u.searchParams.get('id')));
+      if (u.pathname === '/api/detail') return sendJson(res, 200, await adDetail(u.searchParams.get('id')));
       if (u.pathname === '/api/seller') return sendJson(res, 200, await seller(u.searchParams.get('oid'), u.searchParams.get('debug') === '1'));
       if (u.pathname === '/api/pois') return sendJson(res, 200, await pois(u.searchParams.get('cell')));
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));

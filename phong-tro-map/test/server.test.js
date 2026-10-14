@@ -39,7 +39,7 @@ const upstream = http.createServer((req, res) => {
     }));
   }
   if (u.pathname === '/v1/public/ad-listing/555') {
-    return res.end(JSON.stringify({ ad: { images: ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/1.jpg', 'http://insecure/3.jpg', { url: 'https://cdn/4.jpg' }] } }));
+    return res.end(JSON.stringify({ ad: { body: 'Phòng rộng\nCó gác, máy lạnh', images: ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/1.jpg', 'http://insecure/3.jpg', { url: 'https://cdn/4.jpg' }] } }));
   }
   if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Không ảnh' } }));
   if (u.pathname.startsWith('/route/v1/driving/')) {
@@ -321,9 +321,10 @@ test('/api/seller: hồ sơ người đăng (tên, số tin, phản hồi, thờ
   assert.equal((await fetch(`${base}/api/seller?oid=../x`)).status, 400);
 });
 
-test('/api/images: đủ ảnh của tin cho popup', async () => {
-  const d = await (await fetch(`${base}/api/images?id=555`)).json();
+test('/api/detail: đủ ảnh và mô tả đầy đủ của tin', async () => {
+  const d = await (await fetch(`${base}/api/detail?id=555`)).json();
   assert.deepEqual(d.images, ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/4.jpg']);
-  assert.deepEqual((await (await fetch(`${base}/api/images?id=444`)).json()).images, []);
-  assert.equal((await fetch(`${base}/api/images?id=abc`)).status, 400);
+  assert.equal(d.body, 'Phòng rộng\nCó gác, máy lạnh');
+  assert.deepEqual(await (await fetch(`${base}/api/detail?id=444`)).json(), { images: [], body: 'Không ảnh' });
+  assert.equal((await fetch(`${base}/api/detail?id=abc`)).status, 400);
 });
