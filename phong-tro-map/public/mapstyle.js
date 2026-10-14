@@ -386,4 +386,66 @@
   map.on('moveend', refresh);
   syncPoiUi();
   refresh();
+
+  // ---------- vị trí của tôi ----------
+
+  // Nút dưới nút Tuỳ chỉnh bản đồ: hỏi vị trí hiện tại (trình duyệt xin phép lần đầu) rồi bay tới đó,
+  // hiện chấm xanh + vòng tròn độ chính xác.
+  const LocateControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      const btn = L.DomUtil.create('button', 'ms-btn locate-btn');
+      btn.type = 'button';
+      btn.title = 'Vị trí của tôi: hiện vị trí hiện tại trên bản đồ';
+      btn.setAttribute('aria-label', 'Vị trí của tôi');
+      btn.innerHTML = icon('locate');
+      L.DomEvent.disableClickPropagation(btn);
+      return btn;
+    },
+  });
+  const locate = new LocateControl();
+  map.addControl(locate);
+  const locBtn = locate.getContainer();
+  const me = L.layerGroup().addTo(map);
+
+  function showMe(lat, lng, accuracy) {
+    me.clearLayers();
+    if (accuracy > 30) {
+      L.circle([lat, lng], { radius: accuracy, interactive: false, color: '#1d6fdc', weight: 1, opacity: 0.5, fillColor: '#1d6fdc', fillOpacity: 0.1 }).addTo(me);
+    }
+    L.marker([lat, lng], {
+      icon: L.divIcon({ className: 'me-dot', html: '<span></span>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 1000,
+    }).addTo(me);
+    // Vừa khung độ chính xác (định vị kém thì không phóng quá sâu), tối thiểu mức đường phố.
+    const zoom = Math.min(17, Math.max(14, map.getBoundsZoom(L.latLng(lat, lng).toBounds(Math.max(accuracy, 150) * 2))));
+    map.flyTo([lat, lng], zoom, { duration: 0.8 });
+  }
+
+  function locateMe() {
+    if (!window.isSecureContext || !navigator.geolocation) {
+      mapNotice('Trình duyệt chỉ cho lấy vị trí khi mở tool bằng http://localhost (hoặc https). Hãy mở lại bằng địa chỉ localhost trên máy đang chạy tool.', 0);
+      return;
+    }
+    locBtn.classList.add('busy');
+    locBtn.disabled = true;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      locBtn.classList.remove('busy');
+      locBtn.disabled = false;
+      locBtn.classList.add('on');
+      const { latitude, longitude, accuracy } = pos.coords;
+      showMe(latitude, longitude, accuracy);
+      if (accuracy > 1500) mapNotice(`Vị trí chỉ chính xác khoảng ${Math.round(accuracy / 100) / 10} km (máy không có GPS / Wi-Fi định vị).`);
+    }, (err) => {
+      locBtn.classList.remove('busy');
+      locBtn.disabled = false;
+      const msg = err.code === 1
+        ? 'Bạn chưa cho phép lấy vị trí. Bật lại quyền Vị trí cho trang này (biểu tượng cạnh thanh địa chỉ của trình duyệt), trên macOS bật thêm ở Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Dịch vụ định vị, rồi bấm lại nút.'
+        : err.code === 3 ? 'Lấy vị trí quá lâu, hãy thử lại.' : 'Không xác định được vị trí hiện tại (máy tắt định vị hoặc không có mạng).';
+      mapNotice(msg, err.code === 1 ? 0 : 9000);
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  }
+  locBtn.addEventListener('click', locateMe);
 })();

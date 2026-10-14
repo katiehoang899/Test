@@ -511,6 +511,22 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 }
 .ms-btn .ic { width: 20px; height: 20px; }
 .ms-btn:hover, .ms-ctl.open .ms-btn { color: #1d6fdc; }
+/* Nút Vị trí của tôi (cùng kiểu nút Tuỳ chỉnh bản đồ) */
+.leaflet-left .locate-btn { margin-top: 10px; }
+.locate-btn.on { color: #1d6fdc; }
+.locate-btn.busy { cursor: progress; }
+.locate-btn.busy .ic { animation: locate-pulse 1s ease-in-out infinite; color: #1d6fdc; }
+@keyframes locate-pulse { 50% { opacity: .3; } }
+/* Chấm vị trí hiện tại: chấm xanh viền trắng, có vòng lan toả */
+.me-dot span {
+  position: relative; display: block; width: 16px; height: 16px; margin: 3px; border-radius: 50%;
+  background: #1d6fdc; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); box-sizing: border-box;
+}
+.me-dot span::after {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid #1d6fdc; animation: me-ring 2s ease-out infinite;
+}
+@keyframes me-ring { from { transform: scale(1); opacity: .8; } to { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .me-dot span::after, .locate-btn.busy .ic { animation: none; } }
 .ms-badge {
   position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; box-sizing: border-box;
   background: #1d6fdc; color: #fff; font-size: 10px; line-height: 16px; text-align: center; border: 1.5px solid #fff;
