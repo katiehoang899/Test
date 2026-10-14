@@ -83,17 +83,32 @@ button, input, select { font: inherit; color: inherit; }
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
-.filters select, .pop summary {
+.sel, .pop summary {
   height: 34px; padding: 0 30px 0 12px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2361707a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 11px center;
   appearance: none; cursor: pointer; max-width: 220px;
 }
-.filters select:disabled { opacity: .5; cursor: default; }
+/* Chữ trong ô chọn / nút lọc nằm đúng giữa chiều cao: bỏ khoảng trống trên / dưới của font, căn theo
+   chiều cao chữ hoa (giống nhãn ô tick .tx), mũi tên ▾ đã căn giữa sẵn. */
+.sel-text, .pop summary > span, .pop summary > b { text-box: trim-both cap alphabetic; }
+/* Ô chọn: chữ của mục đang chọn vẽ trong .sel-text (trình duyệt không cho căn chữ bên trong <select>),
+   <select> thật trong suốt phủ lên trên nên bấm / phím / danh sách chọn vẫn như thường. */
+.sel { position: relative; display: inline-flex; align-items: center; }
+.sel-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Chữ đã cắt sát chiều cao chữ hoa: nới vùng hiển thị trên / dưới (padding) rồi bù lại (margin âm) để
+   dấu tiếng Việt (ồ, ễ…) và phần đuôi chữ (p, g, y) không bị overflow: hidden cắt mất, vẫn căn giữa. */
+.sel-text, .pop summary > b { padding-block: .45em; margin-block: -.45em; }
+.sel select {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0 30px 0 12px; border: 0; border-radius: inherit;
+  opacity: 0; cursor: pointer; appearance: none; font: inherit;
+}
+.sel:has(select:disabled) { opacity: .5; cursor: default; }
+.sel:has(select:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pop { position: relative; }
 .pop summary { list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; max-width: 320px; overflow: hidden; }
 .pop summary span { flex: none; }
 .pop summary::-webkit-details-marker { display: none; }
-.pop.set summary, .filters select:has(option:checked:not([value=""])) { border-color: var(--accent); background-color: var(--accent-soft); }
+.pop.set summary, .sel:has(option:checked:not([value=""])) { border-color: var(--accent); background-color: var(--accent-soft); }
 .pop summary b { font-weight: 600; color: var(--accent); min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* nhãn dài: cắt "…" trước mũi tên */
 .pop-body {
   position: absolute; z-index: 1000; top: 40px; left: 0; width: 300px; max-width: calc(100vw - 32px);
@@ -645,7 +660,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
   .views button { padding: 6px 8px; }
   .views button[data-view="split"] { display: none; }
   .filters { flex-wrap: nowrap; overflow-x: auto; }
-  .filters select, .pop summary { flex: 0 0 auto; }
+  .sel, .pop summary { flex: 0 0 auto; }
   .pop-body { position: fixed; top: auto; left: 16px; right: 16px; width: auto; }
   .main, body[data-view="split"] .main { grid-template-columns: minmax(0, 1fr); }
   body[data-view="split"] .map-wrap { display: none; }

@@ -1267,23 +1267,17 @@ function markSetPops() {
   });
 }
 
-// Ô chọn trên thanh lọc: rộng vừa chữ của mục đang chọn (mặc định trình duyệt lấy theo mục dài nhất,
-// thừa khoảng trống trước mũi tên).
-const fitCanvas = document.createElement('canvas').getContext('2d');
-function fitSelect(sel) {
-  const cs = getComputedStyle(sel);
-  if (cs.display === 'none') return;
-  fitCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const text = sel.selectedOptions[0]?.textContent || '';
-  const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
-  sel.style.width = Math.ceil(fitCanvas.measureText(text).width + pad + 2) + 'px';
+// Ô chọn trên thanh lọc: hiện chữ của mục đang chọn trong .sel-text (căn giữa được, ô rộng vừa chữ).
+function syncSelect(sel) {
+  const text = sel.closest('.sel')?.querySelector('.sel-text');
+  if (text) text.textContent = sel.selectedOptions[0]?.textContent || '';
 }
-const fitSelects = () => document.querySelectorAll('.filters select').forEach(fitSelect);
-document.querySelectorAll('.filters select').forEach((sel) => {
-  sel.addEventListener('change', () => fitSelect(sel));
-  new MutationObserver(() => fitSelect(sel)).observe(sel, { childList: true, subtree: true }); // danh sách tỉnh tải xong…
+const syncSelects = () => document.querySelectorAll('.sel select').forEach(syncSelect);
+document.querySelectorAll('.sel select').forEach((sel) => {
+  sel.addEventListener('change', () => syncSelect(sel));
+  new MutationObserver(() => syncSelect(sel)).observe(sel, { childList: true, subtree: true }); // danh sách tỉnh tải xong…
 });
-document.fonts?.ready.then(fitSelects);
+syncSelects();
 
 function syncForm() {
   el.hidemarked.checked = state.hidemarked !== '0';
@@ -1310,7 +1304,7 @@ function syncForm() {
   el.nosale.checked = state.nosale === '1';
   syncKeywords();
   markSetPops();
-  fitSelects();
+  syncSelects();
 }
 
 // Đổi bộ lọc chỉ chạy trên trình duyệt: lọc lại tin đã tải, không gọi lại API.
