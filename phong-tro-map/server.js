@@ -523,14 +523,38 @@ function badRequest(msg) {
   return Object.assign(new Error(msg), { status: 400 });
 }
 
+// Một điểm / đoạn từ file sao lưu: kiểm tra như khi thêm mới. null nếu không hợp lệ.
+function cleanImportedItem(raw, levels) {
+  if (!raw || typeof raw !== 'object') return null;
+  const item = {
+    id: /^[\w-]{8,64}$/.test(String(raw.id || '')) ? String(raw.id) : crypto.randomUUID(),
+    type: raw.type === 'line' ? 'line' : 'point',
+    level: levels.includes(raw.level) ? raw.level : 'unknown',
+    note: str(raw.note, 300).trim(),
+    at: finite(raw.at) && raw.at > 0 && raw.at <= Date.now() + 86400000 ? raw.at : Date.now(),
+  };
+  if (item.type === 'point') {
+    item.coords = cleanLatLng(raw.coords);
+    if (!item.coords) return null;
+  } else {
+    const pts = Array.isArray(raw.path) ? raw.path.slice(0, 5000).map(cleanLatLng) : [];
+    if (pts.length < 2 || pts.some((p) => !p)) return null;
+    item.path = pts;
+    item.routed = Boolean(raw.routed);
+  }
+  return item;
+}
+
+// Trả về { items, imported?, skipped? }.
 async function updateUserLayer(name, req) {
   if (!String(req.headers['content-type']).startsWith('application/json')) {
     throw Object.assign(new Error('Cần Content-Type: application/json'), { status: 415 });
   }
   let body;
-  try { body = JSON.parse(await readBody(req, 512 * 1024)); } catch { throw badRequest('JSON không hợp lệ'); }
+  try { body = JSON.parse(await readBody(req, 16 * 1024 * 1024)); } catch { throw badRequest('JSON không hợp lệ'); } // file sao lưu có thể lớn
   const { levels, what } = USER_LAYERS[name];
-  const items = loadUserLayer(name);
+  let items = loadUserLayer(name);
+  const result = {};
   const level = levels.includes(body.level) ? body.level : 'unknown';
   const note = str(body.note, 300).trim();
   if (body.op === 'add') {
@@ -554,12 +578,28 @@ async function updateUserLayer(name, req) {
       if (levels.includes(body.level)) items[i].level = body.level;
       if (typeof body.note === 'string') items[i].note = note;
     }
+  } else if (body.op === 'import') {
+    // Mở file sao lưu: mode 'replace' thay toàn bộ danh sách, 'merge' gộp theo id (điểm đã có
+    // thì cập nhật theo file, điểm mới thì thêm).
+    if (!Array.isArray(body.items)) throw badRequest('File không có danh sách điểm');
+    const clean = body.items.map((x) => cleanImportedItem(x, levels)).filter(Boolean);
+    if (!clean.length && body.items.length) throw badRequest(`File không có ${what} hợp lệ`);
+    const next = body.mode === 'replace' ? [] : items.slice();
+    const at = new Map(next.map((f, i) => [f.id, i]));
+    for (const item of clean) {
+      if (at.has(item.id)) next[at.get(item.id)] = item;
+      else if (next.length < USER_LAYER_MAX) { at.set(item.id, next.length); next.push(item); }
+    }
+    items = next;
+    userLayerCache[name] = items;
+    result.imported = clean.length;
+    result.skipped = body.items.length - clean.length;
   } else {
     throw badRequest('Thao tác không hợp lệ');
   }
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(path.join(DATA_DIR, `${name}.json`), JSON.stringify(items));
-  return items;
+  return { items, ...result };
 }
 
 // Đường đi A–B theo đường phố (OSRM). Không tìm được thì nối thẳng (routed: false).
@@ -731,7 +771,10 @@ function createServer() {
       if (u.pathname === '/api/saved' && req.method === 'POST') return sendJson(res, 200, await updateSaved(req));
       // /api/floods, /api/parking: lớp điểm ngập / chỗ đỗ xe hơi do người dùng thêm.
       const layer = /^\/api\/(floods|parking)$/.exec(u.pathname)?.[1];
-      if (layer && req.method === 'POST') return sendJson(res, 200, { [layer]: await updateUserLayer(layer, req) });
+      if (layer && req.method === 'POST') {
+        const { items, ...stats } = await updateUserLayer(layer, req);
+        return sendJson(res, 200, { [layer]: items, ...stats });
+      }
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });

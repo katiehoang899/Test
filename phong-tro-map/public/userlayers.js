@@ -9,6 +9,7 @@
 const USER_LAYERS = [
   {
     key: 'floods',
+    file: 'diem-ngap', // tên file sao lưu
     icon: 'drop',
     title: 'Điểm ngập',
     legend: 'Mức độ ngập',
@@ -27,6 +28,7 @@ const USER_LAYERS = [
   },
   {
     key: 'parking',
+    file: 'do-xe-hoi',
     icon: 'car',
     title: 'Đỗ xe hơi',
     legend: 'Loại chỗ đỗ',
@@ -272,7 +274,14 @@ function createUserLayer(cfg) {
     ui.count.textContent = String(st.items.length);
   }
 
-  const api_ = { key: cfg.key, cfg, levelOf, setMode, save, open, focus, onMapClick, mode: () => st.mode, items: () => st.items };
+  // Thay cả danh sách (sau khi mở file sao lưu).
+  function setItems(items) {
+    st.items = items;
+    render();
+    if (listDlg.open && listLayer === api_) renderLayerList();
+  }
+
+  const api_ = { key: cfg.key, cfg, levelOf, setMode, save, setItems, open, focus, onMapClick, mode: () => st.mode, items: () => st.items };
 
   let visible = true;
   try { visible = localStorage.getItem(storeKey) !== '0'; } catch { /* bỏ qua */ }
@@ -290,8 +299,12 @@ const listDlg = document.createElement('dialog');
 listDlg.className = 'ul-dlg';
 document.body.append(listDlg);
 let listLayer = null;
+let listImport = null; // file sao lưu vừa mở, chờ chọn Gộp / Thay thế: { key, name, items, exportedAt }
+let listNotice = null; // { text, error } dòng thông báo trong danh sách
 
 function openList(layer) {
+  listImport = null; // mở lại danh sách: bỏ thông báo / file đang chờ của lần trước
+  listNotice = null;
   listLayer = layer;
   renderLayerList();
   if (!listDlg.open) listDlg.showModal();
@@ -325,18 +338,113 @@ function renderLayerList() {
       </div>
     </li>`;
   }).join('');
+  const imp = listImport && listImport.key === cfg.key ? listImport : null;
   listDlg.innerHTML = `<div class="ul-dlg-head">
       <h2>${icon(cfg.icon)} ${esc(cfg.title)} <b>${items.length}</b></h2>
       <button type="button" class="ul-dlg-close" data-ul-close aria-label="Đóng">${icon('close')}</button>
     </div>
+    <div class="ul-dlg-tools">
+      <button type="button" data-ul-export${items.length ? '' : ' disabled'} title="Lưu danh sách ${esc(cfg.what)} ra file (.json) để sao lưu, dùng lại về sau">${icon('download')} Sao lưu ra file</button>
+      <button type="button" data-ul-import title="Mở file sao lưu ${esc(cfg.what)} để cập nhật danh sách">${icon('upload')} Mở file sao lưu</button>
+      <input type="file" accept=".json,application/json" data-ul-file hidden>
+    </div>
+    ${imp ? `<div class="ul-import">
+      <p>File <b>${esc(imp.name)}</b> có <b>${imp.items.length}</b> ${esc(cfg.what)}${imp.exportedAt ? ` (sao lưu lúc ${esc(shortTime(imp.exportedAt))})` : ''}. Cập nhật danh sách thế nào?</p>
+      <div class="ul-import-acts">
+        <button type="button" class="primary" data-ul-import-mode="merge" title="Thêm điểm mới trong file; điểm đã có thì cập nhật theo file. Không xoá điểm nào.">Gộp vào danh sách</button>
+        <button type="button" data-ul-import-mode="replace" title="Xoá danh sách hiện tại, chỉ giữ các điểm trong file">Thay thế toàn bộ${items.length ? ` (${items.length} điểm hiện có sẽ bị xoá)` : ''}</button>
+        <button type="button" data-ul-import-cancel>Huỷ</button>
+      </div>
+    </div>` : ''}
+    ${listNotice ? `<p class="ul-notice${listNotice.error ? ' error' : ''}" role="status">${esc(listNotice.text)}</p>` : ''}
     ${items.length
     ? `<ul class="ul-rows">${rows}</ul>`
     : `<p class="ul-empty">Chưa có ${esc(cfg.what)} nào. Bấm <b>Đặt điểm</b> hoặc <b>Nối A–B</b> trong bảng ${esc(cfg.title)} trên bản đồ để thêm.</p>`}`;
 }
 
+// ---------- sao lưu ra file / mở file sao lưu ----------
+
+function dateStamp(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function exportLayer(layer) {
+  const { cfg } = layer;
+  const items = layer.items();
+  const data = { app: 'phong-tro-map', layer: cfg.key, name: cfg.title, version: 1, exportedAt: new Date().toISOString(), count: items.length, items };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `phong-tro-map-${cfg.file}-${dateStamp()}.json`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  listNotice = { text: `Đã lưu ${items.length} ${cfg.what} ra file ${a.download}.` };
+  renderLayerList();
+}
+
+// Đọc file sao lưu: { layer, items } (file do tool tạo) hoặc chỉ là một mảng điểm.
+async function readBackup(file, cfg) {
+  if (file.size > 16 * 1024 * 1024) throw new Error('File quá lớn (tối đa 16 MB).');
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { throw new Error('File không đúng định dạng sao lưu (.json).'); }
+  const items = Array.isArray(data) ? data : data?.items;
+  if (!Array.isArray(items)) throw new Error('File không có danh sách điểm.');
+  if (!Array.isArray(data) && data.layer && data.layer !== cfg.key) {
+    const other = USER_LAYERS.find((c) => c.key === data.layer);
+    throw new Error(`File này là danh sách ${other ? other.title : data.layer}, hãy mở trong danh sách ${other ? other.title : 'tương ứng'}.`);
+  }
+  const at = Date.parse(data.exportedAt);
+  return { key: cfg.key, name: file.name, items, exportedAt: Number.isFinite(at) ? at : null };
+}
+
+listDlg.addEventListener('change', async (e) => {
+  if (!e.target.matches('[data-ul-file]')) return;
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    listImport = await readBackup(file, listLayer.cfg);
+    listNotice = listImport.items.length ? null : { text: 'File không có điểm nào.', error: true };
+    if (!listImport.items.length) listImport = null;
+  } catch (err) {
+    listImport = null;
+    listNotice = { text: err.message, error: true };
+  }
+  renderLayerList();
+});
+
+async function applyImport(mode) {
+  const layer = listLayer;
+  const imp = listImport;
+  if (!imp || imp.key !== layer.cfg.key) return;
+  if (mode === 'replace' && layer.items().length && !confirm(`Thay toàn bộ ${layer.items().length} ${layer.cfg.what} hiện có bằng ${imp.items.length} ${layer.cfg.what} trong file?`)) return;
+  try {
+    const res = await fetch(`/api/${layer.cfg.key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ op: 'import', mode, items: imp.items }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+    listImport = null;
+    listNotice = { text: `Đã ${mode === 'replace' ? 'thay danh sách bằng' : 'gộp'} ${data.imported} ${layer.cfg.what} từ file${data.skipped ? `, bỏ qua ${data.skipped} mục không hợp lệ` : ''}.` };
+    layer.setItems(data[layer.cfg.key] || []);
+  } catch (err) {
+    listNotice = { text: 'Không mở được file: ' + err.message, error: true };
+    renderLayerList();
+  }
+}
+
 listDlg.addEventListener('click', (e) => {
   // Bấm nút × hoặc ra ngoài khung (vùng nền mờ) thì đóng.
   if (e.target === listDlg || e.target.closest('[data-ul-close]')) return listDlg.close();
+  if (e.target.closest('[data-ul-export]')) return exportLayer(listLayer);
+  if (e.target.closest('[data-ul-import]')) return listDlg.querySelector('[data-ul-file]').click();
+  const mode = e.target.closest('[data-ul-import-mode]');
+  if (mode) return applyImport(mode.dataset.ulImportMode);
+  if (e.target.closest('[data-ul-import-cancel]')) { listImport = null; return renderLayerList(); }
   const go = e.target.closest('[data-ul-goto]');
   if (go) {
     const t = popupTarget(go);

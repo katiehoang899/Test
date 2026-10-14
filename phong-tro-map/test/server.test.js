@@ -241,6 +241,39 @@ test('/api/floods: add points and A–B segments, update, remove', async () => {
   assert.equal(file.length, 1, 'lưu ra file');
 });
 
+test('/api/floods import: mở file sao lưu, gộp hoặc thay thế', async () => {
+  const post = (body) => fetch(`${base}/api/floods`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const before = (await (await fetch(`${base}/api/floods`)).json()).floods;
+  assert.equal(before.length, 1);
+  const keep = before[0];
+
+  // Gộp: điểm cùng id được cập nhật theo file, điểm mới được thêm, điểm sai bị bỏ qua.
+  let r = await (await post({ op: 'import', mode: 'merge', items: [
+    { ...keep, note: 'Sửa từ file' },
+    { id: 'imported-0001', type: 'point', coords: [10.8, 106.6], level: 'medium', note: 'Từ file', at: 1700000000000 },
+    { type: 'point', coords: [999, 1] },
+    'rác',
+  ] })).json();
+  assert.equal(r.floods.length, 2);
+  assert.equal(r.floods.find((f) => f.id === keep.id).note, 'Sửa từ file');
+  assert.deepEqual([r.imported, r.skipped], [2, 2]);
+  assert.equal(r.floods.find((f) => f.id === 'imported-0001').at, 1700000000000, 'giữ thời gian tạo trong file');
+
+  // Mở lại cùng file: không bị nhân đôi.
+  r = await (await post({ op: 'import', mode: 'merge', items: [{ id: 'imported-0001', type: 'point', coords: [10.8, 106.6] }] })).json();
+  assert.equal(r.floods.length, 2);
+
+  // Thay thế toàn bộ.
+  r = await (await post({ op: 'import', mode: 'replace', items: [{ type: 'line', path: [[10.7, 106.7], [10.71, 106.71]], level: 'light' }] })).json();
+  assert.equal(r.floods.length, 1);
+  assert.equal(r.floods[0].type, 'line');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.DATA_DIR, 'floods.json'), 'utf8')).length, 1, 'lưu ra file');
+
+  assert.equal((await post({ op: 'import', mode: 'merge', items: [{ type: 'point', coords: [1, 2, 3] }, {}] })).status, 400, 'file không có điểm hợp lệ');
+  assert.equal((await post({ op: 'import', items: 'x' })).status, 400);
+  assert.equal((await (await fetch(`${base}/api/floods`)).json()).floods.length, 1, 'lỗi thì giữ nguyên danh sách');
+});
+
 test('/api/parking: separate layer with its own types', async () => {
   const post = (body) => fetch(`${base}/api/parking`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const floodsBefore = (await (await fetch(`${base}/api/floods`)).json()).floods.length;
