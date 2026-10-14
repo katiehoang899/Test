@@ -472,7 +472,7 @@ function shownAds({ withHidden = false } = {}) {
   return savedView ? savedAds(savedView) : filteredAds({ withHidden });
 }
 
-// Nút ♥ Yêu thích / ✓ Không phù hợp (trạng thái gán bằng syncActs).
+// Nút ♥ Yêu thích / ✕ Không phù hợp (trạng thái gán bằng syncActs).
 function actsHtml(ad) {
   return `<div class="acts">
     <button type="button" class="act" data-act="fav" data-id="${esc(ad.id)}"></button>
@@ -492,7 +492,7 @@ function syncActs(root = document) {
     const on = myAds.hidden.has(b.dataset.id);
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', String(on));
-    b.innerHTML = on ? `${icon('undo')} Bỏ ẩn` : `${icon('check')} Không phù hợp`;
+    b.innerHTML = on ? `${icon('undo')} Bỏ ẩn` : `${icon('close')} Không phù hợp`;
     b.title = on ? 'Bỏ đánh dấu, hiện lại tin này' : 'Đã xem nhưng không phù hợp: ẩn tin này';
   });
 }
@@ -868,7 +868,7 @@ function savedTabsHtml() {
   const tab = (kind, label) => `<button type="button" data-tab="${kind}" aria-selected="${savedView === kind}">${label} <b>${myAds[kind].size}</b></button>`;
   return `<div class="saved-bar">
     <button type="button" class="back" data-saved-back>${icon('arrowLeft')} Kết quả tìm kiếm</button>
-    <div class="saved-tabs" role="tablist">${tab('fav', `${icon('heart')} Yêu thích`)}${tab('hidden', `${icon('check')} Đã ẩn`)}</div>
+    <div class="saved-tabs" role="tablist">${tab('fav', `${icon('heart')} Yêu thích`)}${tab('hidden', `${icon('close')} Đã ẩn`)}</div>
     ${savedView === 'hidden' && myAds.hidden.size ? '<button type="button" class="link" data-unhide-all>Bỏ ẩn tất cả</button>' : ''}
   </div>`;
 }
