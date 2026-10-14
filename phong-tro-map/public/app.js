@@ -7,7 +7,7 @@ const LOAD_ALL_CAP = 5000; // "Tải tất cả" dừng ở đây để không g
 const RENDER_STEP = 60; // số thẻ tin thêm vào danh sách mỗi lần cuộn
 const AUTO_FILL_MIN = 20; // bộ lọc loại trừ ẩn nhiều tin: tự tải thêm trang cho đủ số tin này…
 const AUTO_FILL_PAGES = 8; // …nhưng không quá số trang này mỗi lần, sau đó chờ người dùng bấm "Xem thêm"
-const LOCAL_ONLY = ['nq', 'nosale', 'hidemarked'];
+const LOCAL_ONLY = ['kw', 'kwmode', 'nq', 'nosale', 'hidemarked'];
 const MAX_PARALLEL = 4; // chọn nhiều quận / phường: số nguồn tải song song mỗi lượt // bộ lọc chỉ chạy trên trình duyệt, đổi không cần gọi lại API
 
 const $ = (s) => document.querySelector(s);
@@ -20,7 +20,6 @@ const el = {
   priceMin: $('#priceMin'), priceMax: $('#priceMax'), sizeMin: $('#sizeMin'), sizeMax: $('#sizeMax'),
   priceLabel: $('#priceLabel'), sizeLabel: $('#sizeLabel'), postedLabel: $('#postedLabel'), furnLabel: $('#furnLabel'),
   count: $('#count'), list: $('#list'), loadAll: $('#loadAll'), inBounds: $('#inBounds'), approx: $('#approx'),
-  nqLabel: $('#nqLabel'), nqChips: $('#nqChips'), nqInput: $('#nqInput'), nqAdd: $('#nqAdd'), nqSuggest: $('#nqSuggest'),
   nosale: $('#nosale'), showHidden: $('#showHidden'), showHiddenWrap: $('#showHiddenWrap'),
   hidemarked: $('#hidemarked'), savedBtn: $('#savedBtn'), savedCount: $('#savedCount'),
 };
@@ -37,8 +36,8 @@ let visible = []; // tin đang hiển thị (sau lọc + sắp xếp)
 let rendered = 0;
 let fitPending = true;
 let autoPages = 0;
-const hiddenCount = { sale: 0, keyword: 0, marked: 0 };
-const hiddenTotal = () => hiddenCount.sale + hiddenCount.keyword + hiddenCount.marked;
+const hiddenCount = { sale: 0, include: 0, keyword: 0, marked: 0 };
+const hiddenTotal = () => Object.values(hiddenCount).reduce((a, b) => a + b, 0);
 
 // Tin yêu thích / tin đã đánh dấu "không phù hợp" (lưu trên server, xem /api/saved):
 // mãTin → { ad: bản chụp nội dung tin, at: thời điểm lưu }.
@@ -220,13 +219,12 @@ const icons = {
 
 function popupHtml(ad) {
   const meta = [ad.size ? `${ad.size} m²` : '', ad.furnishingText, ad.date].filter(Boolean).map(esc).join(' · ');
-  return `<div class="popup">
+  return `<div class="popup${ad.thumb ? '' : ' no-img'}">
     ${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
     <a class="t" href="${esc(ad.url)}" target="_blank" rel="noopener">${esc(ad.title)}</a>
     <div class="p">${esc(priceText(ad))}</div>
     <div class="m">${meta}</div>
     <div class="a">${esc(ad.address)}${ad.approx ? ' <em>(vị trí gần đúng)</em>' : ''}</div>
-    ${phoneHtml(ad)}
     ${actsHtml(ad)}
     ${gmapsHtml(ad)}
     <a class="go" href="${esc(ad.url)}" target="_blank" rel="noopener">Xem tin trên Nhà Tốt ${icon('external')}</a>
@@ -277,8 +275,7 @@ function renderMap() {
     const ll = adLatLng(ad);
     if (!ll) continue;
     const m = L.marker(ll, { icon: ad.lat != null ? icons.exact : icons.approx, title: ad.title });
-    // Nội dung popup là một phần tử DOM tạo một lần và dùng lại: mở lại popup không vẽ lại
-    // từ đầu, nên phần đã cập nhật (vd. số điện thoại vừa lấy) không bị mất.
+    // Nội dung popup là một phần tử DOM tạo một lần và dùng lại: mở lại popup không vẽ lại từ đầu.
     let content = null;
     m.bindPopup(() => {
       if (!content) {
@@ -286,7 +283,7 @@ function renderMap() {
         content.innerHTML = popupHtml(ad);
       }
       return content;
-    }, { maxWidth: 260, minWidth: 240 });
+    }, { maxWidth: 260, minWidth: 240, className: 'ad-popup' });
     m.on('popupopen', (e) => {
       syncActs(e.popup.getElement());
     });
@@ -351,12 +348,10 @@ function saleOf(ad) {
   return ad.sale;
 }
 
-// Tin khớp bộ lọc, đã sắp xếp. Tin bị bộ lọc loại trừ (từ khoá / sale trọ) được đếm
+// Tin khớp bộ lọc, đã sắp xếp. Tin bị bộ lọc từ khoá / sale trọ / đánh dấu được đếm
 // vào hiddenCount và chỉ trả về khi withHidden (ad.hidden ghi lý do).
 function filteredAds({ withHidden = false } = {}) {
-  hiddenCount.sale = 0;
-  hiddenCount.keyword = 0;
-  hiddenCount.marked = 0;
+  for (const k of Object.keys(hiddenCount)) hiddenCount[k] = 0;
   const out = [];
   for (const ad of store.ads.values()) {
     if (!Filters.matches(ad, state)) continue;
@@ -384,24 +379,6 @@ function savedAds(kind) {
 // Tin đang hiển thị trên danh sách / bản đồ theo chế độ xem.
 function shownAds({ withHidden = false } = {}) {
   return savedView ? savedAds(savedView) : filteredAds({ withHidden });
-}
-
-function phonesOf(ad) {
-  if (!ad.phones) ad.phones = Filters.extractPhones([ad.title, ad.body].join('\n'));
-  return ad.phones;
-}
-
-function phoneLinks(p) {
-  return `<a href="tel:${esc(p)}">${esc(Filters.formatPhone(p))}</a> <a class="zalo" href="${esc(Filters.zaloUrl(p))}" target="_blank" rel="noopener" title="Nhắn Zalo số ${esc(p)}">Zalo</a>`;
-}
-
-// Số điện thoại: có trong nội dung tin thì hiện luôn, không thì nút "Hiện SĐT" hỏi API Nhà Tốt.
-function phoneHtml(ad) {
-  const phones = phonesOf(ad);
-  const inner = phones.length
-    ? phones.map(phoneLinks).join('<span class="sep">·</span>')
-    : `<button type="button" class="link-btn" data-act="phone" data-id="${esc(ad.id)}">Hiện SĐT / Zalo</button>`;
-  return `<div class="phone" data-phone="${esc(ad.id)}">${icon('phone')} ${inner}</div>`;
 }
 
 // Nút ♥ Yêu thích / ✓ Không phù hợp (trạng thái gán bằng syncActs).
@@ -440,10 +417,7 @@ async function toggleSaved(kind, id) {
   const ad = findAd(id);
   const on = !myAds[kind].has(id);
   const snap = {};
-  if (ad) {
-    for (const k of SNAP_KEYS) snap[k] = ad[k];
-    snap.phones = phonesOf(ad);
-  }
+  if (ad) for (const k of SNAP_KEYS) snap[k] = ad[k];
   // Cập nhật ngay trên màn hình, lỗi thì trả lại như cũ.
   const before = myAds[kind].get(id);
   if (on) myAds[kind].set(id, { ad: { ...snap, id }, at: Date.now() });
@@ -490,25 +464,6 @@ function afterSavedChange(kind) {
   }
 }
 
-async function showPhone(id, btn) {
-  btn.disabled = true;
-  btn.textContent = 'Đang lấy số…';
-  const ad = findAd(id);
-  let html;
-  try {
-    const { phone } = await api('/api/phone?id=' + encodeURIComponent(id));
-    if (phone) {
-      if (ad) ad.phones = [phone];
-      html = `${icon('phone')} ${phoneLinks(phone)}`;
-    }
-  } catch { /* xử lý bên dưới */ }
-  if (!html) {
-    const url = ad?.url || `https://www.nhatot.com/${encodeURIComponent(id)}.htm`;
-    html = `${icon('phone')} <span class="muted">Không lấy được số.</span> <a href="${esc(url)}" target="_blank" rel="noopener">Xem trên Nhà Tốt ${icon('external')}</a>`;
-  }
-  document.querySelectorAll(`[data-phone="${CSS.escape(id)}"]`).forEach((x) => { x.innerHTML = html; });
-}
-
 // Nút trong thẻ tin và trong popup bản đồ (popup không nằm trong #list).
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
@@ -519,7 +474,7 @@ document.addEventListener('click', (e) => {
   else if (b.dataset.act === 'hide') {
     if (!myAds.hidden.has(id)) map.closePopup();
     toggleSaved('hidden', id);
-  } else if (b.dataset.act === 'phone') showPhone(id, b);
+  }
 }, true);
 
 const ICON_COPY = icon('copy');
@@ -599,7 +554,6 @@ function cardHtml(ad) {
         ${saleBadge}
         ${marked && !savedView ? '<span class="badge marked">Đã đánh dấu không phù hợp</span>' : ''}
       </div>
-      ${phoneHtml(ad)}
       ${actsHtml(ad)}
       ${ad.hidden ? `<div class="why">Bị ẩn: ${esc(ad.hidden.text)}</div>` : ''}
     </div>
@@ -742,6 +696,7 @@ function updateCount() {
     if (geo.pending) text += ` · đang định vị ${geo.pending} khu vực…`;
     const parts = [];
     if (hiddenCount.sale) parts.push(`${hiddenCount.sale.toLocaleString('vi-VN')} tin sale`);
+    if (hiddenCount.include) parts.push(`${hiddenCount.include.toLocaleString('vi-VN')} tin thiếu từ khoá cần có`);
     if (hiddenCount.keyword) parts.push(`${hiddenCount.keyword.toLocaleString('vi-VN')} tin có từ khoá loại trừ`);
     if (hiddenCount.marked) parts.push(`${hiddenCount.marked.toLocaleString('vi-VN')} tin bạn đánh dấu không phù hợp`);
     if (parts.length) text += ` · đã ẩn ${parts.join(', ')}`;
@@ -1066,33 +1021,8 @@ function syncForm() {
     box.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === state[box.dataset.target]));
   });
   el.nosale.checked = state.nosale === '1';
-  const kws = nqList();
-  el.nqLabel.textContent = kws.length ? String(kws.length) : '';
-  el.nqChips.replaceChildren(...kws.map((k, i) => {
-    const chip = document.createElement('span');
-    chip.textContent = k;
-    const x = document.createElement('button');
-    x.type = 'button';
-    x.dataset.remove = String(i);
-    x.setAttribute('aria-label', `Bỏ từ khoá ${k}`);
-    x.innerHTML = icon('close');
-    chip.append(x);
-    return chip;
-  }));
-  const folded = Filters.splitKeywords(state.nq);
-  el.nqSuggest.querySelectorAll('button').forEach((b) => { b.disabled = folded.includes(Filters.splitKeywords(b.dataset.k)[0]); });
+  syncKeywords();
   markSetPops();
-}
-
-// Từ khoá loại trừ như người dùng gõ (bỏ trùng không phân biệt dấu).
-function nqList() {
-  const seen = new Set();
-  return String(state.nq || '').split(/[,;\n]+/).map((k) => k.trim()).filter((k) => {
-    const f = Filters.splitKeywords(k)[0];
-    if (!f || seen.has(f)) return false;
-    seen.add(f);
-    return true;
-  });
 }
 
 // Đổi bộ lọc chỉ chạy trên trình duyệt: lọc lại tin đã tải, không gọi lại API.
@@ -1105,32 +1035,79 @@ function updateLocal(patch) {
   renderMap();
 }
 
-function addKeywords(text) {
-  const nq = Filters.joinKeywords([...nqList(), ...String(text).split(/[,;\n]+/)]);
-  if (nq !== state.nq) updateLocal({ nq });
+// ---------- từ khoá: "Thêm từ khoá" (kw, tin phải có) và "Loại trừ từ khoá" (nq, tin không được có) ----------
+
+const KW_POPS = [...document.querySelectorAll('[data-kw]')].map((pop) => ({
+  key: pop.dataset.kw,
+  label: pop.querySelector('[data-kw-label]'),
+  chips: pop.querySelector('[data-kw-chips]'),
+  input: pop.querySelector('[data-kw-input]'),
+  add: pop.querySelector('[data-kw-add]'),
+  suggest: pop.querySelector('[data-kw-suggest]'),
+}));
+
+// Từ khoá như người dùng gõ (bỏ trùng không phân biệt dấu).
+function kwList(key) {
+  const seen = new Set();
+  return String(state[key] || '').split(/[,;\n]+/).map((k) => k.trim()).filter((k) => {
+    const f = Filters.splitKeywords(k)[0];
+    if (!f || seen.has(f)) return false;
+    seen.add(f);
+    return true;
+  });
 }
 
-el.nqAdd.addEventListener('click', () => {
-  addKeywords(el.nqInput.value);
-  el.nqInput.value = '';
-  el.nqInput.focus();
-});
-el.nqInput.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  el.nqAdd.click();
-});
-el.nqSuggest.addEventListener('click', (e) => {
-  const b = e.target.closest('button[data-k]');
-  if (b) addKeywords(b.dataset.k);
-});
-el.nqChips.addEventListener('click', (e) => {
-  const x = e.target.closest('button[data-remove]');
-  if (!x) return;
-  const list = nqList();
-  list.splice(Number(x.dataset.remove), 1);
-  updateLocal({ nq: Filters.joinKeywords(list) });
-});
+function syncKeywords() {
+  for (const p of KW_POPS) {
+    const kws = kwList(p.key);
+    p.label.textContent = kws.length ? (p.key === 'kw' && kws.length > 1 && state.kwmode === 'any' ? `${kws.length} (một trong)` : String(kws.length)) : '';
+    p.chips.replaceChildren(...kws.map((k, i) => {
+      const chip = document.createElement('span');
+      chip.textContent = k;
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.dataset.remove = String(i);
+      x.setAttribute('aria-label', `Bỏ từ khoá ${k}`);
+      x.innerHTML = icon('close');
+      chip.append(x);
+      return chip;
+    }));
+    const folded = Filters.splitKeywords(state[p.key]);
+    p.suggest.querySelectorAll('button').forEach((b) => { b.disabled = folded.includes(Filters.splitKeywords(b.dataset.k)[0]); });
+  }
+  document.querySelectorAll('input[name="kwmode"]').forEach((r) => { r.checked = r.value === state.kwmode; });
+}
+
+function addKeywords(key, text) {
+  const v = Filters.joinKeywords([...kwList(key), ...String(text).split(/[,;\n]+/)]);
+  if (v !== state[key]) updateLocal({ [key]: v });
+}
+
+for (const p of KW_POPS) {
+  p.add.addEventListener('click', () => {
+    addKeywords(p.key, p.input.value);
+    p.input.value = '';
+    p.input.focus();
+  });
+  p.input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    p.add.click();
+  });
+  p.suggest.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-k]');
+    if (b) addKeywords(p.key, b.dataset.k);
+  });
+  p.chips.addEventListener('click', (e) => {
+    const x = e.target.closest('button[data-remove]');
+    if (!x) return;
+    const list = kwList(p.key);
+    list.splice(Number(x.dataset.remove), 1);
+    updateLocal({ [p.key]: Filters.joinKeywords(list) });
+  });
+}
+document.querySelectorAll('input[name="kwmode"]').forEach((r) => r.addEventListener('change', () => updateLocal({ kwmode: r.value })));
+
 el.nosale.addEventListener('change', () => updateLocal({ nosale: el.nosale.checked ? '1' : '' }));
 el.hidemarked.addEventListener('change', () => updateLocal({ hidemarked: el.hidemarked.checked ? '1' : '0' }));
 
@@ -1298,6 +1275,86 @@ document.querySelector('.views').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-view]');
   if (b) setView(b.dataset.view);
 });
+
+// ---------- giao diện sáng / tối ----------
+
+// '' = tự động theo máy, 'light', 'dark'. Bấm nút để đổi lần lượt: tự động → sáng → tối.
+const THEMES = [
+  { id: '', icon: 'themeAuto', label: 'Tự động (theo máy)' },
+  { id: 'light', icon: 'sun', label: 'Sáng' },
+  { id: 'dark', icon: 'moon', label: 'Tối' },
+];
+const themeBtn = document.getElementById('themeBtn');
+function setTheme(id, save = true) {
+  const t = THEMES.find((x) => x.id === id) || THEMES[0];
+  if (t.id) document.documentElement.dataset.theme = t.id;
+  else delete document.documentElement.dataset.theme;
+  const next = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
+  themeBtn.innerHTML = icon(t.icon);
+  themeBtn.dataset.tip = `Giao diện: ${t.label} · bấm để chuyển sang ${next.label}`;
+  themeBtn.setAttribute('aria-label', themeBtn.dataset.tip);
+  if (save) try { if (t.id) localStorage.setItem('phongtro.theme', t.id); else localStorage.removeItem('phongtro.theme'); } catch { /* không bắt buộc */ }
+}
+themeBtn.addEventListener('click', () => {
+  const i = THEMES.findIndex((x) => x.id === (document.documentElement.dataset.theme || ''));
+  setTheme(THEMES[(i + 1) % THEMES.length].id);
+});
+setTheme(document.documentElement.dataset.theme || '', false);
+
+// ---------- kéo đổi độ rộng danh sách / bản đồ (chế độ chia đôi) ----------
+
+const LIST_W_DEFAULT = 44; // % chiều ngang
+const LIST_MIN_PX = 300;
+const MAP_MIN_PX = 320;
+const mainEl = document.querySelector('.main');
+const splitter = document.getElementById('splitter');
+let listW = LIST_W_DEFAULT;
+
+function setListWidth(pct, save = false) {
+  const w = mainEl.clientWidth || window.innerWidth;
+  const lo = (LIST_MIN_PX / w) * 100;
+  const hi = 100 - ((MAP_MIN_PX + splitter.offsetWidth) / w) * 100;
+  listW = Math.round(Math.min(Math.max(pct, lo), Math.max(lo, hi)) * 10) / 10;
+  mainEl.style.setProperty('--list-w', listW + '%');
+  splitter.setAttribute('aria-valuenow', String(Math.round(listW)));
+  map.invalidateSize({ pan: false });
+  if (save) try { localStorage.setItem('phongtro.listw', String(listW)); } catch { /* không bắt buộc */ }
+}
+
+splitter.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  splitter.setPointerCapture(e.pointerId);
+  document.body.classList.add('resizing');
+  const left = mainEl.getBoundingClientRect().left;
+  let frame = 0;
+  const move = (ev) => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => setListWidth(((ev.clientX - left) / mainEl.clientWidth) * 100));
+  };
+  const up = () => {
+    cancelAnimationFrame(frame);
+    document.body.classList.remove('resizing');
+    splitter.removeEventListener('pointermove', move);
+    setListWidth(listW, true);
+  };
+  splitter.addEventListener('pointermove', move);
+  splitter.addEventListener('pointerup', up, { once: true });
+  splitter.addEventListener('pointercancel', up, { once: true });
+});
+splitter.addEventListener('dblclick', () => setListWidth(LIST_W_DEFAULT, true));
+splitter.addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 10 : 2;
+  if (e.key === 'ArrowLeft') setListWidth(listW - step, true);
+  else if (e.key === 'ArrowRight') setListWidth(listW + step, true);
+  else if (e.key === 'Home') setListWidth(0, true);
+  else if (e.key === 'End') setListWidth(100, true);
+  else return;
+  e.preventDefault();
+});
+window.addEventListener('resize', () => { if (document.body.dataset.view === 'split') setListWidth(listW); });
+try { const w = parseFloat(localStorage.getItem('phongtro.listw')); if (Number.isFinite(w)) listW = w; } catch { /* bỏ qua */ }
+setListWidth(listW);
 
 // ---------- khởi động ----------
 

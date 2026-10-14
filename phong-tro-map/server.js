@@ -6,7 +6,6 @@
 
 const http = require('node:http');
 const crypto = require('node:crypto');
-const Filters = require('./public/filters.js');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -339,7 +338,6 @@ function snapshotAd(ad, id) {
     time: finite(ad.time),
     isCompany: Boolean(ad.isCompany),
     type: ad.type === 'h' ? 'h' : 'u',
-    phones: Array.isArray(ad.phones) ? ad.phones.map(Filters.normalizePhone).filter(Boolean).slice(0, 3) : [],
     url: url.startsWith('https://www.nhatot.com/') ? url : `https://www.nhatot.com/${encodeURIComponent(id)}.htm`,
   };
 }
@@ -370,33 +368,6 @@ async function updateSaved(req) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(savedFile, JSON.stringify(saved));
   return saved;
-}
-
-// ---------- số điện thoại của tin ----------
-
-// Danh sách tin không có số điện thoại, nên hỏi riêng API của Chợ Tốt (chỉ khi người dùng
-// bấm "Hiện SĐT"). Không có thì tìm số trong nội dung đầy đủ của tin.
-async function adPhone(id) {
-  if (!/^\d{1,15}$/.test(id || '')) throw Object.assign(new Error('Mã tin không hợp lệ'), { status: 400 });
-  return cached('phone:' + id, 24 * 3600 * 1000, async () => {
-    const urls = [
-      `${GATEWAY}/v1/public/ad-listing/phone?list_id=${id}`,
-      `${GATEWAY}/v1/public/ad-listing/${id}`,
-    ];
-    let reached = false;
-    for (const url of urls) {
-      let data;
-      try { data = await getJson(url); } catch { continue; }
-      reached = true;
-      const ad = data.ad || data.data || {};
-      const direct = Filters.normalizePhone(data.phone ?? ad.phone ?? ad.phone_number ?? ad.contact_phone);
-      if (direct) return { phone: direct };
-      const inText = Filters.extractPhones([ad.subject, ad.body].join('\n'));
-      if (inText.length) return { phone: inText[0], fromText: true };
-    }
-    if (!reached) throw Object.assign(new Error('Không kết nối được Chợ Tốt'), { status: 502 });
-    return { phone: null };
-  });
 }
 
 // ---------- lớp bản đồ do người dùng thêm (điểm ngập, chỗ đỗ xe hơi) ----------
@@ -644,7 +615,6 @@ function createServer() {
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
       if (u.pathname === '/api/pois') return sendJson(res, 200, await pois(u.searchParams.get('cell')));
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
-      if (u.pathname === '/api/phone') return sendJson(res, 200, await adPhone(u.searchParams.get('id')));
       if (u.pathname === '/api/ads') return sendJson(res, 200, await listAds(u.searchParams));
       if (u.pathname === '/api/regions') return sendJson(res, 200, { regions: await listRegions() });
       if (u.pathname === '/api/wards') return sendJson(res, 200, { wards: await listWards(u.searchParams.get('area')) });

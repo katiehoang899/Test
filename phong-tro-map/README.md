@@ -18,6 +18,7 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   | Sắp xếp: mới nhất, giá tăng / giảm, diện tích, giá / m² | `sp` + sắp xếp lại trên trình duyệt |
 - **Thời gian đăng**: *Theo giờ* (Trong 4 giờ, Trong 8 giờ, hoặc tự nhập "từ X đến Y giờ trước") và *Theo ngày* (Trong 1 ngày, Trong 2 ngày, hoặc chọn từ ngày… đến ngày… trên lịch). API Nhà Tốt không có tham số này nên tool lọc theo giờ đăng của từng tin. Khi đang xếp *Tin mới nhất*, tool tự tải thêm cho đủ tin và dừng ngay khi các trang sau chỉ còn tin cũ hơn khoảng đã chọn.
 - **Chọn nhiều quận / phường**: tick nhiều quận trong *Quận / huyện* (có ô tìm nhanh), rồi bấm *Áp dụng* hoặc bấm ra ngoài. *Phường / xã* liệt kê phường theo từng quận đã chọn. Quận nào có tick phường thì chỉ lấy các phường đó, quận nào không tick phường thì lấy cả quận. API Nhà Tốt chỉ nhận một quận / phường mỗi lần, nên tool gọi riêng cho từng nơi (tối đa 4 nơi song song) rồi gộp kết quả.
+- **Thêm từ khoá** (`kw`): ngược lại với *Loại trừ từ khoá*, chỉ hiện tin có các từ khoá này trong tiêu đề hoặc nội dung (không phân biệt hoa thường, có dấu hay không dấu), ví dụ `máy lạnh, ban công`. Chọn **Có đủ tất cả các từ** (mặc định) hoặc **Có một trong các từ**. Có sẵn gợi ý: máy lạnh, ban công, cửa sổ, gác, giờ tự do, không chung chủ, thang máy, thú cưng.
 - **Loại trừ từ khoá** (`nq`): nhập các từ khoá cách nhau bằng dấu phẩy, ví dụ `Giá từ 5, ở ghép`. Tin có chứa một trong các từ khoá đó (trong tiêu đề hoặc nội dung, không phân biệt hoa thường hay có dấu) sẽ bị ẩn. Có sẵn gợi ý: *giá từ, chỉ từ, ở ghép, ký túc xá, sleepbox, chung chủ*.
 - **Loại tin sale trọ** (`nosale=1`): ẩn tin của người dẫn khách, tức là một tin đăng cho nhiều phòng. Tin bị coi là sale nếu nội dung có:
   - "giá từ", "chỉ từ", "giá dao động", "từ 3tr…";
@@ -27,7 +28,7 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
 
   Giá điện nước (`3.5k`), kích thước (`rộng 3 - 4m`, `20 - 25m2`), giờ giấc (`5h - 23h`), số người ở (`2 - 3 người`) **không** bị tính là khoảng giá. Khi bộ lọc này đang tắt, tin có dấu hiệu sale vẫn được gắn nhãn *Có thể là sale* (rê chuột để xem lý do).
   - Thanh trạng thái cho biết đã ẩn bao nhiêu tin. Tick **Hiện tin bị ẩn** để xem lại các tin đó (làm mờ, kèm lý do) và kiểm tra xem bộ lọc có ẩn nhầm không.
-  - Hai bộ lọc này chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ, nên bật/tắt có hiệu lực ngay, không cần tải lại. Nếu bộ lọc ẩn gần hết tin đã tải, tool tự tải thêm (tối đa 8 trang mỗi lần) cho đủ tin để xem.
+  - Các bộ lọc từ khoá và sale trọ chạy trên trình duyệt vì API Nhà Tốt không hỗ trợ, nên bật/tắt có hiệu lực ngay, không cần tải lại. Nếu bộ lọc ẩn gần hết tin đã tải, tool tự tải thêm (tối đa 8 trang mỗi lần) cho đủ tin để xem.
 - **Bản đồ** (OpenStreetMap + Leaflet): các tin được gom cụm khi thu nhỏ. Bấm vào ghim để xem ảnh, giá, diện tích, địa chỉ và link tới tin gốc. Bấm một tin trong danh sách thì bản đồ bay tới đúng ghim của tin đó. Dòng **Màu cụm** trong ô chú thích (góc dưới trái bản đồ) có 3 kiểu màu cho cụm tin: **Đậm** (xanh lá / vàng / cam), **Xanh dương** (đậm dần theo số tin) và **Viền** (lõi trắng, viền màu). Lựa chọn được nhớ cho lần mở sau.
   - 🟢 ghim xanh: tin có toạ độ do người đăng chọn.
   - ⚪ ghim xám: tin **không có toạ độ** được đặt **gần đúng** theo phường (hoặc quận nếu không tìm thấy phường), dùng geocode của OpenStreetMap Nominatim. Có thể tắt bằng ô *Định vị gần đúng tin thiếu toạ độ*.
@@ -35,7 +36,6 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
 - **♥ Yêu thích**: bấm *♡ Yêu thích* trên tin (trong danh sách hoặc popup bản đồ) để lưu lại. Nút **♥ Đã lưu** trên header mở tab *Yêu thích*: xem lại các tin đã lưu trên danh sách và bản đồ. Tool lưu kèm nội dung tin, nên vẫn xem được khi tin đã bị gỡ khỏi Nhà Tốt.
 - **✓ Không phù hợp**: tin đã xem mà không ưng thì bấm *✓ Không phù hợp*, tin sẽ bị ẩn khỏi kết quả từ đó về sau. Tắt ô **Ẩn tin đã đánh dấu** trên thanh lọc để hiện lại các tin này (làm mờ, có nhãn *Đã đánh dấu không phù hợp*). Tab *Đã ẩn* trong **♥ Đã lưu** liệt kê các tin đã ẩn, với nút *↺ Bỏ ẩn* cho từng tin và *Bỏ ẩn tất cả*.
   - Tin yêu thích và tin đã ẩn được lưu trên máy, trong file `saved.json` ở thư mục dữ liệu (bản web: `phong-tro-map/data/`, app: `~/Library/Application Support/Phong Tro Map/`). Tắt / mở lại tool vẫn còn, và dùng chung giữa các trình duyệt trên cùng máy.
-- **📞 Số điện thoại / Zalo**: nếu nội dung tin có số điện thoại (`0909 123 456`, `0909.123.456`, `+84 909…`) thì số hiện luôn trên tin, kèm nút **Zalo** (mở `zalo.me/<số>` để nhắn tin) và bấm vào số để gọi. Tin không ghi số trong nội dung thì bấm **Hiện SĐT / Zalo**: tool hỏi API của Nhà Tốt, không có thì tìm trong nội dung đầy đủ của tin, vẫn không có thì hiện link sang tin trên Nhà Tốt.
 - **🌊 Lớp điểm ngập tự thêm** (bảng *Điểm ngập* ở góc phải bản đồ):
   - **📍 Đặt điểm**: bấm một chỗ trên bản đồ. **〰 Nối A–B**: bấm điểm A rồi điểm B, tool vẽ đoạn ngập bám theo đường phố (dịch vụ chỉ đường miễn phí [OSRM](https://project-osrm.org/), không tìm được đường thì nối thẳng). Esc để huỷ.
   - Mọi điểm / đoạn ngập vẽ **màu đỏ**. Điểm / đoạn mới là *Chưa phân loại*, popup mở ngay để chọn **mức độ ngập** (Thường xuyên, Vừa, Nhẹ, Chưa phân loại); mức độ hiện khi rê chuột, trong popup và danh sách. Bấm vào điểm / đoạn ngập để đổi mức độ, ghi chú (ví dụ "ngập 30 cm khi mưa lớn"), mở Google Maps hoặc xoá.
@@ -57,7 +57,8 @@ Công cụ xem **tất cả tin cho thuê phòng trọ** trên [Nhà Tốt](http
   - **🌊** *Tra cứu điểm ngập qua VnExpress*: mở trang [Tra cứu 269 điểm ngập thường xuyên của TP HCM](https://vnexpress.net/tra-cuu-269-diem-ngap-thuong-xuyen-cua-tp-hcm-5127780.html) (theo danh sách của Sở Xây dựng TP HCM) trong tab mới, cuộn thẳng tới mục *Đường nơi bạn ở có nằm trong điểm ngập không?*.
   - **✓** *Kiểm tra phòng trọ minh bạch nhaminhbach.com*: mở [nhaminhbach.com](https://nhaminhbach.com/) trong tab mới.
   - App Mac mở các trang này bằng trình duyệt mặc định.
-- **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ.
+- **3 chế độ xem**: Danh sách, Chia đôi (danh sách + bản đồ), Bản đồ. Trên điện thoại có Danh sách và Bản đồ. Ở chế độ **Chia đôi**, kéo thanh dọc giữa danh sách và bản đồ để đổi độ rộng (hoặc bấm vào thanh rồi dùng phím ← →), bấm đúp để về như cũ; độ rộng được nhớ cho lần sau.
+- **Giao diện sáng / tối**: nút ở góc phải header đổi lần lượt *Tự động (theo máy) → Sáng → Tối*, lựa chọn được nhớ. Màu bản đồ chỉnh riêng trong *Tuỳ chỉnh bản đồ → Màu*.
 - **Tải tất cả**: tự lấy hết các trang kết quả (tối đa 5.000 tin mỗi lần lọc), bấm lần nữa để dừng. Cuộn xuống cuối danh sách cũng tự tải thêm.
 - **Chỉ tin trong khung bản đồ**: kéo / phóng bản đồ tới khu vực muốn ở, danh sách chỉ còn các tin trong khung đó.
 - Bộ lọc được lưu trên URL (`?region_v2=13000&price=2000000-4000000…`), nên có thể gửi link cho người khác.
@@ -101,7 +102,7 @@ Trình duyệt tự mở **http://localhost:3100** (nếu không, tự gõ đị
 ### Bước 4. Dùng thử
 
 1. Chọn **Tp Hồ Chí Minh** (hoặc tỉnh khác) → **Quận / huyện** → tick vài quận → **Áp dụng**.
-2. Chọn **Giá thuê**, bật **Loại tin sale trọ**, thêm **Loại trừ từ khoá** nếu cần.
+2. Chọn **Giá thuê**, bật **Loại tin sale trọ**, thêm **Thêm từ khoá** / **Loại trừ từ khoá** nếu cần.
 3. Bấm một tin trong danh sách: bản đồ bay tới ghim của tin đó. Popup có nút **Google Maps / Street View**.
 4. Bấm **Tải tất cả** để lấy hết tin theo bộ lọc.
 

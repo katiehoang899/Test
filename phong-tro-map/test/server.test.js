@@ -26,13 +26,6 @@ const upstream = http.createServer((req, res) => {
       ],
     }));
   }
-  if (u.pathname === '/v1/public/ad-listing/phone') {
-    if (u.searchParams.get('list_id') === '111') return res.end(JSON.stringify({ phone: '0909 123 456' }));
-    res.statusCode = 404;
-    return res.end('{}');
-  }
-  if (u.pathname === '/v1/public/ad-listing/222') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Liên hệ chị Lan 0912.345.678 (zalo)' } }));
-  if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Nhắn tin qua Nhà Tốt' } }));
   if (u.pathname.startsWith('/route/v1/driving/')) {
     // "lng,lat;lng,lat": ví dụ 106.7,10.70;106.71,10.71 → đường gấp khúc qua một góc phố.
     const [[lng1, lat1], [lng2, lat2]] = u.pathname.split('/').pop().split(';').map((p) => p.split(',').map(Number));
@@ -158,15 +151,6 @@ test('distance', () => {
   assert.ok(Math.abs(distance(a, { lat: 10.71, lng: 106.7 }) - 1112) < 5);
 });
 
-test('/api/phone: phone API, then full ad text', async () => {
-  const get = async (id) => { const r = await fetch(`${base}/api/phone?id=${id}`); return [r.status, await r.json()]; };
-  assert.deepEqual(await get('111'), [200, { phone: '0909123456' }]);
-  assert.deepEqual(await get('222'), [200, { phone: '0912345678', fromText: true }]);
-  assert.deepEqual(await get('444'), [200, { phone: null }]);
-  assert.equal((await get('333'))[0], 502, 'không kết nối được: báo lỗi, không cache');
-  assert.equal((await get('abc'))[0], 400);
-});
-
 test('/api/saved: favorites and hidden ads with sanitized snapshots', async () => {
   const post = (body, type = 'application/json') => fetch(`${base}/api/saved`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) });
   assert.deepEqual(await (await fetch(`${base}/api/saved`)).json(), { fav: {}, hidden: {} });
@@ -176,7 +160,7 @@ test('/api/saved: favorites and hidden ads with sanitized snapshots', async () =
 
   const ad = {
     title: 'Phòng Q7', price: 3500000, lat: 10.73, lng: 106.7, url: 'javascript:alert(1)', thumb: 'http://x/a.jpg',
-    phones: ['0909 123 456', 'xx'], extra: 'bỏ đi', approxAt: { lat: 99, lng: 1 },
+    extra: 'bỏ đi', approxAt: { lat: 99, lng: 1 },
   };
   let data = await (await post({ kind: 'fav', op: 'add', id: '111', ad })).json();
   const snap = data.fav['111'].ad;
@@ -184,7 +168,6 @@ test('/api/saved: favorites and hidden ads with sanitized snapshots', async () =
   assert.equal(snap.price, 3500000);
   assert.equal(snap.url, 'https://www.nhatot.com/111.htm', 'link lạ bị thay bằng link Nhà Tốt');
   assert.equal(snap.thumb, null, 'chỉ nhận ảnh https');
-  assert.deepEqual(snap.phones, ['0909123456']);
   assert.equal(snap.approxAt, null);
   assert.equal('extra' in snap, false);
   assert.ok(data.fav['111'].at > 0);

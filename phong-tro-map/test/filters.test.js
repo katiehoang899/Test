@@ -119,6 +119,23 @@ test('hiddenReason combines keyword and sale filters', () => {
   assert.equal(F.stateFromSearch('?nosale=yes').nosale, '');
 });
 
+test('từ khoá bắt buộc (Thêm từ khoá): tất cả hoặc một trong các từ', () => {
+  const ad = { title: 'Phòng Tân Phú có gác', body: 'Máy lạnh, ban công, giờ tự do' };
+  const s = (patch) => ({ ...F.emptyState(), ...patch });
+  assert.equal(F.hiddenReason(ad, s({ kw: 'may lanh, BAN CÔNG' })), null, 'không phân biệt dấu / hoa thường');
+  const r = F.hiddenReason(ad, s({ kw: 'máy lạnh, thang máy' }));
+  assert.equal(r.kind, 'include');
+  assert.match(r.text, /thang may/);
+  assert.equal(F.hiddenReason(ad, s({ kw: 'thang máy, gác', kwmode: 'any' })), null);
+  assert.equal(F.hiddenReason(ad, s({ kw: 'thang máy, hầm xe', kwmode: 'any' })).kind, 'include');
+  assert.equal(F.hiddenReason(ad, s({ kw: 'gác', nq: 'giờ tự do' })).kind, 'keyword', 'có từ bắt buộc nhưng dính từ loại trừ');
+  const st = F.stateFromSearch('?kw=m%C3%A1y+l%E1%BA%A1nh%2C+g%C3%A1c&kwmode=any');
+  assert.equal(st.kw, 'máy lạnh, gác');
+  assert.equal(st.kwmode, 'any');
+  assert.equal(F.stateFromSearch('?kwmode=xyz').kwmode, '');
+  assert.equal(F.stateToSearch(s({ kw: 'gác' })), '?kw=g%C3%A1c');
+});
+
 test('multi-select districts / wards', () => {
   const st = F.stateFromSearch('?region_v2=13000&area_v2=13102,13096,x,13102&ward=13102:9001,13102:9002,13000:5,9001');
   assert.deepEqual(st.area_v2, ['13102', '13096']);
@@ -152,19 +169,6 @@ test('Google Maps / Street View links', () => {
   assert.equal(F.googleMapsUrl(null, null, 'Phường 1, Quận 3'), 'https://www.google.com/maps/search/?api=1&query=Ph%C6%B0%E1%BB%9Dng%201%2C%20Qu%E1%BA%ADn%203');
   assert.equal(F.googleMapsUrl(10.810488259088473, 106.70604992971748), 'https://www.google.com/maps/search/?api=1&query=10.810488%2C106.70605');
   assert.equal(F.streetViewUrl(10.73, 106.7), 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=10.73,106.7');
-});
-
-test('phone numbers in ad text', () => {
-  assert.deepEqual(F.extractPhones('LH 0909 123 456 hoặc zalo 0912.345.678'), ['0909123456', '0912345678']);
-  assert.deepEqual(F.extractPhones('Gọi +84 909-123-456'), ['0909123456']);
-  assert.deepEqual(F.extractPhones('sđt: 0909123456 7tr/tháng'), ['0909123456']);
-  assert.deepEqual(F.extractPhones('028 3823 4567 (bàn)'), ['02838234567']);
-  assert.deepEqual(F.extractPhones('cọc 3.500.000, phòng 0,5 triệu, 20m2, 0909xxx456'), []);
-  assert.equal(F.normalizePhone('84 912 345 678'), '0912345678');
-  assert.equal(F.normalizePhone('0123456789'), null);
-  assert.equal(F.formatPhone('0909123456'), '0909 123 456');
-  assert.equal(F.formatPhone('02838234567'), '028 3823 4567');
-  assert.equal(F.zaloUrl('0909123456'), 'https://zalo.me/0909123456');
 });
 
 test('hide ads marked "không phù hợp" unless turned off', () => {

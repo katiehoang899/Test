@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Phòng trọ Map</title>
+  <!-- Áp dụng giao diện sáng / tối đã chọn trước khi vẽ trang (không bị nháy màu). -->
+  <script>try { var t = localStorage.getItem('phongtro.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
   <!-- ?v=: đổi khi đổi icon để trình duyệt bỏ favicon cũ đã lưu. -->
   <link rel="icon" href="favicon.ico?v=blue" sizes="any">
   <link rel="icon" href="logo.svg?v=blue" type="image/svg+xml">
@@ -34,6 +36,9 @@
       <button type="button" data-view="list" role="tab" data-icon="list">Danh sách</button>
       <button type="button" data-view="split" role="tab" data-icon="split">Chia đôi</button>
       <button type="button" data-view="map" role="tab" data-icon="map">Bản đồ</button>
+    </div>
+    <div class="tool-btns theme">
+      <button type="button" class="tool-btn" id="themeBtn" aria-label="Giao diện sáng / tối"></button>
     </div>
   </header>
 
@@ -145,16 +150,44 @@
       <option value="c">Môi giới</option>
     </select>
 
-    <details class="pop" id="nqPop">
-      <summary><span>Loại trừ từ khoá</span> <b id="nqLabel"></b></summary>
+    <details class="pop kw-pop" id="kwPop" data-kw="kw">
+      <summary><span>Thêm từ khoá</span> <b data-kw-label></b></summary>
+      <div class="pop-body">
+        <p class="hint">Chỉ hiện tin có các từ khoá này trong tiêu đề hoặc nội dung (không phân biệt hoa thường, có dấu hay không dấu).</p>
+        <div class="kw-mode" role="radiogroup" aria-label="Cách khớp từ khoá">
+          <label><input type="radio" name="kwmode" value=""> <span class="tx">Có đủ tất cả các từ</span></label>
+          <label><input type="radio" name="kwmode" value="any"> <span class="tx">Có một trong các từ</span></label>
+        </div>
+        <div class="chips" data-kw-chips></div>
+        <div class="nq-add">
+          <input data-kw-input type="text" placeholder="Ví dụ: máy lạnh, ban công" aria-label="Từ khoá cần có">
+          <button type="button" class="primary" data-kw-add data-icon="plus">Thêm</button>
+        </div>
+        <div class="suggest" data-kw-suggest>
+          <span>Gợi ý:</span>
+          <button type="button" data-k="máy lạnh">máy lạnh</button>
+          <button type="button" data-k="ban công">ban công</button>
+          <button type="button" data-k="cửa sổ">cửa sổ</button>
+          <button type="button" data-k="gác">gác</button>
+          <button type="button" data-k="giờ tự do">giờ tự do</button>
+          <button type="button" data-k="không chung chủ">không chung chủ</button>
+          <button type="button" data-k="thang máy">thang máy</button>
+          <button type="button" data-k="thú cưng">thú cưng</button>
+        </div>
+        <div class="pop-actions"><button type="button" data-clear="kw">Xoá hết</button></div>
+      </div>
+    </details>
+
+    <details class="pop kw-pop" id="nqPop" data-kw="nq">
+      <summary><span>Loại trừ từ khoá</span> <b data-kw-label></b></summary>
       <div class="pop-body">
         <p class="hint">Ẩn tin có chứa các từ khoá này trong tiêu đề hoặc nội dung (không phân biệt hoa thường, có dấu hay không dấu).</p>
-        <div class="chips" id="nqChips"></div>
+        <div class="chips" data-kw-chips></div>
         <div class="nq-add">
-          <input id="nqInput" type="text" placeholder="Ví dụ: Giá từ 5, ở ghép" aria-label="Từ khoá loại trừ">
-          <button type="button" id="nqAdd" class="primary" data-icon="plus">Thêm</button>
+          <input data-kw-input type="text" placeholder="Ví dụ: Giá từ 5, ở ghép" aria-label="Từ khoá loại trừ">
+          <button type="button" class="primary" data-kw-add data-icon="plus">Thêm</button>
         </div>
-        <div class="suggest" id="nqSuggest">
+        <div class="suggest" data-kw-suggest>
           <span>Gợi ý:</span>
           <button type="button" data-k="giá từ">giá từ</button>
           <button type="button" data-k="chỉ từ">chỉ từ</button>
@@ -198,6 +231,8 @@
 
   <main class="main">
     <section class="list" id="list" aria-live="polite"></section>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="0"
+      aria-label="Kéo để đổi độ rộng danh sách và bản đồ" title="Kéo để đổi độ rộng · bấm đúp để về mặc định"></div>
     <section class="map-wrap">
       <div id="map" aria-label="Bản đồ phòng trọ"></div>
       <div class="legend">

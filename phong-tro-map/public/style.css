@@ -13,8 +13,9 @@
   --radius: 10px;
   color-scheme: light;
 }
+/* Giao diện tối: theo máy (Tự động), hoặc chọn Sáng / Tối bằng nút ở góc phải header (data-theme trên <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14181b;
     --panel: #1d2226;
     --text: #e6eaed;
@@ -28,6 +29,20 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #14181b;
+  --panel: #1d2226;
+  --text: #e6eaed;
+  --muted: #9aa7b0;
+  --line: #2f373d;
+  --accent: #5c9cff;
+  --accent-fill: #2a6ad2; /* đậm hơn để chữ trắng vẫn dễ đọc */
+  --accent-soft: #172a4a;
+  --price: #ff7b6b;
+  --approx: #7d8a94;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -113,7 +128,10 @@ button, input, select { font: inherit; color: inherit; }
 .opts h4 { margin: 8px 4px 2px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; }
 .opts .none { color: var(--muted); padding: 8px 4px; margin: 0; }
 .hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
-#nqPop .pop-body { width: 340px; }
+#nqPop .pop-body, #kwPop .pop-body { width: 340px; }
+.kw-mode { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 8px; font-size: 13px; }
+.kw-mode label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.kw-mode input { margin: 0; accent-color: var(--accent); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .chips:empty { display: none; }
 .chips span { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 4px 2px 10px; font-weight: 600; }
@@ -149,7 +167,18 @@ button.link { border: 0; background: none; color: var(--accent); cursor: pointer
 #loadAll:disabled { opacity: .5; cursor: default; }
 
 /* ---------- bố cục ---------- */
-.main { flex: 1; display: grid; grid-template-columns: minmax(360px, 44%) minmax(0, 1fr); min-height: 0; }
+.main { flex: 1; display: grid; grid-template-columns: var(--list-w, 44%) 9px minmax(0, 1fr); min-height: 0; }
+/* Thanh kéo giữa danh sách và bản đồ (chế độ chia đôi) */
+.splitter { position: relative; cursor: col-resize; touch-action: none; background: var(--line); }
+.splitter::before { content: ""; position: absolute; inset: 0 -4px; } /* vùng bắt chuột rộng hơn */
+.splitter::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 36px; border-radius: 3px;
+  transform: translate(-50%, -50%); background: var(--muted); opacity: .55; transition: background .12s, opacity .12s, height .12s;
+}
+.splitter:hover::after, .splitter:focus-visible::after, body.resizing .splitter::after { background: var(--accent); opacity: 1; height: 56px; }
+.splitter:focus-visible { outline: none; background: var(--accent-soft); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .map-wrap { pointer-events: none; }
 .list { overflow-y: auto; padding: 4px 12px 16px 16px; }
 .map-wrap {
   position: relative; min-height: 300px; overflow: hidden; /* kể cả khi CSS của Leaflet không tải được */
@@ -157,6 +186,7 @@ button.link { border: 0; background: none; color: var(--accent); cursor: pointer
 }
 #map { position: absolute; inset: 0; }
 body[data-view="list"] .main { grid-template-columns: minmax(0, 1fr); }
+body:not([data-view="split"]) .splitter { display: none; }
 body[data-view="list"] .map-wrap { display: none; }
 body[data-view="list"] .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 0 12px; align-content: start; }
 body[data-view="map"] .main { grid-template-columns: minmax(0, 1fr); }
@@ -185,16 +215,7 @@ body[data-view="map"] .list { display: none; }
 .badge.sale { border-color: #b03a2e; color: #b03a2e; }
 .card.is-hidden { opacity: .55; border-style: dashed; }
 .card .why { font-size: 12px; color: #b03a2e; }
-/* SĐT / Zalo, nút yêu thích / không phù hợp */
-.phone { font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.phone a { color: var(--text); font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
-.phone a:hover { color: var(--accent); }
-.phone a.zalo {
-  color: #fff; background: #0068ff; border-radius: 4px; padding: 0 6px; font-size: 11px; font-weight: 700; line-height: 18px;
-}
-.phone a.zalo:hover { color: #fff; background: #0052cc; }
-.phone .sep { color: var(--muted); margin: 0 2px; }
-.phone .muted { color: var(--muted); }
+/* Nút yêu thích / không phù hợp */
 .link-btn { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; font-size: 13px; }
 .link-btn:disabled { color: var(--muted); cursor: default; }
 .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
@@ -211,6 +232,8 @@ body[data-view="map"] .list { display: none; }
 /* Nút chỉ có icon (tra cứu điểm ngập, kiểm tra phòng trọ), tooltip hiện ngay khi rê chuột / Tab tới. */
 .tool-btns { display: flex; gap: 6px; margin-left: auto; }
 .tool-btns + .saved-btn { margin-left: 0; }
+.tool-btns.theme { margin-left: 0; }
+button.tool-btn { padding: 0; color: var(--text); cursor: pointer; font: inherit; }
 .tool-btn {
   position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--panel); text-decoration: none; font-size: 18px; line-height: 1;
@@ -250,9 +273,6 @@ body[data-view="map"] .list { display: none; }
 .saved-tabs b { font-weight: 600; opacity: .8; }
 body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .45; pointer-events: none; }
 
-.popup .phone { margin-top: 4px; font-size: 12px; }
-.popup .phone a { color: #1d2327; }
-.popup .phone a.zalo { color: #fff; }
 .popup .acts { margin-top: 6px; }
 .popup .act { background: #fff; color: #61707a; border-color: #d0d7dc; }
 .popup .link-btn { color: #1d6fdc; font-size: 12px; }
@@ -387,6 +407,20 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .dot.exact { background: var(--accent); }
 .dot.approx { background: var(--approx); }
 .leaflet-popup-content { margin: 10px; }
+/* Nút đóng popup: nút tròn rõ ràng, dễ bấm */
+.leaflet-container a.leaflet-popup-close-button {
+  top: 6px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%;
+  color: #4a5560; font: 400 20px/1 system-ui, sans-serif; text-decoration: none; transition: background .12s, color .12s;
+}
+.leaflet-container a.leaflet-popup-close-button:hover { background: #eef1f4; color: #1d2327; }
+.leaflet-container a.leaflet-popup-close-button span { display: block; margin-top: -2px; }
+/* Popup tin đăng: nút đóng nổi trên góc ảnh, nền trắng, có bóng để không lẫn vào ảnh. */
+.ad-popup a.leaflet-popup-close-button {
+  top: 16px; right: 16px; z-index: 1; width: 28px; height: 28px; background: rgba(255, 255, 255, .95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .3); color: #1d2327;
+}
+.leaflet-container .ad-popup a.leaflet-popup-close-button:hover { background: #fff; color: #c0392b; }
+.ad-popup .popup.no-img .t { padding-right: 30px; }
 .popup img { width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; display: block; }
 .popup .t { display: block; font-weight: 600; color: #1d2327; text-decoration: none; margin-bottom: 2px; }
 .popup .p { color: #c0392b; font-weight: 700; }
@@ -534,6 +568,7 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
   .pop-body { position: fixed; top: auto; left: 16px; right: 16px; width: auto; }
   .main, body[data-view="split"] .main { grid-template-columns: minmax(0, 1fr); }
   body[data-view="split"] .map-wrap { display: none; }
+  .splitter { display: none; }
   body[data-view="list"] .list { grid-template-columns: minmax(0, 1fr); }
   .list { padding: 4px 16px 16px; }
   .thumb { flex-basis: 108px; height: 96px; }
@@ -550,7 +585,6 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 .tool-btn .ic { width: 21px; height: 21px; }
 .tool-btn { color: var(--accent); }
 .tool-btn.ok { color: #23914f; }
-.phone > .ic { width: 15px; height: 15px; color: var(--muted); }
 .chips button .ic { width: 13px; height: 13px; vertical-align: -2px; }
 .ul-toggle .ic { width: 17px; height: 17px; color: #1d6fdc; }
 .ul-ctl[data-layer="floods"] .ul-toggle .ic { color: #1f8fd6; }
