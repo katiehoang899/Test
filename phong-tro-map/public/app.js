@@ -529,25 +529,17 @@ document.addEventListener('click', async (e) => {
 
 // ---------- người đăng tin (dưới ảnh của thẻ tin) ----------
 
-// Tên có sẵn trong tin; hoạt động gần nhất, phản hồi, số tin, thời gian trên Nhà Tốt tải sau
+// Tên có sẵn trong tin; ảnh đại diện, phản hồi, số tin, thời gian trên Nhà Tốt tải sau
 // (/api/seller) khi thẻ cuộn tới, mỗi người đăng một lần.
 function sellerHtml(ad) {
   if (!ad.seller && !ad.sellerOid) return '';
   const name = esc(ad.seller || 'Người đăng');
+  // Chưa có ảnh đại diện: chữ cái đầu của tên.
+  const avatar = `<span class="seller-avatar" aria-hidden="true">${esc((ad.seller || '?').trim().charAt(0).toUpperCase())}</span>`;
   const link = ad.sellerOid
-    ? `<a class="seller-name" href="https://www.chotot.com/user/${encodeURIComponent(ad.sellerOid)}" target="_blank" rel="noopener" title="${name} · xem trang người đăng trên Chợ Tốt">${icon('person')}<span>${name}</span></a>`
-    : `<span class="seller-name" title="${name}">${icon('person')}<span>${name}</span></span>`;
+    ? `<a class="seller-name" href="https://www.chotot.com/user/${encodeURIComponent(ad.sellerOid)}" target="_blank" rel="noopener" title="${name} · xem trang người đăng trên Chợ Tốt">${avatar}<span>${name}</span></a>`
+    : `<span class="seller-name" title="${name}">${avatar}<span>${name}</span></span>`;
   return `<div class="seller"${ad.sellerOid ? ` data-seller="${esc(ad.sellerOid)}"` : ''}>${link}<div class="seller-stats"></div></div>`;
-}
-
-function agoText(ms) {
-  const min = Math.max(0, Math.round((Date.now() - ms) / 60000));
-  if (min < 1) return 'vừa xong';
-  if (min < 60) return `${min} phút trước`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `${h} giờ trước`;
-  const d = Math.round(h / 24);
-  return d < 30 ? `${d} ngày trước` : `${Math.round(d / 30)} tháng trước`;
 }
 
 function memberText(ms) {
@@ -559,12 +551,8 @@ function memberText(ms) {
 
 function sellerStatsHtml(s) {
   const rows = [];
-  if (s.lastActive) {
-    const fresh = Date.now() - s.lastActive < 86400000;
-    rows.push(`<span class="seller-active${fresh ? ' on' : ''}"><i></i>Hoạt động ${esc(agoText(s.lastActive))}</span>`);
-  }
   if (s.responseRate != null) rows.push(`<span>Phản hồi: <b>${s.responseRate}%</b></span>`);
-  if (s.adCount != null) rows.push(`<span class="seller-more">${icon('list')}${s.adCount.toLocaleString('vi-VN')} tin đăng</span>`);
+  if (s.adCount != null) rows.push(`<span>${s.adCount.toLocaleString('vi-VN')} tin đăng</span>`);
   if (s.joinedAt) rows.push(`<span>${esc(memberText(s.joinedAt))}</span>`);
   return rows.join('');
 }
@@ -577,7 +565,15 @@ function fillSeller(box, data) {
   box.dataset.ready = '1';
   if (!data) return;
   box.querySelector('.seller-stats').innerHTML = sellerStatsHtml(data);
-  const nameEl = box.querySelector('.seller-name span');
+  const av = box.querySelector('.seller-avatar');
+  if (data.avatar && av && !av.querySelector('img')) {
+    const img = new Image();
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => av.replaceChildren(img); // ảnh lỗi thì giữ chữ cái đầu
+    img.src = data.avatar;
+  }
+  const nameEl = box.querySelector('.seller-name > span:last-child');
   if (data.name && nameEl && nameEl.textContent === 'Người đăng') nameEl.textContent = data.name;
 }
 

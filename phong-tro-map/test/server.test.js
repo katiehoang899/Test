@@ -305,7 +305,7 @@ test('/api/seller: hồ sơ người đăng (tên, số tin, phản hồi, thờ
   assert.equal(s.name, 'Chị Lan');
   assert.equal(s.adCount, 12);
   assert.equal(s.responseRate, 92, 'tỉ lệ 0.92 trong object con');
-  assert.ok(Date.now() - s.lastActive < 5 * 60000);
+  assert.equal(s.avatar, 'https://cdn/lan.jpg');
   assert.ok(Math.abs((Date.now() - s.joinedAt) / (365 * 86400000) - 8) < 0.01, 'create_time tính bằng giây');
   assert.equal(s.url, 'https://www.chotot.com/user/oidLan123');
   assert.equal(s.raw, undefined);

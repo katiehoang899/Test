@@ -416,7 +416,6 @@ function normalizeSeller(oid, profile, listing) {
   const p = profile || {};
   const now = Date.now();
   const joinedAt = toMs(deepPick(p, ['create_time', 'created_time', 'created_at', 'start_time', 'join_time', 'joined_at', 'register_time', 'createdAt']));
-  const lastActive = toMs(deepPick(p, ['last_active', 'last_activity', 'last_active_time', 'last_online', 'online_time', 'last_seen', 'lastActive', 'last_login', 'online_status_time']));
   const rate = deepPick(p, ['response_rate', 'chat_response_rate', 'reply_rate', 'chat_reply_rate', 'responseRate', 'replyRate']);
   // Tổng số tin từ ad-listing?account_oid=…: chỉ tin khi tin trả về đúng là của người này
   // (nếu API bỏ qua tham số thì total là số tin của cả trang).
@@ -427,14 +426,13 @@ function normalizeSeller(oid, profile, listing) {
     name: str(deepPick(p, ['full_name', 'account_name', 'display_name', 'name']) || '', 100),
     avatar: /^https:\/\//.test(String(deepPick(p, ['avatar', 'avatar_url']) || '')) ? str(deepPick(p, ['avatar', 'avatar_url']), 500) : null,
     joinedAt: joinedAt && joinedAt < now ? joinedAt : null,
-    lastActive: lastActive && lastActive <= now + 60000 ? lastActive : null,
     responseRate: rate != null ? toPercent(rate) : null,
     adCount: Number.isFinite(adCount) && adCount > 0 ? adCount : null,
     url: `https://www.chotot.com/user/${encodeURIComponent(oid)}`,
   };
 }
 
-// Hồ sơ người đăng: tên, thời gian tham gia, hoạt động gần nhất, tỉ lệ phản hồi, số tin đang đăng.
+// Hồ sơ người đăng: tên, ảnh đại diện, thời gian tham gia, tỉ lệ phản hồi, số tin đang đăng.
 // debug = true: trả kèm dữ liệu gốc của Chợ Tốt (để dò tên trường nếu API đổi).
 async function seller(oid, debug) {
   if (!OID_RE.test(String(oid || ''))) throw badRequest('Mã người đăng không hợp lệ');
