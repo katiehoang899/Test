@@ -123,6 +123,7 @@ function normalizeAd(ad) {
     time: num(ad.list_time),
     date: ad.date || '',
     seller: ad.account_name || ad.full_name || '',
+    sellerOid: OID_RE.test(String(ad.account_oid || '')) ? String(ad.account_oid) : null,
     isCompany: Boolean(ad.company_ad),
     type: ad.type || null,
     url: `https://www.nhatot.com/${encodeURIComponent(String(listId))}.htm`,
@@ -337,6 +338,8 @@ function snapshotAd(ad, id) {
     date: str(ad.date, 60),
     time: finite(ad.time),
     isCompany: Boolean(ad.isCompany),
+    seller: str(ad.seller, 100),
+    sellerOid: OID_RE.test(String(ad.sellerOid || '')) ? String(ad.sellerOid) : null,
     type: ad.type === 'h' ? 'h' : 'u',
     url: url.startsWith('https://www.nhatot.com/') ? url : `https://www.nhatot.com/${encodeURIComponent(id)}.htm`,
   };
@@ -368,6 +371,84 @@ async function updateSaved(req) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(savedFile, JSON.stringify(saved));
   return saved;
+}
+
+// ---------- người đăng tin ----------
+
+// Mã tài khoản Chợ Tốt (account_oid) của người đăng.
+const OID_RE = /^[A-Za-z0-9_-]{4,64}$/;
+
+// API hồ sơ của Chợ Tốt không có tài liệu, tên trường có thể khác nhau / đổi theo thời gian:
+// tìm theo nhiều tên quen thuộc, duyệt sâu vào các object con (tối đa 4 tầng).
+function deepPick(obj, names, depth = 0) {
+  if (!obj || typeof obj !== 'object' || depth > 4) return undefined;
+  const want = new Set(names.map((n) => n.toLowerCase().replace(/_/g, '')));
+  for (const [k, v] of Object.entries(obj)) {
+    if (want.has(k.toLowerCase().replace(/_/g, '')) && v != null && v !== '' && typeof v !== 'object') return v;
+  }
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const found = deepPick(v, names, depth + 1);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+// Giây / mili giây / chuỗi ngày → mili giây.
+function toMs(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 0) return n < 1e11 ? n * 1000 : n;
+  const t = Date.parse(v);
+  return Number.isFinite(t) ? t : null;
+}
+
+// 0.92 / 92 / "92%" → 92
+function toPercent(v) {
+  const n = parseFloat(String(v).replace('%', ''));
+  if (!Number.isFinite(n) || n < 0) return null;
+  const pct = n <= 1 && !String(v).includes('%') ? n * 100 : n;
+  return pct <= 100 ? Math.round(pct) : null;
+}
+
+function normalizeSeller(oid, profile, listing) {
+  const p = profile || {};
+  const now = Date.now();
+  const joinedAt = toMs(deepPick(p, ['create_time', 'created_time', 'created_at', 'start_time', 'join_time', 'joined_at', 'register_time', 'createdAt']));
+  const lastActive = toMs(deepPick(p, ['last_active', 'last_activity', 'last_active_time', 'last_online', 'online_time', 'last_seen', 'lastActive', 'last_login', 'online_status_time']));
+  const rate = deepPick(p, ['response_rate', 'chat_response_rate', 'reply_rate', 'chat_reply_rate', 'responseRate', 'replyRate']);
+  // Tổng số tin từ ad-listing?account_oid=…: chỉ tin khi tin trả về đúng là của người này
+  // (nếu API bỏ qua tham số thì total là số tin của cả trang).
+  const ownListing = listing?.ads?.length && String(listing.ads[0].account_oid) === oid;
+  const adCount = Number(deepPick(p, ['total_ads', 'live_ads', 'total_live_ads', 'num_ads', 'ad_count', 'total_listing', 'totalAds']) ?? (ownListing ? listing.total : NaN));
+  return {
+    oid,
+    name: str(deepPick(p, ['full_name', 'account_name', 'display_name', 'name']) || '', 100),
+    avatar: /^https:\/\//.test(String(deepPick(p, ['avatar', 'avatar_url']) || '')) ? str(deepPick(p, ['avatar', 'avatar_url']), 500) : null,
+    joinedAt: joinedAt && joinedAt < now ? joinedAt : null,
+    lastActive: lastActive && lastActive <= now + 60000 ? lastActive : null,
+    responseRate: rate != null ? toPercent(rate) : null,
+    adCount: Number.isFinite(adCount) && adCount > 0 ? adCount : null,
+    url: `https://www.chotot.com/user/${encodeURIComponent(oid)}`,
+  };
+}
+
+// Hồ sơ người đăng: tên, thời gian tham gia, hoạt động gần nhất, tỉ lệ phản hồi, số tin đang đăng.
+// debug = true: trả kèm dữ liệu gốc của Chợ Tốt (để dò tên trường nếu API đổi).
+async function seller(oid, debug) {
+  if (!OID_RE.test(String(oid || ''))) throw badRequest('Mã người đăng không hợp lệ');
+  const raw = await cached('seller:' + oid, 15 * 60 * 1000, async () => {
+    const [profile, listing] = await Promise.all([
+      getJson(`${GATEWAY}/v1/public/profile/${encodeURIComponent(oid)}`).catch((err) => ({ __error: err.message })),
+      getJson(`${GATEWAY}/v1/public/ad-listing?account_oid=${encodeURIComponent(oid)}&limit=1`).catch((err) => ({ __error: err.message })),
+    ]);
+    if (profile.__error && listing.__error) throw Object.assign(new Error('Không kết nối được Chợ Tốt'), { status: 502 });
+    return { profile, listing };
+  });
+  const out = normalizeSeller(oid, raw.profile.__error ? null : raw.profile, raw.listing.__error ? null : raw.listing);
+  if (debug) out.raw = { profile: raw.profile, listingTotal: raw.listing.total ?? raw.listing.__error };
+  return out;
 }
 
 // ---------- lớp bản đồ do người dùng thêm (điểm ngập, chỗ đỗ xe hơi) ----------
@@ -613,6 +694,7 @@ function createServer() {
       if (req.method !== 'GET') return sendJson(res, 405, { error: 'Method not allowed' });
       if (u.pathname === '/api/saved') return sendJson(res, 200, loadSaved());
       if (layer) return sendJson(res, 200, { [layer]: loadUserLayer(layer) });
+      if (u.pathname === '/api/seller') return sendJson(res, 200, await seller(u.searchParams.get('oid'), u.searchParams.get('debug') === '1'));
       if (u.pathname === '/api/pois') return sendJson(res, 200, await pois(u.searchParams.get('cell')));
       if (u.pathname === '/api/route') return sendJson(res, 200, await route(u.searchParams.get('from'), u.searchParams.get('to')));
       if (u.pathname === '/api/ads') return sendJson(res, 200, await listAds(u.searchParams));
@@ -645,4 +727,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, distance, poiCategory, normalizePois, overpassQuery };
+module.exports = { createServer, buildListingUrl, normalizeAd, normalizeRegions, normalizeWards, distance, poiCategory, normalizePois, overpassQuery, normalizeSeller };

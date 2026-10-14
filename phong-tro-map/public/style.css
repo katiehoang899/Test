@@ -199,7 +199,21 @@ body[data-view="map"] .list { display: none; }
 }
 .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
 .card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.thumb { position: relative; flex: 0 0 132px; height: 108px; border-radius: 8px; overflow: hidden; background: var(--bg); display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.side { flex: 0 0 132px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* Người đăng tin: tên, hoạt động gần nhất, phản hồi, số tin, thời gian trên Nhà Tốt */
+.seller { display: grid; gap: 3px; font-size: 11.5px; line-height: 1.35; color: var(--muted); }
+.seller-name { display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--text); font-weight: 600; font-size: 12.5px; text-decoration: none; }
+.seller-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.seller-name:hover { color: var(--accent); }
+.seller-name .ic { width: 14px; height: 14px; color: var(--muted); }
+.seller-stats { display: grid; gap: 2px; }
+.seller-stats:empty { display: none; }
+.seller-stats b { color: var(--text); }
+.seller-active { display: flex; align-items: center; gap: 5px; }
+.seller-active i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--approx); }
+.seller-active.on i { background: #22a35a; }
+.seller-more .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; }
+.thumb { position: relative; height: 108px; border-radius: 8px; overflow: hidden; background: var(--bg); display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .thumb .imgs { position: absolute; right: 4px; bottom: 4px; background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; }
 .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -571,7 +585,8 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
   .splitter { display: none; }
   body[data-view="list"] .list { grid-template-columns: minmax(0, 1fr); }
   .list { padding: 4px 16px 16px; }
-  .thumb { flex-basis: 108px; height: 96px; }
+  .side { flex-basis: 108px; }
+  .thumb { height: 96px; }
 }
 
 /* Nút có icon + chữ */

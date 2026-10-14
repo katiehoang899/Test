@@ -12,6 +12,17 @@ const upstream = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   hits.push(u);
   res.setHeader('Content-Type', 'application/json');
+  if (u.pathname === '/v1/public/ad-listing' && u.searchParams.get('account_oid')) {
+    const oid = u.searchParams.get('account_oid');
+    if (oid === 'ignored99') return res.end(JSON.stringify({ total: 98765, ads: [{ account_oid: 'someoneElse' }] })); // API bỏ qua tham số
+    return res.end(JSON.stringify(oid === 'oidLan123' ? { total: 12, ads: [{ account_oid: oid }] } : { total: 0, ads: [] }));
+  }
+  if (u.pathname === '/v1/public/profile/oidLan123') {
+    return res.end(JSON.stringify({
+      account_oid: 'oidLan123', full_name: 'Chị Lan', avatar: 'https://cdn/lan.jpg', create_time: Math.floor(Date.now() / 1000) - 8 * 365 * 86400,
+      chat: { response_rate: 0.92, last_active: Date.now() - 3 * 60000 },
+    }));
+  }
   if (u.pathname === '/v1/public/ad-listing') {
     return res.end(JSON.stringify({
       total: 2,
@@ -21,6 +32,7 @@ const upstream = http.createServer((req, res) => {
           size: 25, region_v2: 13000, region_name: 'Tp Hồ Chí Minh', area_v2: 13102, area_name: 'Quận 7',
           ward: 9001, ward_name: 'Phường Tân Phong', latitude: 10.73, longitude: 106.7, image: 'https://img/1.jpg',
           list_time: 1700000000000, date: '2 giờ trước', company_ad: false, furnishing_rent: 2, type: 'u',
+          account_name: 'Chị Lan', account_oid: 'oidLan123',
         },
         { list_id: 222, subject: 'Phòng không toạ độ', price: 2000000, size: 15, latitude: 0, longitude: 0, company_ad: true },
       ],
@@ -281,4 +293,26 @@ test('/api/pois: công trình OSM theo ô bản đồ, có cache', async () => {
   const busy = await fetch(`${base}/api/pois?cell=220,2133`);
   assert.equal(busy.status, 502);
   assert.match((await busy.json()).error, /Overpass/);
+});
+
+test('/api/seller: hồ sơ người đăng (tên, số tin, phản hồi, thời gian trên Nhà Tốt)', async () => {
+  const ads = await (await fetch(`${base}/api/ads?region_v2=13000`)).json();
+  const ad = ads.ads.find((a) => a.id === '111');
+  assert.equal(ad.seller, 'Chị Lan');
+  assert.equal(ad.sellerOid, 'oidLan123');
+
+  const s = await (await fetch(`${base}/api/seller?oid=oidLan123`)).json();
+  assert.equal(s.name, 'Chị Lan');
+  assert.equal(s.adCount, 12);
+  assert.equal(s.responseRate, 92, 'tỉ lệ 0.92 trong object con');
+  assert.ok(Date.now() - s.lastActive < 5 * 60000);
+  assert.ok(Math.abs((Date.now() - s.joinedAt) / (365 * 86400000) - 8) < 0.01, 'create_time tính bằng giây');
+  assert.equal(s.url, 'https://www.chotot.com/user/oidLan123');
+  assert.equal(s.raw, undefined);
+  assert.ok((await (await fetch(`${base}/api/seller?oid=oidLan123&debug=1`)).json()).raw.profile.full_name);
+
+  const unknown = await (await fetch(`${base}/api/seller?oid=nobody99`)).json();
+  assert.deepEqual([unknown.name, unknown.adCount, unknown.responseRate, unknown.joinedAt], ['', null, null, null]);
+  assert.equal((await (await fetch(`${base}/api/seller?oid=ignored99`)).json()).adCount, null, 'không lấy tổng số tin của cả trang');
+  assert.equal((await fetch(`${base}/api/seller?oid=../x`)).status, 400);
 });

@@ -407,7 +407,7 @@ function syncActs(root = document) {
 }
 
 const SNAP_KEYS = ['id', 'title', 'price', 'priceText', 'size', 'deposit', 'furnishingText', 'region', 'area', 'ward', 'street',
-  'address', 'lat', 'lng', 'approxAt', 'thumb', 'imageCount', 'date', 'time', 'isCompany', 'type', 'url'];
+  'address', 'lat', 'lng', 'approxAt', 'thumb', 'imageCount', 'date', 'time', 'isCompany', 'seller', 'sellerOid', 'type', 'url'];
 
 function findAd(id) {
   return store.ads.get(id) || myAds.fav.get(id)?.ad || myAds.hidden.get(id)?.ad || null;
@@ -527,6 +527,95 @@ document.addEventListener('click', async (e) => {
   }, 1500);
 }, true);
 
+// ---------- người đăng tin (dưới ảnh của thẻ tin) ----------
+
+// Tên có sẵn trong tin; hoạt động gần nhất, phản hồi, số tin, thời gian trên Nhà Tốt tải sau
+// (/api/seller) khi thẻ cuộn tới, mỗi người đăng một lần.
+function sellerHtml(ad) {
+  if (!ad.seller && !ad.sellerOid) return '';
+  const name = esc(ad.seller || 'Người đăng');
+  const link = ad.sellerOid
+    ? `<a class="seller-name" href="https://www.chotot.com/user/${encodeURIComponent(ad.sellerOid)}" target="_blank" rel="noopener" title="${name} · xem trang người đăng trên Chợ Tốt">${icon('person')}<span>${name}</span></a>`
+    : `<span class="seller-name" title="${name}">${icon('person')}<span>${name}</span></span>`;
+  return `<div class="seller"${ad.sellerOid ? ` data-seller="${esc(ad.sellerOid)}"` : ''}>${link}<div class="seller-stats"></div></div>`;
+}
+
+function agoText(ms) {
+  const min = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (min < 1) return 'vừa xong';
+  if (min < 60) return `${min} phút trước`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} giờ trước`;
+  const d = Math.round(h / 24);
+  return d < 30 ? `${d} ngày trước` : `${Math.round(d / 30)} tháng trước`;
+}
+
+function memberText(ms) {
+  const days = (Date.now() - ms) / 86400000;
+  if (days >= 365) return `${Math.floor(days / 365)} năm trên Nhà Tốt`;
+  if (days >= 30) return `${Math.floor(days / 30)} tháng trên Nhà Tốt`;
+  return 'Mới tham gia Nhà Tốt';
+}
+
+function sellerStatsHtml(s) {
+  const rows = [];
+  if (s.lastActive) {
+    const fresh = Date.now() - s.lastActive < 86400000;
+    rows.push(`<span class="seller-active${fresh ? ' on' : ''}"><i></i>Hoạt động ${esc(agoText(s.lastActive))}</span>`);
+  }
+  if (s.responseRate != null) rows.push(`<span>Phản hồi: <b>${s.responseRate}%</b></span>`);
+  if (s.adCount != null) rows.push(`<span class="seller-more">${icon('list')}${s.adCount.toLocaleString('vi-VN')} tin đăng</span>`);
+  if (s.joinedAt) rows.push(`<span>${esc(memberText(s.joinedAt))}</span>`);
+  return rows.join('');
+}
+
+const sellerCache = new Map(); // oid → hồ sơ (null nếu không lấy được)
+const sellerQueue = [];
+let sellerBusy = 0;
+
+function fillSeller(box, data) {
+  box.dataset.ready = '1';
+  if (!data) return;
+  box.querySelector('.seller-stats').innerHTML = sellerStatsHtml(data);
+  const nameEl = box.querySelector('.seller-name span');
+  if (data.name && nameEl && nameEl.textContent === 'Người đăng') nameEl.textContent = data.name;
+}
+
+function pumpSellers() {
+  while (sellerBusy < 3 && sellerQueue.length) {
+    const oid = sellerQueue.shift();
+    if (sellerCache.has(oid)) continue;
+    sellerBusy++;
+    sellerCache.set(oid, undefined); // đang tải
+    api('/api/seller?oid=' + encodeURIComponent(oid))
+      .then((d) => d, () => null)
+      .then((d) => {
+        sellerCache.set(oid, d);
+        document.querySelectorAll(`.seller[data-seller="${CSS.escape(oid)}"]`).forEach((box) => fillSeller(box, d));
+      })
+      .finally(() => { sellerBusy--; pumpSellers(); });
+  }
+}
+
+const sellerIO = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    sellerIO.unobserve(e.target);
+    const oid = e.target.dataset.seller;
+    if (sellerCache.get(oid) !== undefined) fillSeller(e.target, sellerCache.get(oid));
+    else if (!sellerCache.has(oid) && !sellerQueue.includes(oid)) { sellerQueue.push(oid); pumpSellers(); }
+  }
+}, { rootMargin: '200px' });
+
+// Thẻ tin mới vẽ: hồ sơ đã có thì điền ngay, chưa có thì chờ thẻ cuộn tới mới tải.
+new MutationObserver(() => {
+  document.querySelectorAll('#list .seller[data-seller]:not([data-ready]):not([data-watch])').forEach((box) => {
+    const cachedSeller = sellerCache.get(box.dataset.seller);
+    if (cachedSeller !== undefined) fillSeller(box, cachedSeller);
+    else { box.dataset.watch = '1'; sellerIO.observe(box); }
+  });
+}).observe(document.getElementById('list'), { childList: true });
+
 function cardHtml(ad) {
   const where = [ad.ward, ad.area, ad.region].filter(Boolean).join(', ');
   const tags = [
@@ -539,8 +628,11 @@ function cardHtml(ad) {
   const marked = myAds.hidden.has(ad.id) && !ad.hidden;
   const saleBadge = !ad.hidden && sale.length ? `<span class="badge sale" title="${esc('Dấu hiệu: ' + sale.join(', '))}">Có thể là sale</span>` : '';
   return `<article class="card${ad.hidden ? ' is-hidden' : ''}${marked && !savedView ? ' is-marked' : ''}" data-id="${esc(ad.id)}" tabindex="0">
-    <div class="thumb">${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span>Không có ảnh</span>'}
-      ${ad.imageCount > 1 ? `<span class="imgs">${ad.imageCount} ảnh</span>` : ''}</div>
+    <div class="side">
+      <div class="thumb">${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span>Không có ảnh</span>'}
+        ${ad.imageCount > 1 ? `<span class="imgs">${ad.imageCount} ảnh</span>` : ''}</div>
+      ${sellerHtml(ad)}
+    </div>
     <div class="info">
       <a class="title" href="${esc(ad.url)}" target="_blank" rel="noopener">${esc(ad.title)}</a>
       <div class="price">${esc(priceText(ad))}</div>
