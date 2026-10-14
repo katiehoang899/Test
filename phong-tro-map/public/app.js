@@ -217,10 +217,96 @@ const icons = {
   approx: L.divIcon({ className: 'pin approx', html: '<span></span>', iconSize: [22, 22], iconAnchor: [11, 22], popupAnchor: [0, -20] }),
 };
 
+// ---------- ảnh trong popup: bấm ‹ ›, vuốt hoặc phím ← → để xem lần lượt ----------
+
+const adImageLists = new Map(); // mã tin → Promise<danh sách ảnh>
+
+// Danh sách tin thường chỉ có ảnh đầu: tin có nhiều ảnh hơn thì hỏi /api/images (mỗi tin một lần).
+function adImageList(ad) {
+  const have = (ad.images || []).filter(Boolean);
+  const base = have.length ? have : [ad.thumb].filter(Boolean);
+  if (!(ad.imageCount > base.length)) return Promise.resolve(base);
+  if (!adImageLists.has(ad.id)) {
+    adImageLists.set(ad.id, api('/api/images?id=' + encodeURIComponent(ad.id))
+      .then((d) => (d.images?.length ? d.images : base), () => base));
+  }
+  return adImageLists.get(ad.id);
+}
+
+function galleryHtml(ad) {
+  const first = ad.images?.[0] || ad.thumb;
+  if (!first) return '';
+  const many = Math.max(ad.imageCount || 1, ad.images?.length || 1) > 1;
+  const hide = many ? '' : ' hidden';
+  return `<div class="gallery" data-gal>
+    <img src="${esc(first)}" alt="" referrerpolicy="no-referrer" draggable="false">
+    <button type="button" class="gal-btn prev" data-gal-step="-1" aria-label="Ảnh trước"${hide}>${icon('chevronLeft')}</button>
+    <button type="button" class="gal-btn next" data-gal-step="1" aria-label="Ảnh sau"${hide}>${icon('chevronRight')}</button>
+    <span class="gal-count"${hide}>1/${Math.max(ad.imageCount || 1, ad.images?.length || 1)}</span>
+  </div>`;
+}
+
+let activeGallery = null; // ảnh của popup đang mở (cho phím ← →)
+
+function setupGallery(root, ad) {
+  const box = root.querySelector('[data-gal]');
+  if (!box) return null;
+  if (box.gallery) return box.gallery; // nội dung popup được dùng lại: chỉ gắn một lần
+  const img = box.querySelector('img');
+  const count = box.querySelector('.gal-count');
+  const btns = box.querySelectorAll('.gal-btn');
+  let list = [img.getAttribute('src')];
+  let i = 0;
+  const preload = (k) => { if (list.length > 1) new Image().src = list[(k + list.length) % list.length]; };
+  const show = (k) => {
+    if (list.length < 2) return;
+    i = (k + list.length) % list.length;
+    img.src = list[i];
+    count.textContent = `${i + 1}/${list.length}`;
+    preload(i + 1);
+    preload(i - 1);
+  };
+  adImageList(ad).then((l) => {
+    if (!l.length) return;
+    list = l;
+    i = list.indexOf(img.getAttribute('src'));
+    if (i < 0) { i = 0; img.src = list[0]; } // ảnh nhỏ của danh sách → ảnh đầu (cỡ lớn) của tin
+    const many = list.length > 1;
+    btns.forEach((b) => { b.hidden = !many; });
+    count.hidden = !many;
+    count.textContent = `${i + 1}/${list.length}`;
+    preload(i + 1);
+  });
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gal-step]');
+    if (!b) return;
+    e.stopPropagation();
+    show(i + Number(b.dataset.galStep));
+  });
+  // Vuốt ngang trên ảnh (màn hình cảm ứng, hoặc kéo chuột).
+  let startX = null;
+  img.addEventListener('pointerdown', (e) => { startX = e.clientX; });
+  img.addEventListener('pointerup', (e) => {
+    if (startX == null) return;
+    const dx = e.clientX - startX;
+    startX = null;
+    if (Math.abs(dx) > 35) show(i + (dx < 0 ? 1 : -1));
+  });
+  box.gallery = { step: (d) => show(i + d) };
+  return box.gallery;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!activeGallery || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+  if (e.target.closest('input, textarea, select, [contenteditable], #splitter')) return;
+  e.preventDefault();
+  activeGallery.step(e.key === 'ArrowLeft' ? -1 : 1);
+});
+
 function popupHtml(ad) {
   const meta = [ad.size ? `${ad.size} m²` : '', ad.furnishingText, ad.date].filter(Boolean).map(esc).join(' · ');
-  return `<div class="popup${ad.thumb ? '' : ' no-img'}">
-    ${ad.thumb ? `<img src="${esc(ad.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}
+  return `<div class="popup${ad.thumb || ad.images?.length ? '' : ' no-img'}">
+    ${galleryHtml(ad)}
     <a class="t" href="${esc(ad.url)}" target="_blank" rel="noopener">${esc(ad.title)}</a>
     <div class="p">${esc(priceText(ad))}</div>
     <div class="m">${meta}</div>
@@ -286,6 +372,7 @@ function renderMap() {
     }, { maxWidth: 260, minWidth: 240, className: 'ad-popup' });
     m.on('popupopen', (e) => {
       syncActs(e.popup.getElement());
+      activeGallery = setupGallery(e.popup.getElement(), ad);
     });
     m.on('click', () => highlightCard(ad.id));
     markers.set(ad.id, m);
@@ -326,6 +413,8 @@ function highlightCard(id) {
 let lastPopupClose = 0;
 map.on('popupclose', () => { lastPopupClose = Date.now(); });
 // Các chức năng khác (vd. thêm điểm ngập / chỗ đỗ xe, userlayers.js) xử lý cú bấm trước; trả về true là đã dùng.
+map.on('popupclose', () => { activeGallery = null; });
+
 const mapClickHooks = [];
 
 map.on('click', (e) => {

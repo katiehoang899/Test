@@ -38,6 +38,10 @@ const upstream = http.createServer((req, res) => {
       ],
     }));
   }
+  if (u.pathname === '/v1/public/ad-listing/555') {
+    return res.end(JSON.stringify({ ad: { images: ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/1.jpg', 'http://insecure/3.jpg', { url: 'https://cdn/4.jpg' }] } }));
+  }
+  if (u.pathname === '/v1/public/ad-listing/444') return res.end(JSON.stringify({ ad: { subject: 'Phòng', body: 'Không ảnh' } }));
   if (u.pathname.startsWith('/route/v1/driving/')) {
     // "lng,lat;lng,lat": ví dụ 106.7,10.70;106.71,10.71 → đường gấp khúc qua một góc phố.
     const [[lng1, lat1], [lng2, lat2]] = u.pathname.split('/').pop().split(';').map((p) => p.split(',').map(Number));
@@ -315,4 +319,11 @@ test('/api/seller: hồ sơ người đăng (tên, số tin, phản hồi, thờ
   assert.deepEqual([unknown.name, unknown.adCount, unknown.responseRate, unknown.joinedAt], ['', null, null, null]);
   assert.equal((await (await fetch(`${base}/api/seller?oid=ignored99`)).json()).adCount, null, 'không lấy tổng số tin của cả trang');
   assert.equal((await fetch(`${base}/api/seller?oid=../x`)).status, 400);
+});
+
+test('/api/images: đủ ảnh của tin cho popup', async () => {
+  const d = await (await fetch(`${base}/api/images?id=555`)).json();
+  assert.deepEqual(d.images, ['https://cdn/1.jpg', 'https://cdn/2.jpg', 'https://cdn/4.jpg']);
+  assert.deepEqual((await (await fetch(`${base}/api/images?id=444`)).json()).images, []);
+  assert.equal((await fetch(`${base}/api/images?id=abc`)).status, 400);
 });

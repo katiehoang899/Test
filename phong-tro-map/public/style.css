@@ -439,7 +439,23 @@ body[data-saved="fav"] .filters, body[data-saved="hidden"] .filters { opacity: .
 }
 .leaflet-container .ad-popup a.leaflet-popup-close-button:hover { background: #fff; color: #c0392b; }
 .ad-popup .popup.no-img .t { padding-right: 30px; }
-.popup img { width: 100%; height: 130px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; display: block; }
+.popup img { width: 100%; height: 150px; object-fit: cover; display: block; }
+/* Ảnh trong popup: nút ‹ › hai bên, số thứ tự góc dưới */
+.gallery { position: relative; margin-bottom: 6px; border-radius: 6px; overflow: hidden; background: #e8ebee; touch-action: pan-y; user-select: none; }
+.gallery img { cursor: grab; }
+.gal-btn {
+  position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 50%; background: rgba(255, 255, 255, .9); color: #1d2327; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); cursor: pointer;
+  opacity: .85; transition: opacity .12s, background .12s;
+}
+.gal-btn:hover { opacity: 1; background: #fff; }
+.gal-btn .ic { width: 18px; height: 18px; stroke-width: 2.2; }
+.gal-btn.prev { left: 6px; }
+.gal-btn.next { right: 6px; }
+.gal-count {
+  position: absolute; right: 6px; bottom: 6px; padding: 1px 7px; border-radius: 999px;
+  background: rgba(0, 0, 0, .6); color: #fff; font-size: 11px; font-variant-numeric: tabular-nums;
+}
 .popup .t { display: block; font-weight: 600; color: #1d2327; text-decoration: none; margin-bottom: 2px; }
 .popup .p { color: #c0392b; font-weight: 700; }
 .popup .m, .popup .a { color: #61707a; font-size: 12px; }
