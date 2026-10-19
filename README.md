@@ -42,7 +42,14 @@ Heatmap 4.0 là bản nâng cấp của Heatmap 3.0 (cùng app, cài đè và gi
   - *Figma prototype*: dán link prototype Figma (`https://www.figma.com/proto/…`; link `/design/…` cũng được, sẽ tự chuyển sang chế độ prototype, ẩn thanh công cụ Figma và co vừa khung). Mỗi màn hình (`node-id`) được ghi thành một trang riêng trong báo cáo.
 - **Biểu đồ trong báo cáo**: *Attention over time* (mức chú ý theo thời gian), *Attention by page depth* (tỉ lệ chú ý theo từng phần mười chiều cao trang), *Time on each page*, *Clicks on each page*. Có tooltip khi rê chuột/focus bàn phím và bảng số liệu cho từng biểu đồ.
 
-**Figma — lưu ý:** trong **app desktop**, prototype chạy trong trình duyệt thật nên ghi đủ ánh mắt, chuột, click và từng màn hình; có thể đăng nhập Figma ngay trong khung trình duyệt để xem file riêng tư. Ở **bản web**, Figma được nhúng bằng Figma Embed (khác origin) nên chỉ ghi được ánh mắt và việc chuyển màn hình (khi Figma gửi sự kiện), không ghi được chuột/click bên trong.
+**Figma — lưu ý:** trong **app desktop**, prototype chạy trong trình duyệt thật nên ghi đủ ánh mắt, chuột, click và từng màn hình; có thể đăng nhập Figma ngay trong khung trình duyệt để xem file riêng tư. Ở **bản web**, Figma được nhúng trong khung khác origin nên không ghi được chuột bên trong.
+
+Để ghi được **việc chuyển màn hình và click** trong prototype ở bản web, cần một "Figma client ID" (miễn phí, làm một lần):
+  1. Vào [figma.com/developers/apps](https://www.figma.com/developers/apps) → tạo app mới (tên, website, logo tuỳ ý) → copy **Client ID**.
+  2. Trong app đó mở mục **Embed API** → **Add an embed origin** → thêm địa chỉ mở công cụ, ví dụ `http://localhost:3000` (và tên miền thật khi đưa lên mạng, ví dụ `https://heatmap.congty.vn`).
+  3. Trong công cụ: ⚙ **Cài đặt** → **Prototype Figma (Embed API)** → dán Client ID → **Lưu**.
+  Khi đó prototype được nhúng qua `embed.figma.com`; mỗi màn hình (`node-id`) thành một trang trong báo cáo, click được đếm theo màn hình và theo phần tử (node; click không trúng vùng bấm được đánh dấu ✕) nhưng không có vị trí trên heatmap vì Figma không cho toạ độ trên màn hình. Chưa cài client ID thì Figma không gửi sự kiện nào: chỉ ghi được ánh mắt ở màn hình đầu.
+  Lưu ý: theo báo cáo trên diễn đàn Figma, có trường hợp prototype không gửi sự kiện khi người xem chưa đăng nhập Figma; nên chạy thử một phiên trước khi mời người tham gia.
 
 ## Bản online
 

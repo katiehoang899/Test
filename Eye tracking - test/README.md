@@ -115,7 +115,12 @@ Giao diện tự co giãn theo màn hình: trên điện thoại, header xuống
 
 - Eye tracking bằng webcam cần máy tính, Chrome hoặc Edge. Trên điện thoại chỉ nên ghi chạm và cuộn.
 - Người tham gia ở xa tự hiệu chỉnh không có người hướng dẫn: nên dặn ngồi nơi đủ sáng, mặt nhìn thẳng camera. Admin xem độ chính xác hiệu chỉnh trong báo cáo.
-- Figma: dùng Figma Embed, ghi được ánh nhìn và việc chuyển màn hình, không ghi được click bên trong prototype.
+- Figma: nhúng trong khung khác origin nên không ghi được chuột bên trong prototype. Để ghi được **việc chuyển màn hình và click** trong prototype ở bản web, cần một "Figma client ID" (miễn phí, làm một lần):
+  1. Vào [figma.com/developers/apps](https://www.figma.com/developers/apps) → tạo app mới (tên, website, logo tuỳ ý) → copy **Client ID**.
+  2. Trong app đó mở mục **Embed API** → **Add an embed origin** → thêm địa chỉ mở công cụ, ví dụ `http://localhost:3000` (và tên miền thật khi đưa lên mạng, ví dụ `https://heatmap.congty.vn`).
+  3. Trong công cụ: ⚙ **Cài đặt** → **Prototype Figma (Embed API)** → dán Client ID → **Lưu**.
+  Khi đó prototype được nhúng qua `embed.figma.com`; mỗi màn hình (`node-id`) thành một trang trong báo cáo, click được đếm theo màn hình và theo phần tử (node; click không trúng vùng bấm được đánh dấu ✕) nhưng không có vị trí trên heatmap vì Figma không cho toạ độ trên màn hình. Chưa cài client ID thì Figma không gửi sự kiện nào: chỉ ghi được ánh mắt ở màn hình đầu.
+  Lưu ý: theo báo cáo trên diễn đàn Figma, có trường hợp prototype không gửi sự kiện khi người xem chưa đăng nhập Figma; nên chạy thử một phiên trước khi mời người tham gia.
 - Website có chống bot (Cloudflare challenge), đăng nhập bằng bên thứ ba, hoặc gọi API tuyệt đối sang domain khác có thể không chạy đúng qua proxy.
 - File `file://` trên máy không dùng được trong bản online.
 

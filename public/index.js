@@ -74,6 +74,8 @@ function renderSettings(settings) {
   $('#setEye').checked = settings.eyeTrackingEnabled;
   $('#setCamera').checked = !!settings.showCamera;
   $('#setAudioDefault').checked = settings.recordAudioDefault !== false;
+  if (document.activeElement !== $('#setFigmaClient')) $('#setFigmaClient').value = settings.figmaClientId || '';
+  $('#figmaState').textContent = t(settings.figmaClientId ? 'settings.figma_on' : 'settings.figma_off', { origin: location.origin });
   applyAudioDefault(settings);
   $('#cameraSetting').hidden = !settings.eyeTrackingEnabled;
   if (document.activeElement !== $('#setStorage')) $('#setStorage').value = settings.storagePath || '';
@@ -121,6 +123,14 @@ $('#setAudioDefault').addEventListener('change', (e) => I18N.save({ recordAudioD
 }));
 
 // API key chỉ được gửi lên server cục bộ và lưu trong settings.json; trang không bao giờ đọc lại key.
+$('#figmaSave').addEventListener('click', async () => {
+  try {
+    await I18N.save({ figmaClientId: $('#setFigmaClient').value });
+    saved();
+  } catch (err) {
+    toast(err.message);
+  }
+});
 $('#aiKeySave').addEventListener('click', async () => {
   const key = $('#setAiKey').value.trim();
   if (!key) return;

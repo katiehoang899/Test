@@ -198,7 +198,7 @@ async function assertPublicHost(hostname) {
 // nên origin (và localStorage) đổi sau mỗi lần mở app.
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, storageDir: '', asrModel: 'onnx-community/whisper-small' };
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, figmaClientId: '', storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
 
 /** Cài đặt gửi cho trình duyệt: không bao giờ trả lại API key, chỉ cho biết đã có key hay chưa. */
@@ -533,6 +533,8 @@ async function updateSettings(patch) {
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
   if (patch && typeof patch.recordAudioDefault === 'boolean') next.recordAudioDefault = patch.recordAudioDefault;
+  // client ID của app Figma (Embed API) — để prototype nhúng báo chuyển màn hình và click; không phải bí mật
+  if (patch && typeof patch.figmaClientId === 'string') next.figmaClientId = patch.figmaClientId.trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 100);
   if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
   if (patch && typeof patch.anthropicApiKey === 'string') next.anthropicApiKey = patch.anthropicApiKey.trim().slice(0, 300);
   if (patch && typeof patch.storageDir === 'string') {
@@ -1651,7 +1653,7 @@ async function handleApi(req, res, url) {
   // ngôn ngữ cho trang đăng nhập / trang guest: chỉ phần cài đặt không nhạy cảm
   if (parts[1] === 'settings' && parts.length === 2 && req.method === 'GET' && (!user || user.role === 'guest')) {
     const st0 = getSettings();
-    return sendJson(res, 200, { language: st0.language, eyeTrackingEnabled: st0.eyeTrackingEnabled, showCamera: st0.showCamera, recordAudioDefault: st0.recordAudioDefault });
+    return sendJson(res, 200, { language: st0.language, eyeTrackingEnabled: st0.eyeTrackingEnabled, showCamera: st0.showCamera, recordAudioDefault: st0.recordAudioDefault, figmaClientId: st0.figmaClientId || '' });
   }
   if (!user) return apiError(res, 401, 'login_required');
   if (parts[1] === 'account' && parts[2] === 'password' && req.method === 'POST') {

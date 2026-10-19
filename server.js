@@ -196,7 +196,7 @@ async function assertPublicHost(hostname) {
 // nên origin (và localStorage) đổi sau mỗi lần mở app.
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, storageDir: '', asrModel: 'onnx-community/whisper-small' };
+const DEFAULT_SETTINGS = { language: 'en', eyeTrackingEnabled: true, showCamera: false, recordAudioDefault: true, figmaClientId: '', storageDir: '', asrModel: 'onnx-community/whisper-small' };
 const LANGUAGES = ['en', 'vi'];
 
 /** Cài đặt gửi cho trình duyệt: không bao giờ trả lại API key, chỉ cho biết đã có key hay chưa. */
@@ -531,6 +531,8 @@ async function updateSettings(patch) {
   if (patch && typeof patch.eyeTrackingEnabled === 'boolean') next.eyeTrackingEnabled = patch.eyeTrackingEnabled;
   if (patch && typeof patch.showCamera === 'boolean') next.showCamera = patch.showCamera;
   if (patch && typeof patch.recordAudioDefault === 'boolean') next.recordAudioDefault = patch.recordAudioDefault;
+  // client ID của app Figma (Embed API) — để prototype nhúng báo chuyển màn hình và click; không phải bí mật
+  if (patch && typeof patch.figmaClientId === 'string') next.figmaClientId = patch.figmaClientId.trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 100);
   if (patch && ASR_MODELS.includes(patch.asrModel)) next.asrModel = patch.asrModel;
   if (patch && typeof patch.anthropicApiKey === 'string') next.anthropicApiKey = patch.anthropicApiKey.trim().slice(0, 300);
   if (patch && typeof patch.storageDir === 'string') {

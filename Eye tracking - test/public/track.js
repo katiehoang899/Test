@@ -265,15 +265,42 @@ function createIframeBrowser() {
  * bên trong, nhưng vẫn ghi ánh mắt (từ webcam ở trang cha) và màn hình đang hiển thị khi Figma
  * gửi sự kiện PRESENTED_NODE_CHANGED qua postMessage.
  */
+// Figma: prototype nằm trong khung khác origin nên trang không thấy chuột / click bên trong.
+// Có "Figma client ID" (Cài đặt) → nhúng bằng Embed API (embed.figma.com, Embed Kit 2.0): Figma báo
+// mỗi lần chuyển màn hình (PRESENTED_NODE_CHANGED) và mỗi lần bấm (MOUSE_PRESS_OR_RELEASE).
+// Không có client ID → nhúng kiểu cũ: Figma không gửi sự kiện, chỉ ghi được màn hình đầu.
+const FIGMA_ORIGINS = new Set(['https://www.figma.com', 'https://embed.figma.com']);
+
+function figmaEmbedUrl(protoUrl, clientId) {
+  if (!clientId) return 'https://www.figma.com/embed?embed_host=heatmap&url=' + encodeURIComponent(protoUrl);
+  const u = new URL(protoUrl);
+  u.hostname = 'embed.figma.com';
+  u.searchParams.set('embed-host', 'heatmap');
+  u.searchParams.set('client-id', clientId);
+  return u.toString();
+}
+
 function createFigmaEmbedBrowser() {
   const frame = document.createElement('iframe');
   frame.className = 'browser-frame';
   frame.title = t('report.frame_title');
   frame.allow = 'fullscreen';
   browserView.insertBefore(frame, overlay);
+  const clientId = String((I18N.settings && I18N.settings.figmaClientId) || '').trim();
+  $('#figmaNote').dataset.i18n = clientId ? 'track.figma_api_note' : 'track.figma_no_client';
+  I18N.apply($('#figmaNote').parentElement);
   $('#figmaNote').hidden = false;
+  // cột camera thường ẩn → báo thêm bằng toast cho người chạy phiên (guest không tự cài được nên không báo)
+  if (!clientId && !(session && session.guestId)) toast(t('track.figma_no_client'), 9000);
   let protoUrl = null;
+  let lastPress = { key: '', at: 0 };
 
+  // màn hình prototype = link prototype với node-id của màn hình đó (mỗi màn hình là một "trang" trong báo cáo)
+  const screenUrl = (nodeId) => {
+    const u = new URL(protoUrl);
+    u.searchParams.set('node-id', String(nodeId).replace(/:/g, '-'));
+    return u.toString();
+  };
   const pageview = (page) => {
     if (page === currentPage) return; // Figma báo lại màn hình đang hiển thị → không tính thêm lượt xem
     const r = browserView.getBoundingClientRect();
@@ -283,19 +310,33 @@ function createFigmaEmbedBrowser() {
   };
   frame.addEventListener('load', () => protoUrl && pageview(protoUrl));
   window.addEventListener('message', (e) => {
-    if (e.origin !== 'https://www.figma.com' || !e.data || e.data.type !== 'PRESENTED_NODE_CHANGED') return;
-    const nodeId = e.data.data && e.data.data.presentedNodeId;
-    if (!nodeId || !protoUrl) return;
-    const u = new URL(protoUrl);
-    u.searchParams.set('node-id', String(nodeId).replace(/:/g, '-'));
-    pageview(u.toString());
+    if (!FIGMA_ORIGINS.has(e.origin) || !e.data || !protoUrl) return;
+    const { type, data = {} } = e.data;
+    if (type === 'PRESENTED_NODE_CHANGED' && data.presentedNodeId) {
+      pageview(screenUrl(data.presentedNodeId));
+    } else if (type === 'MOUSE_PRESS_OR_RELEASE') {
+      if (data.presentedNodeId) pageview(screenUrl(data.presentedNodeId));
+      // Figma báo cả lúc nhấn và lúc nhả → chỉ tính một click cho cùng phần tử trong chốc lát
+      const target = String(data.targetNodeId || data.presentedNodeId || '');
+      const key = target + '|' + (data.presentedNodeId || '');
+      const now = performance.now();
+      if (key === lastPress.key && now - lastPress.at < 700) return;
+      lastPress = { key, at: now };
+      // Figma chỉ cho toạ độ trong khung thiết kế (không phải trên màn hình) → click không có vị trí:
+      // vẫn được đếm theo màn hình và theo phần tử, nhưng không vẽ lên heatmap.
+      onPageEvent({
+        type: 'click',
+        page: currentPage,
+        el: { tag: 'figma', id: target, cls: data.handled ? 'hotspot' : 'no-hotspot', selector: 'Figma node ' + target + (data.handled ? '' : ' ✕') },
+      });
+    }
   });
 
   return {
     mode: t('track.mode_figma'),
     navigate: (url) => {
       protoUrl = url;
-      frame.src = 'https://www.figma.com/embed?embed_host=heatmap&url=' + encodeURIComponent(url);
+      frame.src = figmaEmbedUrl(url, clientId);
     },
     back: () => {},
     forward: () => {},

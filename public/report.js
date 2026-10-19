@@ -312,16 +312,18 @@ function render() {
   const opacity = Number($('#opacity').value) / 100;
   const merged = state.data.length > 1;
   const inTime = (e, s) => merged || s.idx > 0 || e.t <= state.time;
+  // click trong prototype Figma không có vị trí trên màn hình: vẫn được đếm, nhưng không vẽ
+  const placed = (e) => Number.isFinite(e.x) && Number.isFinite(e.y);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (layer === 'scanpath') {
     drawScanpath(state.data, sx, sy);
   } else {
-    const pts = state.data.flatMap((s) => s[layer].filter((e) => inTime(e, s)));
+    const pts = state.data.flatMap((s) => s[layer].filter((e) => inTime(e, s) && placed(e)));
     drawHeatmap(pts, r, opacity, sx, sy);
   }
   if ($('#showClicks').checked && layer !== 'click') {
-    drawClickMarks(state.data.flatMap((s) => s.click.filter((e) => inTime(e, s))), sx, sy);
+    drawClickMarks(state.data.flatMap((s) => s.click.filter((e) => inTime(e, s) && placed(e))), sx, sy);
   }
 
   // Khi đang tua: vẽ vị trí mắt & chuột tại thời điểm đó.

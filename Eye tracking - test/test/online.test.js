@@ -85,7 +85,7 @@ test('chưa đăng nhập: trang về /login, API 401, proxy bị chặn, file c
   assert.equal(proxied.status, 401);
   // cài đặt công khai chỉ có ngôn ngữ
   const st = (await call('GET', '/__et/api/settings')).body;
-  assert.deepEqual(Object.keys(st).sort(), ['eyeTrackingEnabled', 'language', 'recordAudioDefault', 'showCamera']);
+  assert.deepEqual(Object.keys(st).sort(), ['eyeTrackingEnabled', 'figmaClientId', 'language', 'recordAudioDefault', 'showCamera']);
 });
 
 test('đăng nhập sai bị giới hạn số lần; cookie HttpOnly', async () => {

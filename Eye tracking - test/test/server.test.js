@@ -690,3 +690,9 @@ test('bản ghi lưu mốc tạm dừng / tiếp tục để báo cáo phát l�
   assert.equal(fin2.anchors, undefined); // bản cũ không gửi mốc → báo cáo dùng startT
   await api('DELETE', `/api/sessions/${s.id}`);
 });
+
+test('cài đặt Figma client ID (Embed API): chỉ giữ ký tự hợp lệ, xoá được', async () => {
+  assert.equal((await api('GET', '/api/settings')).body.figmaClientId, '');
+  assert.equal((await api('PUT', '/api/settings', { figmaClientId: '  aB3_x-9 <script>"' })).body.figmaClientId, 'aB3_x-9script');
+  assert.equal((await api('PUT', '/api/settings', { figmaClientId: '' })).body.figmaClientId, '');
+});
