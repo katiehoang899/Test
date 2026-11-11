@@ -1,0 +1,12 @@
+# Cấu hình Cloudflare Pages cho RentMAPs (đưa lên mạng bằng deploy-cloudflare.command).
+#   public/     → giao diện (file tĩnh)
+#   functions/  → /api/* và trang đăng nhập (chạy trên Cloudflare)
+#   D1 (DB)     → tin đã lưu, điểm ngập, đỗ xe, cache geocode
+name = "timtro"
+pages_build_output_dir = "public"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "timtro-db"
+database_id = "00000000-0000-0000-0000-000000000000" # deploy-cloudflare.command tự điền id thật

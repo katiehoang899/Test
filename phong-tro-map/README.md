@@ -146,6 +146,30 @@ Biến môi trường (không bắt buộc):
 
 Chạy test: `npm test`.
 
+## Đưa lên mạng (Cloudflare Pages)
+
+RentMAPs chạy được trên Cloudflare (miễn phí) để mở từ bất cứ đâu, cả trên iPhone: **https://timtro.pages.dev**.
+
+- Giao diện (`public/`) là file tĩnh; các đường dẫn `/api/*` chạy trên Cloudflare Pages Functions (`functions/`), dùng chung lõi xử lý `lib/api.js` với bản chạy trên máy.
+- Dữ liệu (tin đã lưu, điểm ngập, đỗ xe, cache định vị) lưu trong cơ sở dữ liệu **Cloudflare D1** `timtro-db` (ghi xong đọc thấy ngay).
+- Cả trang có **mật khẩu** (`functions/_middleware.js`): ai có link cũng chỉ thấy trang đăng nhập. Đăng nhập một lần, trình duyệt nhớ 1 năm.
+
+**Đưa lên / cập nhật:** trên Mac, bấm đúp `deploy-cloudflare.command` (cần Node.js). Lần đầu script sẽ:
+
+1. mở trình duyệt để **đăng nhập Cloudflare** (chưa có tài khoản thì tạo miễn phí), bấm *Allow*;
+2. tạo cơ sở dữ liệu D1 `timtro-db` và dự án Pages `timtro`;
+3. hỏi **mật khẩu** cho trang (nhập 2 lần);
+4. hỏi có **chép dữ liệu trong máy** (`data/saved.json`, `floods.json`, `parking.json`) lên không;
+5. đưa code lên và mở https://timtro.pages.dev.
+
+Các lần sau bấm đúp lại để cập nhật code mới (không hỏi lại mật khẩu). Đổi mật khẩu: `CHANGE_PASSWORD=1 ./deploy-cloudflare.command`. Đổi tên trang: `PROJECT=ten-khac ./deploy-cloudflare.command`. Nếu tên `timtro` đã có người dùng, Cloudflare thêm vài ký tự vào tên miền (xem dòng *Deployment complete* cuối script).
+
+**Tên miền riêng** (vd. `timtro.vn`): mua tên miền, rồi trong Cloudflare: *Workers & Pages → timtro → Custom domains → Set up a custom domain*.
+
+**Chạy thử bản Cloudflare trên máy:** `npx wrangler pages dev --binding APP_PASSWORD=thu123` (mở http://localhost:8788).
+
+Lưu ý: Chợ Tốt có thể chặn yêu cầu đến từ máy chủ Cloudflare. Nếu trên mạng danh sách tin báo lỗi trong khi chạy trên máy vẫn được, chạy bản trên máy (hướng dẫn ở trên) hoặc báo lại.
+
 ## Ứng dụng macOS (.dmg)
 
 RentMAPs cũng chạy được như một ứng dụng Mac (Electron): server chạy ngay trong app, **không cần cài Node.js**. Dữ liệu (tin yêu thích / đã ẩn, điểm ngập, điểm đỗ xe, cache) lưu ở `~/Library/Application Support/Phong Tro Map` (menu **Dữ liệu → Mở thư mục dữ liệu**). Link tới Nhà Tốt, Google Maps, Zalo mở bằng trình duyệt mặc định.
@@ -161,6 +185,8 @@ RentMAPs cũng chạy được như một ứng dụng Mac (Electron): server ch
 - *System Settings → Privacy & Security* → kéo xuống, bấm **Open Anyway**, hoặc
 - chạy `xattr -dr com.apple.quarantine "/Applications/Phong Tro Map.app"`
 
+**Lưu ý khi build lần tới:** server dùng thêm thư mục `lib/` (lõi xử lý chung với bản Cloudflare): trong `package.json`, mục `build.files` phải có thêm `"lib/**"`, nếu không app .dmg sẽ không chạy.
+
 **Tự build trên Mac:**
 
 ```bash
@@ -172,7 +198,7 @@ npm run dist:mac   # tạo file .dmg trong phong-tro-map/dist/
 
 ## Cách hoạt động
 
-`server.js` là proxy nhỏ tới API công khai mà chính nhatot.com dùng (`gateway.chotot.com/v1/public/ad-listing`, danh mục `cg=1050` = phòng trọ). Trình duyệt không gọi thẳng được API này vì bị chặn CORS. Server cache kết quả 1 phút, danh sách khu vực 1 ngày. Geocode chạy tuần tự 1 request/giây đúng [chính sách của Nominatim](https://operations.osmfoundation.org/policies/nominatim/) và lưu ra file, nên lần sau mở lại không phải định vị lại.
+`server.js` (lõi xử lý trong `lib/api.js`) là proxy nhỏ tới API công khai mà chính nhatot.com dùng (`gateway.chotot.com/v1/public/ad-listing`, danh mục `cg=1050` = phòng trọ). Trình duyệt không gọi thẳng được API này vì bị chặn CORS. Server cache kết quả 1 phút, danh sách khu vực 1 ngày. Geocode chạy tuần tự 1 request/giây đúng [chính sách của Nominatim](https://operations.osmfoundation.org/policies/nominatim/) và lưu ra file, nên lần sau mở lại không phải định vị lại.
 
 Trình duyệt còn **lọc lại** các tin đã tải theo đúng bộ lọc đang chọn (giá, diện tích, khu vực, nội thất, người đăng, từ khoá không dấu). Nhờ vậy nếu API bỏ qua một tham số thì danh sách vẫn đúng bộ lọc, chỉ ít tin hơn.
 
