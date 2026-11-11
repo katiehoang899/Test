@@ -5,7 +5,7 @@
 // Vẽ: bấm lên bản đồ để đặt điểm; bấm lại điểm đầu, bấm đúp, Enter hoặc nút "Xong" để khép vùng;
 // Backspace / "Xoá điểm cuối" để bỏ điểm vừa đặt; Esc / "Huỷ" để thôi.
 (() => {
-  const COLOR = '#1d6fdc';
+  const COLOR = '#1868DB'; // color.background.brand.bold (ADS)
   const pane = map.createPane('zones');
   pane.style.zIndex = 350; // dưới ghim tin và các lớp điểm ngập / đỗ xe
   pane.style.pointerEvents = 'none'; // chỉ để xem: bấm xuyên qua vùng như bình thường

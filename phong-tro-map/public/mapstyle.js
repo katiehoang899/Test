@@ -411,7 +411,7 @@
   function showMe(lat, lng, accuracy) {
     me.clearLayers();
     if (accuracy > 30) {
-      L.circle([lat, lng], { radius: accuracy, interactive: false, color: '#1d6fdc', weight: 1, opacity: 0.5, fillColor: '#1d6fdc', fillOpacity: 0.1 }).addTo(me);
+      L.circle([lat, lng], { radius: accuracy, interactive: false, color: '#1868DB', weight: 1, opacity: 0.5, fillColor: '#1868DB', fillOpacity: 0.1 }).addTo(me);
     }
     L.marker([lat, lng], {
       icon: L.divIcon({ className: 'me-dot', html: '<span></span>', iconSize: [22, 22], iconAnchor: [11, 11] }),
